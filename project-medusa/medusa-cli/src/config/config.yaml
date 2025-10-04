@@ -1,0 +1,41 @@
+# Project Medusa Configuration
+# Version: 0.1.0-alpha
+
+# Kill Box Configuration
+killbox:
+  docker_network: "medusa-net"
+  target_container: "medusa-target"
+  isolated: true
+
+# AI Agent Configuration
+agent:
+  default_model: "gpt-4"
+  temperature: 0.7
+  max_iterations: 50
+  reasoning_depth: 3
+  
+# LLM Provider Settings
+llm:
+  provider: "openai"  # openai, anthropic, local
+  api_key_env: "MEDUSA_LLM_API_KEY"
+  timeout: 30
+  
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "detailed"
+  output_dir: "./logs"
+  console_output: true
+  
+# Security Settings
+security:
+  require_confirmation: true
+  emergency_stop_enabled: true
+  operation_timeout: 3600  # 1 hour max
+  
+# Target Configuration
+targets:
+  webapp:
+    url: "http://localhost:3000"
+    type: "ehr_mock"
+

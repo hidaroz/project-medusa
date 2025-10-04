@@ -1,0 +1,34 @@
+# Project Medusa CLI - Python Dependencies
+# Version: 0.1.0-alpha
+
+# Core CLI framework
+click==8.1.7
+
+# LLM Integration (placeholder - to be implemented)
+# openai==1.3.0
+# anthropic==0.7.0
+
+# Docker management
+# docker==6.1.3
+
+# Logging and monitoring
+rich==13.7.0
+
+# Configuration management
+pyyaml==6.0.1
+
+# HTTP requests
+requests==2.31.0
+
+# Database (for operation logging)
+# sqlalchemy==2.0.23
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Code quality
+black==23.12.1
+flake8==6.1.0
+mypy==1.7.1
+
