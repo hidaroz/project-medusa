@@ -3,6 +3,10 @@ dataset/dataset.json
 dataset/dataset_organized.json
 dataset/*.json
 
+# Local datasets folder (never track this)
+local-datasets/
+local-datasets/*
+
 # Python
 __pycache__/
 *.py[cod]
