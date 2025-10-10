@@ -133,7 +133,7 @@ export default function PatientSearchPage() {
 
         {searchResults.length === 0 && searchTerm && (
           <div className="text-center py-12">
-            <div className="text-slate-400 mb-4">No patients found matching "{searchTerm}"</div>
+            <div className="text-slate-400 mb-4">No patients found matching &quot;{searchTerm}&quot;</div>
             <button
               onClick={() => handleSearch('')}
               className="text-blue-400 hover:text-blue-300 font-medium"

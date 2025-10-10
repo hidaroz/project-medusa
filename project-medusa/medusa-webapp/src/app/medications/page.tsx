@@ -150,7 +150,7 @@ export default function MedicationsPage() {
               <label className="block text-sm text-slate-400 mb-2">Filter by Status</label>
               <select
                 value={filter}
-                onChange={(e) => setFilter(e.target.value as any)}
+                onChange={(e) => setFilter(e.target.value as 'all' | 'active' | 'discontinued' | 'completed')}
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
               >
                 <option value="all">All Medications</option>

@@ -82,7 +82,7 @@ export default function ClinicalNotesPage() {
               <div className="mb-4">
                 <select
                   value={filter}
-                  onChange={(e) => setFilter(e.target.value as any)}
+                  onChange={(e) => setFilter(e.target.value as 'all' | 'draft' | 'signed' | 'amended')}
                   className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
                 >
                   <option value="all">All Notes</option>

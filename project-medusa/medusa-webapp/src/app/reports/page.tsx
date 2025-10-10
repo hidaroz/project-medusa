@@ -201,7 +201,7 @@ export default function ReportsPage() {
               <label className="block text-sm text-slate-400 mb-2">Category</label>
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value as any)}
+                onChange={(e) => setSelectedCategory(e.target.value as 'all' | 'patient' | 'clinical' | 'administrative' | 'financial')}
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
               >
                 <option value="all">All Categories</option>
@@ -215,7 +215,7 @@ export default function ReportsPage() {
               <label className="block text-sm text-slate-400 mb-2">Frequency</label>
               <select
                 value={selectedFrequency}
-                onChange={(e) => setSelectedFrequency(e.target.value as any)}
+                onChange={(e) => setSelectedFrequency(e.target.value as 'all' | 'daily' | 'weekly' | 'monthly')}
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
               >
                 <option value="all">All Frequencies</option>

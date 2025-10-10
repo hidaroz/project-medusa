@@ -124,7 +124,7 @@ export default function ClinicalOrdersPage() {
               <div className="space-y-3 mb-4">
                 <select
                   value={filter}
-                  onChange={(e) => setFilter(e.target.value as any)}
+                  onChange={(e) => setFilter(e.target.value as 'all' | 'pending' | 'in-progress' | 'completed' | 'cancelled')}
                   className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
                 >
                   <option value="all">All Status</option>
@@ -136,7 +136,7 @@ export default function ClinicalOrdersPage() {
                 
                 <select
                   value={typeFilter}
-                  onChange={(e) => setTypeFilter(e.target.value as any)}
+                  onChange={(e) => setTypeFilter(e.target.value as 'all' | 'lab' | 'imaging' | 'medication' | 'procedure')}
                   className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
                 >
                   <option value="all">All Types</option>

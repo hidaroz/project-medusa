@@ -121,7 +121,7 @@ export default function AppointmentsPage() {
           <div className="bg-slate-800 border border-slate-700 rounded-lg p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-slate-400 text-sm mb-1">Today's Appointments</p>
+                <p className="text-slate-400 text-sm mb-1">Today&apos;s Appointments</p>
                 <p className="text-3xl font-bold text-white">
                   {mockAppointments.filter(a => a.date === new Date().toISOString().split('T')[0]).length}
                 </p>
@@ -202,7 +202,7 @@ export default function AppointmentsPage() {
               <label className="block text-sm text-slate-400 mb-2">Filter by Status</label>
               <select
                 value={filter}
-                onChange={(e) => setFilter(e.target.value as any)}
+                onChange={(e) => setFilter(e.target.value as 'all' | 'scheduled' | 'completed' | 'cancelled')}
                 className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-white text-sm"
               >
                 <option value="all">All Appointments</option>
