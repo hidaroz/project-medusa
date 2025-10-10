@@ -2,7 +2,7 @@
 
 **Document Version:** 2.0  
 **Status:** Final Draft  
-**Author:** Hidar Elhassan, Lawrence Wu
+**Author:** Hidar Elhassan, Lawrence Xu, Brian Yuan
 **Last Updated:** October 7, 2025  
 **Project Duration:** 7 weeks  
 **Target Completion:** November 24, 2025
