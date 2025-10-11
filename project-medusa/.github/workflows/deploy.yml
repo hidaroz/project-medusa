@@ -36,10 +36,16 @@ jobs:
           cd medusa-webapp
           npm run build
           
+      - name: Fix GitHub Pages compatibility
+        run: |
+          cd medusa-webapp
+          node fix-github-pages.js
+          
       - name: List build output
         run: |
           cd medusa-webapp
           ls -la out/
+          ls -la out/_next/static/chunks/ | head -10
           
       - name: Setup Pages
         uses: actions/configure-pages@v4

@@ -8,7 +8,7 @@ const nextConfig: NextConfig = {
   },
   // GitHub Pages configuration
   basePath: '/project-medusa',
-  assetPrefix: '/project-medusa/',
+  assetPrefix: '/project-medusa/static/',
 };
 
 export default nextConfig;
