@@ -6,9 +6,9 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true
   },
-  // GitHub Pages typically serves from a subdirectory
-  basePath: process.env.NODE_ENV === 'production' ? '/project-medusa' : '',
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/project-medusa/' : '',
+  // GitHub Pages configuration
+  basePath: '/project-medusa',
+  assetPrefix: '/project-medusa/',
 };
 
 export default nextConfig;
