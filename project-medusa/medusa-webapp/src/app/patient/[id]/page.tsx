@@ -9,8 +9,9 @@ export async function generateStaticParams() {
   }));
 }
 
-export default function PatientDetailPage({ params }: { params: { id: string } }) {
-  const patient = getPatientById(params.id);
+export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const patient = getPatientById(id);
 
   if (!patient) {
     return (
