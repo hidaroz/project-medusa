@@ -36,16 +36,20 @@ jobs:
           cd medusa-webapp
           npm run build
           
-      - name: Fix GitHub Pages compatibility
-        run: |
-          cd medusa-webapp
-          node fix-github-pages.js
-          
       - name: List build output
         run: |
           cd medusa-webapp
           ls -la out/
-          ls -la out/_next/static/chunks/ | head -10
+      
+      - name: Add .nojekyll to allow _next assets on Pages
+        run: |
+          cd medusa-webapp
+          touch out/.nojekyll
+
+      - name: Remove any stray CNAME to avoid invalid custom domain
+        run: |
+          cd medusa-webapp
+          rm -f out/CNAME
           
       - name: Setup Pages
         uses: actions/configure-pages@v4
