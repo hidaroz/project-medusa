@@ -1,27 +1,85 @@
+'use client';
+
 import Link from 'next/link';
-import { getPatientById, getAllPatients } from '@/lib/patients';
+import { useEffect, useState } from 'react';
+import { getPatientById, getAllPatients, Patient } from '@/lib/api';
 import Layout from '@/components/Layout';
 
+// This function is required for static generation but won't be used in client components
 export async function generateStaticParams() {
-  const patients = getAllPatients();
-  return patients.map((patient) => ({
-    id: patient.id,
-  }));
+  try {
+    const patients = await getAllPatients();
+    return patients.map((patient) => ({
+      id: patient.id,
+    }));
+  } catch (error) {
+    console.error('Error generating static params:', error);
+    return [];
+  }
 }
 
-export default async function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const patient = getPatientById(id);
+export default function PatientDetailPage({ params }: { params: { id: string } }) {
+  const [patient, setPatient] = useState<Patient | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  if (!patient) {
+  useEffect(() => {
+    const fetchPatient = async () => {
+      try {
+        setLoading(true);
+        const data = await getPatientById(params.id);
+        setPatient(data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch patient');
+        console.error('Error fetching patient:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPatient();
+  }, [params.id]);
+
+  if (loading) {
     return (
       <Layout>
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold text-white mb-2">Patient Not Found</h1>
-            <Link href="/dashboard" className="text-blue-400 hover:text-blue-300">
-              Return to Dashboard
-            </Link>
+        <div className="p-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-slate-400">Loading patient data...</p>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !patient) {
+    return (
+      <Layout>
+        <div className="p-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h1 className="text-2xl font-bold text-white mb-2">
+                {error ? 'Error Loading Patient' : 'Patient Not Found'}
+              </h1>
+              <p className="text-slate-400 mb-4">
+                {error || 'The requested patient could not be found.'}
+              </p>
+              <Link
+                href="/dashboard"
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                Return to Dashboard
+              </Link>
+            </div>
           </div>
         </div>
       </Layout>
@@ -48,7 +106,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                   <span>Patient ID: {patient.id}</span>
                   <span>MRN: {patient.mrn}</span>
                   <span className={`px-2 py-1 rounded-full text-xs ${
-                    patient.status === 'active' 
+                    patient.status === 'active'
                       ? 'bg-green-600/20 text-green-400 border border-green-600/50'
                       : patient.status === 'inactive'
                       ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-600/50'
@@ -190,7 +248,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                     </div>
                   </div>
                   <span className={`px-3 py-1 text-xs rounded-full font-medium ${
-                    lab.status === 'normal' 
+                    lab.status === 'normal'
                       ? 'bg-green-600/20 text-green-400 border border-green-600/50'
                       : lab.status === 'abnormal'
                       ? 'bg-yellow-600/20 text-yellow-400 border border-yellow-600/50'
@@ -228,7 +286,7 @@ export default async function PatientDetailPage({ params }: { params: Promise<{ 
                       </div>
                     </div>
                     <span className={`px-2 py-1 text-xs rounded-full ${
-                      med.status === 'active' 
+                      med.status === 'active'
                         ? 'bg-green-600/20 text-green-400 border border-green-600/50'
                         : med.status === 'discontinued'
                         ? 'bg-red-600/20 text-red-400 border border-red-600/50'
