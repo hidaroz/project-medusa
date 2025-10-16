@@ -4,9 +4,8 @@
 # Core CLI framework
 click==8.1.7
 
-# LLM Integration (placeholder - to be implemented)
-# openai==1.3.0
-# anthropic==0.7.0
+# LLM Integration
+google-genai==1.0.0
 
 # Docker management
 # docker==6.1.3
