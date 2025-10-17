@@ -1,0 +1,121 @@
+{
+  "method": "intelligent_data_discovery",
+  "access_level": "basic_user",
+  "sources": [
+    {
+      "name": "Personal_Documents",
+      "type": "personal_files",
+      "path": "~/Documents",
+      "accessible": true,
+      "estimated_records": 15
+    },
+    {
+      "name": "Downloads_Folder",
+      "type": "personal_files",
+      "path": "~/Downloads",
+      "accessible": true,
+      "estimated_records": 20
+    },
+    {
+      "name": "Browser_History",
+      "type": "browser_data",
+      "path": "~/AppData/Local/Chrome/User Data",
+      "accessible": true,
+      "estimated_records": 50
+    },
+    {
+      "name": "Saved_Passwords",
+      "type": "credentials",
+      "path": "~/AppData/Local/Chrome/User Data",
+      "accessible": true,
+      "estimated_records": 8
+    },
+    {
+      "name": "Desktop_Files",
+      "type": "personal_files",
+      "path": "~/Desktop",
+      "accessible": true,
+      "estimated_records": 12
+    },
+    {
+      "name": "Local_App_Data",
+      "type": "system_data",
+      "path": "~/AppData/Local",
+      "accessible": true,
+      "estimated_records": 25
+    }
+  ],
+  "classified_data": [
+    {
+      "source_name": "Personal_Documents",
+      "source_path": "~/Documents",
+      "classification": "personal_info",
+      "confidence_score": 0.86,
+      "confidence_level": "HIGH_CONFIDENCE",
+      "estimated_records": 15,
+      "estimated_value": 1500,
+      "ai_reasoning": "The data sample includes a person's name, email address, phone number, and physical address, which are all direct examples of personal identifying information and contact details.",
+      "accessible": true
+    },
+    {
+      "source_name": "Downloads_Folder",
+      "source_path": "~/Downloads",
+      "classification": "personal_info",
+      "confidence_score": 0.8,
+      "confidence_level": "HIGH_CONFIDENCE",
+      "estimated_records": 20,
+      "estimated_value": 2000,
+      "ai_reasoning": "The data sample contains a name, email address, phone number, and physical address, all of which are explicit examples of personal details and identifying information.",
+      "accessible": true
+    },
+    {
+      "source_name": "Browser_History",
+      "source_path": "~/AppData/Local/Chrome/User Data",
+      "classification": "personal_info",
+      "confidence_score": 0.835,
+      "confidence_level": "HIGH_CONFIDENCE",
+      "estimated_records": 50,
+      "estimated_value": 5000,
+      "ai_reasoning": "The data sample primarily consists of personally identifiable information (PII) such as Name, Email, Phone, and Address. The \"Last Login\" date is also directly associated with an individual's activity. While \"Browser: Chrome\" could be seen as system data, in this context within a user's profile, it's a detail about the user's personal setup. The overwhelming majority of the explicit data points fall under personal details.",
+      "accessible": true
+    },
+    {
+      "source_name": "Saved_Passwords",
+      "source_path": "~/AppData/Local/Chrome/User Data",
+      "classification": "credentials",
+      "confidence_score": 0.7999999999999999,
+      "confidence_level": "MEDIUM_CONFIDENCE",
+      "estimated_records": 8,
+      "estimated_value": 4000,
+      "ai_reasoning": "The data sample explicitly contains a username, password, API key, and an authentication token, all of which are primary examples of credentials used for authentication.",
+      "accessible": true
+    },
+    {
+      "source_name": "Desktop_Files",
+      "source_path": "~/Desktop",
+      "classification": "personal_info",
+      "confidence_score": 0.8,
+      "confidence_level": "HIGH_CONFIDENCE",
+      "estimated_records": 12,
+      "estimated_value": 1200,
+      "ai_reasoning": "The data sample contains an individual's name, email address, phone number, and physical address, along with usage details like browser and last login, which are all classic examples of personal identifying information and personal details.",
+      "accessible": true
+    },
+    {
+      "source_name": "Local_App_Data",
+      "source_path": "~/AppData/Local",
+      "classification": "credentials",
+      "confidence_score": 0.6799999999999999,
+      "confidence_level": "MEDIUM_CONFIDENCE",
+      "estimated_records": 25,
+      "estimated_value": 12500,
+      "ai_reasoning": "The data sample explicitly contains a 'Username' and 'Password' (db_admin, AdminPass123!) for database access, which are direct examples of authentication data and passwords, fitting the definition of credentials. While it also contains system configuration details, the presence of the password is the most defining and sensitive characteristic for this classification.",
+      "accessible": true
+    }
+  ],
+  "discovery_time": 32.81421899795532,
+  "efficiency": 237.7018328696479,
+  "total_found": 6,
+  "total_value": 26200,
+  "high_confidence_count": 4
+}

@@ -7,7 +7,8 @@ Main entry point for the command-line interface
 import sys
 import argparse
 import os
-from typing import Optional
+import json
+from typing import Optional, Dict, Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -101,6 +102,28 @@ class MedusaCLI:
             help='Display current system status'
         )
 
+        # Natural language commands - Human-friendly interface
+        object_parser = subparsers.add_parser(
+            'find',
+            help='Find specific data types using natural language'
+        )
+        object_parser.add_argument(
+            'object',
+            type=str,
+            help='What to find (e.g., "medical records", "passwords", "financial data", "all data")'
+        )
+        object_parser.add_argument(
+            '--extract',
+            action='store_true',
+            help='Extract found data to files'
+        )
+        object_parser.add_argument(
+            '--output',
+            type=str,
+            default='discovery_results.json',
+            help='Save discovery results to file'
+        )
+
         # Assess command - Run AI security assessment
         assess_parser = subparsers.add_parser(
             'assess',
@@ -146,6 +169,7 @@ class MedusaCLI:
             'report': self._handle_report,
             'stop': self._handle_stop,
             'status': self._handle_status,
+            'find': self._handle_find_operation,
             'assess': self._handle_assess,
         }
 
@@ -233,9 +257,147 @@ class MedusaCLI:
         self.console.print(table)
         return 0
 
+
+    def _handle_find_operation(self, args) -> int:
+        """Handle natural language find operations - Human-friendly interface"""
+        self.console.print(Panel(f"🔍 [bold blue]C2 Agent: Finding '{args.object}'[/bold blue]", style="blue"))
+        
+        try:
+            # Initialize AI agent
+            api_key = os.getenv('GEMINI_API_KEY')
+            if not api_key:
+                self.console.print("❌ [red]Error: No Gemini API key provided[/red]")
+                self.console.print("   Set GEMINI_API_KEY environment variable")
+                return 1
+            
+            self.ai_agent = MedusaAIAgent(api_key)
+            
+            # Map natural language to data types
+            data_type = self._map_object_to_data_type(args.object)
+            
+            # Run discovery with mapped data type
+            results = self.ai_agent.discover_data_sources(data_type)
+            
+            # Display results in a friendly way
+            self.console.print(Panel(f"📊 [bold green]Found '{args.object}' - Discovery Results[/bold green]", style="green"))
+            
+            table = Table(show_header=True, header_style="bold magenta")
+            table.add_column("Metric", style="cyan")
+            table.add_column("Value", style="green")
+            
+            table.add_row("Access Level", results.get("access_level", "unknown").upper())
+            table.add_row("Sources Found", str(results.get("total_found", 0)))
+            table.add_row("High Confidence", str(results.get("high_confidence_count", 0)))
+            table.add_row("Discovery Time", f"{results.get('discovery_time', 0):.2f}s")
+            table.add_row("Efficiency", f"{results.get('efficiency', 0):.1f} rec/min")
+            table.add_row("Total Value", f"${results.get('total_value', 0):,.2f}")
+            
+            # Calculate efficiency grade
+            efficiency = results.get('efficiency', 0)
+            if efficiency >= 400:
+                grade = "A+ (Excellent)"
+            elif efficiency >= 200:
+                grade = "A (Very Good)"
+            elif efficiency >= 100:
+                grade = "B (Good)"
+            elif efficiency >= 50:
+                grade = "C (Satisfactory)"
+            else:
+                grade = "D (Needs Improvement)"
+            
+            table.add_row("Performance Grade", grade)
+            
+            self.console.print(table)
+            
+            # Extract high-value data if requested
+            if args.extract:
+                self._extract_high_value_data(results)
+            
+            # Save results
+            with open(args.output, 'w') as f:
+                json.dump(results, f, indent=2)
+            self.console.print(f"📄 [green]Results saved to: {args.output}[/green]")
+            
+            return 0
+            
+        except Exception as e:
+            self.console.print(f"❌ [red]Find operation failed: {e}[/red]")
+            return 1
+
+    def _map_object_to_data_type(self, object_name: str) -> str:
+        """Map natural language object names to data types"""
+        object_lower = object_name.lower()
+        
+        # Medical records
+        if any(keyword in object_lower for keyword in ['medical', 'patient', 'health', 'hospital', 'clinic', 'doctor']):
+            return "medical_records"
+        
+        # Financial data
+        elif any(keyword in object_lower for keyword in ['financial', 'money', 'bank', 'credit', 'salary', 'payroll', 'accounting']):
+            return "financial_data"
+        
+        # Credentials
+        elif any(keyword in object_lower for keyword in ['password', 'credential', 'login', 'auth', 'key', 'token', 'secret']):
+            return "credentials"
+        
+        # Personal information
+        elif any(keyword in object_lower for keyword in ['personal', 'contact', 'email', 'phone', 'address', 'user']):
+            return "personal_info"
+        
+        # System data
+        elif any(keyword in object_lower for keyword in ['system', 'config', 'log', 'backup', 'admin']):
+            return "system_data"
+        
+        # All data
+        elif any(keyword in object_lower for keyword in ['all', 'everything', 'data', 'files', 'records']):
+            return "all"
+        
+        # Default to all if unclear
+        else:
+            return "all"
+
+    def _extract_high_value_data(self, results: Dict[str, Any]):
+        """Extract high-value data to files"""
+        self.console.print(Panel("💾 [bold cyan]Extracting High-Value Data[/bold cyan]", style="cyan"))
+
+        try:
+            classified_data = results.get("classified_data", [])
+            high_value_data = [
+                item for item in classified_data
+                if item.get("confidence_level") == "HIGH_CONFIDENCE" and item.get("estimated_value", 0) > 0
+            ]
+
+            if not high_value_data:
+                self.console.print("⚠️ [yellow]No high-value data found for extraction[/yellow]")
+                return
+
+            # Group by classification
+            data_by_type = {}
+            for item in high_value_data:
+                classification = item.get("classification", "unclassified")
+                if classification not in data_by_type:
+                    data_by_type[classification] = []
+                data_by_type[classification].append(item)
+
+            # Save each type to separate files
+            for classification, items in data_by_type.items():
+                filename = f"medusa_extracted_data/{classification}_data.json"
+                os.makedirs("medusa_extracted_data", exist_ok=True)
+
+                with open(filename, 'w') as f:
+                    json.dump(items, f, indent=2)
+
+                total_value = sum(item.get("estimated_value", 0) for item in items)
+                self.console.print(f"  ✅ [green]Saved {len(items)} {classification} records (${total_value:,.2f}) to {filename}[/green]")
+
+            self.console.print(f"💰 [green]Total extracted value: ${sum(item.get('estimated_value', 0) for item in high_value_data):,.2f}[/green]")
+
+        except Exception as e:
+            self.console.print(f"❌ [red]Data extraction failed: {e}[/red]")
+
     def _handle_assess(self, args) -> int:
-        """Handle the assess command - Run AI security assessment"""
-        self.console.print(Panel("🔍 [bold yellow]Starting AI Security Assessment[/bold yellow]", style="yellow"))
+        """Handle the assess command - Run autonomous C2 assessment"""
+        self.console.print(Panel("🤖 [bold blue]C2 Agent: Autonomous Assessment[/bold blue]", style="blue"))
 
         try:
             # Initialize AI agent
@@ -247,22 +409,24 @@ class MedusaCLI:
 
             self.ai_agent = MedusaAIAgent(api_key)
 
-            # Run autonomous assessment
+            # Run autonomous C2 assessment
             results = self.ai_agent.run_autonomous_assessment()
 
             # Display results summary
-            self.console.print(Panel("📊 [bold green]Assessment Complete[/bold green]", style="green"))
+            self.console.print(Panel("📊 [bold green]C2 Assessment Complete[/bold green]", style="green"))
 
-            # Show profit summary table
+            # Show assessment summary table
             table = Table(show_header=True, header_style="bold magenta")
             table.add_column("Metric", style="cyan")
             table.add_column("Value", style="green")
 
-            table.add_row("Valuable Endpoints", str(len(results["targets"].get("api_endpoints", []))))
-            table.add_row("Profit Opportunities", str(len(results["vulnerabilities"])))
-            table.add_row("Successful Extractions", str(len(results["attack_results"].get("successful_extractions", []))))
-            table.add_row("Data Types Stolen", str(len(results["attack_results"].get("valuable_data_stolen", []))))
-            table.add_row("Estimated Profit", f"${results['attack_results'].get('estimated_profit', 0):,}")
+            table.add_row("Access Level", results.get("access_level", "unknown").upper())
+            table.add_row("Network Resources", str(len(results.get("network_discovery", {}).get("resources", []))))
+            table.add_row("Data Sources", str(len(results.get("data_discovery", {}).get("sources", []))))
+            table.add_row("Privilege Escalation", "✅ SUCCESS" if results.get("privilege_escalation", {}).get("success") else "❌ FAILED")
+            table.add_row("Records Exfiltrated", str(results.get("data_exfiltration", {}).get("total_records", 0)))
+            table.add_row("Total Value", f"${results.get('data_exfiltration', {}).get('total_value', 0):,.2f}")
+            table.add_row("Performance Grade", results.get("performance_grade", "N/A"))
 
             self.console.print(table)
 
@@ -274,7 +438,7 @@ class MedusaCLI:
 
             # Save report
             with open(args.output, 'w') as f:
-                f.write(results["report"])
+                json.dump(results, f, indent=2)
             self.console.print(f"📄 [green]Report saved to: {args.output}[/green]")
 
             return 0
