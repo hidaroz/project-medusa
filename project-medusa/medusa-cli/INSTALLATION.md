@@ -12,7 +12,7 @@
 
 1. Go to [Google AI Studio](https://ai.google.dev/gemini-api/docs/quickstart)
 2. Sign in with your Google account
-3. Click "Get API key" 
+3. Click "Get API key"
 4. Create a new API key
 5. Copy the API key
 
