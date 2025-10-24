@@ -32,7 +32,9 @@ For full details, see [`/project-medusa/README.md`](./project-medusa/README.md).
 ## Team
 
 **Developed by:** Hidar Elhassan, Lawrence Xu, Brian Yuan
-**Advisor:** [Instructor’s Name], University of Washington  
+
+**Advisor:** [Instructor’s Name], University of Washington 
+
 **Course:** INFO 492 – Capstone Project  
 
 ---
