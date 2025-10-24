@@ -2,13 +2,18 @@
 
 :root {
   --background: #0f172a;
-  --foreground: #e2e8f0;
+  --foreground: #f1f5f9;
   --primary: #3b82f6;
-  --primary-dark: #2563eb;
+  --primary-dark: #1e40af;
   --secondary: #1e293b;
   --accent: #10b981;
   --danger: #ef4444;
   --warning: #f59e0b;
+  --epic-blue: #0066cc;
+  --epic-dark-blue: #004499;
+  --epic-light-blue: #e6f2ff;
+  --epic-gray: #6b7280;
+  --epic-dark-gray: #374151;
 }
 
 @theme inline {
@@ -22,4 +27,36 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+/* Smooth transitions for all interactive elements */
+* {
+  transition: color 0.2s ease, background-color 0.2s ease, border-color 0.2s ease;
+}
+
+/* Focus styles for accessibility */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
 }

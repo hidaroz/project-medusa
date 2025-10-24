@@ -1,40 +1,77 @@
 'use client';
 
 import Link from 'next/link';
-import { getAllPatients } from '@/lib/patients';
+import { useEffect, useState } from 'react';
+import { getAllPatients, Patient } from '@/lib/api';
+import Layout from '@/components/Layout';
 
 export default function DashboardPage() {
-  const patients = getAllPatients();
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  return (
-    <div className="min-h-screen bg-slate-900">
-      {/* Header */}
-      <header className="bg-slate-800 border-b border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="flex items-center justify-center w-10 h-10 bg-blue-600 rounded-lg mr-3">
-                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h1 className="text-xl font-bold text-white">MedCare EHR</h1>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-slate-400 text-sm">Dr. Admin User</span>
-              <Link 
-                href="/"
-                className="px-4 py-2 text-sm bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition"
-              >
-                Logout
-              </Link>
+  useEffect(() => {
+    const fetchPatients = async () => {
+      try {
+        setLoading(true);
+        const data = await getAllPatients();
+        setPatients(data);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch patients');
+        console.error('Error fetching patients:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPatients();
+  }, []);
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="p-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+              <p className="text-slate-400">Loading patients...</p>
             </div>
           </div>
         </div>
-      </header>
+      </Layout>
+    );
+  }
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  if (error) {
+    return (
+      <Layout>
+        <div className="p-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="w-12 h-12 bg-red-600/20 rounded-lg flex items-center justify-center mx-auto mb-4">
+                <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-white mb-2">Error Loading Patients</h3>
+              <p className="text-slate-400 mb-4">{error}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              >
+                Retry
+              </button>
+            </div>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  return (
+    <Layout>
+      <div className="p-8">
         <div className="mb-8">
           <h2 className="text-3xl font-bold text-white mb-2">Patient Dashboard</h2>
           <p className="text-slate-400">Manage and view patient records</p>
@@ -147,8 +184,8 @@ export default function DashboardPage() {
             </table>
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </Layout>
   );
 }
 
