@@ -57,3 +57,6 @@ jspm_packages/
 # OS
 .DS_Store
 Thumbs.db
+
+# Training datasets (contain fake API keys for LLM training)
+local-datasets/
