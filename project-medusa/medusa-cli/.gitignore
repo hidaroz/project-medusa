@@ -20,10 +20,11 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Virtual environments
 venv/
 env/
 ENV/
+.venv
 
 # IDE
 .vscode/
@@ -32,25 +33,17 @@ ENV/
 *.swo
 *~
 
+# MEDUSA specific
+.medusa/
+medusa_extracted_data/
+*.log
+medusa_assessment_report.txt
+
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
 
-# Logs
-*.log
-logs/
-
-# Environment variables
-.env
-.env.local
-
-# Operation data
-operations/
-*.db
-
-# Secrets
-secrets/
-*.key
-*.pem
-
+# OS
+.DS_Store
+Thumbs.db
