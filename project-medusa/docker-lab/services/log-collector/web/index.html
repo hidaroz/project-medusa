@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedCare Log Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+        }
+        .header {
+            background: #2d2d30;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            color: #4ec9b0;
+            font-size: 24px;
+        }
+        .header p {
+            color: #858585;
+            margin-top: 5px;
+        }
+        .log-container {
+            background: #252526;
+            border-radius: 5px;
+            padding: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #3e3e42;
+        }
+        .log-entry {
+            padding: 8px;
+            margin-bottom: 5px;
+            border-left: 3px solid #4ec9b0;
+            background: #2d2d30;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .log-entry.error {
+            border-left-color: #f48771;
+            background: #3a2626;
+        }
+        .log-entry.warning {
+            border-left-color: #dcdcaa;
+            background: #3a3a26;
+        }
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        .btn {
+            padding: 10px 20px;
+            background: #0e639c;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn:hover {
+            background: #1177bb;
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #2d2d30;
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #4ec9b0;
+        }
+        .stat-card h3 {
+            color: #858585;
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+        .stat-card .value {
+            font-size: 24px;
+            color: #4ec9b0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📊 MedCare Log Viewer</h1>
+        <p>Real-time system logs and activity monitoring</p>
+    </div>
+    
+    <div class="stats">
+        <div class="stat-card">
+            <h3>TOTAL EVENTS</h3>
+            <div class="value" id="total-events">0</div>
+        </div>
+        <div class="stat-card">
+            <h3>ERRORS</h3>
+            <div class="value" id="error-count">0</div>
+        </div>
+        <div class="stat-card">
+            <h3>WARNINGS</h3>
+            <div class="value" id="warning-count">0</div>
+        </div>
+        <div class="stat-card">
+            <h3>ACTIVE SERVICES</h3>
+            <div class="value">8</div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <button class="btn" onclick="refreshLogs()">🔄 Refresh</button>
+        <button class="btn" onclick="clearDisplay()">🗑️ Clear Display</button>
+        <button class="btn" onclick="downloadLogs()">💾 Download Logs</button>
+    </div>
+    
+    <div class="log-container" id="log-container">
+        <div class="log-entry">
+            <strong>[INFO]</strong> Log collector started successfully
+        </div>
+        <div class="log-entry">
+            <strong>[INFO]</strong> Listening on UDP/TCP port 514
+        </div>
+        <div class="log-entry">
+            <strong>[INFO]</strong> Web interface available on port 80
+        </div>
+        <div class="log-entry">
+            <strong>[INFO]</strong> Waiting for log entries from network services...
+        </div>
+    </div>
+
+    <script>
+        let totalEvents = 0;
+        let errorCount = 0;
+        let warningCount = 0;
+
+        function refreshLogs() {
+            // In a real implementation, this would fetch logs from the server
+            const logContainer = document.getElementById('log-container');
+            const timestamp = new Date().toISOString();
+            
+            const sampleLogs = [
+                { level: 'info', message: `[${timestamp}] Database query executed successfully` },
+                { level: 'info', message: `[${timestamp}] SSH connection attempt from 172.21.0.5` },
+                { level: 'warning', message: `[${timestamp}] Failed login attempt - username: admin` },
+                { level: 'info', message: `[${timestamp}] API request: GET /api/patients/1` },
+                { level: 'info', message: `[${timestamp}] FTP connection established from 172.21.0.8` }
+            ];
+            
+            sampleLogs.forEach(log => {
+                const entry = document.createElement('div');
+                entry.className = `log-entry ${log.level}`;
+                entry.innerHTML = `<strong>[${log.level.toUpperCase()}]</strong> ${log.message}`;
+                logContainer.appendChild(entry);
+                
+                totalEvents++;
+                if (log.level === 'error') errorCount++;
+                if (log.level === 'warning') warningCount++;
+            });
+            
+            logContainer.scrollTop = logContainer.scrollHeight;
+            updateStats();
+        }
+
+        function updateStats() {
+            document.getElementById('total-events').textContent = totalEvents;
+            document.getElementById('error-count').textContent = errorCount;
+            document.getElementById('warning-count').textContent = warningCount;
+        }
+
+        function clearDisplay() {
+            document.getElementById('log-container').innerHTML = '';
+            totalEvents = 0;
+            errorCount = 0;
+            warningCount = 0;
+            updateStats();
+        }
+
+        function downloadLogs() {
+            alert('Log download functionality - In production, this would download /var/log/collected/all.log');
+        }
+
+        // Auto-refresh every 5 seconds
+        setInterval(refreshLogs, 5000);
+    </script>
+</body>
+</html>
+
