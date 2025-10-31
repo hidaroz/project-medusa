@@ -1,23 +1,52 @@
 """
 Backend API client for MEDUSA
 Handles communication with the backend penetration testing API
-Includes mock responses for development
+Includes mock responses for development and real LLM integration
 """
 
 import httpx
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import random
+import logging
+
+from medusa.core.llm import LLMConfig, create_llm_client, LLMClient, MockLLMClient
+
+logger = logging.getLogger(__name__)
 
 
 class MedusaClient:
     """Client for communicating with MEDUSA backend API"""
 
-    def __init__(self, base_url: str, api_key: str, timeout: int = 30):
+    def __init__(
+        self, 
+        base_url: str, 
+        api_key: str, 
+        timeout: int = 30,
+        llm_config: Optional[Dict[str, Any]] = None
+    ):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
         self.timeout = timeout
         self.client = httpx.AsyncClient(timeout=timeout)
+        
+        # Initialize LLM client
+        if llm_config:
+            llm_cfg = LLMConfig(
+                api_key=llm_config.get("api_key", api_key),
+                model=llm_config.get("model", "gemini-pro"),
+                temperature=llm_config.get("temperature", 0.7),
+                max_tokens=llm_config.get("max_tokens", 2048),
+                timeout=llm_config.get("timeout", 30),
+                max_retries=llm_config.get("max_retries", 3),
+                mock_mode=llm_config.get("mock_mode", False)
+            )
+            self.llm_client = create_llm_client(llm_cfg)
+            logger.info(f"LLM client initialized: {type(self.llm_client).__name__}")
+        else:
+            # Fallback to mock mode if no config provided
+            self.llm_client = MockLLMClient()
+            logger.info("No LLM config provided, using MockLLMClient")
 
     async def __aenter__(self):
         """Support async context manager entry."""
@@ -322,37 +351,154 @@ class MedusaClient:
         }
 
     async def get_ai_recommendation(self, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Get AI recommendation for next action"""
-        # Mock AI-powered recommendation
-        recommendations = [
-            {
-                "action": "exploit_sql_injection",
-                "confidence": 0.85,
-                "reasoning": "Detected SQL injection vulnerability with high success probability",
-                "technique": "T1190",
-                "risk_level": "MEDIUM",
-            },
-            {
-                "action": "enumerate_databases",
-                "confidence": 0.92,
-                "reasoning": "Successful authentication allows database enumeration",
-                "technique": "T1046",
-                "risk_level": "LOW",
-            },
-            {
-                "action": "exfiltrate_patient_data",
-                "confidence": 0.78,
-                "reasoning": "Unauthenticated access to patient records API",
-                "technique": "T1041",
-                "risk_level": "HIGH",
-            },
-        ]
-
-        return {
-            "recommendations": random.sample(recommendations, k=2),
-            "context_analysis": "Target appears to be a healthcare application with multiple security weaknesses",
-            "suggested_next_phase": "exploitation",
-        }
+        """
+        Get AI recommendation for next action using LLM
+        
+        Args:
+            context: Operation context including phase, findings, history
+            
+        Returns:
+            Dict with recommendations, analysis, and suggested next phase
+        """
+        try:
+            logger.debug(f"Requesting AI recommendation for context: {context.get('phase', 'unknown')}")
+            result = await self.llm_client.get_next_action_recommendation(context)
+            logger.info("AI recommendation generated successfully")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to get AI recommendation: {e}")
+            # Fallback to safe mock response
+            return {
+                "recommendations": [
+                    {
+                        "action": "continue_enumeration",
+                        "confidence": 0.7,
+                        "reasoning": "Continue systematic enumeration",
+                        "technique": "T1590",
+                        "risk_level": "LOW",
+                    }
+                ],
+                "context_analysis": "Continuing with safe reconnaissance activities",
+                "suggested_next_phase": context.get("phase", "enumeration"),
+            }
+    
+    async def get_reconnaissance_strategy(
+        self,
+        target: str,
+        context: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Get AI-powered reconnaissance strategy
+        
+        Args:
+            target: Target URL or IP
+            context: Additional context
+            
+        Returns:
+            Dict with reconnaissance recommendations
+        """
+        try:
+            logger.debug(f"Requesting reconnaissance strategy for {target}")
+            result = await self.llm_client.get_reconnaissance_recommendation(
+                target, 
+                context or {}
+            )
+            logger.info("Reconnaissance strategy generated")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to get reconnaissance strategy: {e}")
+            return {
+                "recommended_actions": [],
+                "focus_areas": ["web_services"],
+                "risk_assessment": "LOW"
+            }
+    
+    async def get_enumeration_strategy(
+        self,
+        target: str,
+        findings: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
+        """
+        Get AI-powered enumeration strategy based on reconnaissance findings
+        
+        Args:
+            target: Target URL or IP
+            findings: Reconnaissance findings
+            
+        Returns:
+            Dict with enumeration recommendations
+        """
+        try:
+            logger.debug(f"Requesting enumeration strategy for {target}")
+            result = await self.llm_client.get_enumeration_recommendation(target, findings)
+            logger.info("Enumeration strategy generated")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to get enumeration strategy: {e}")
+            return {
+                "recommended_actions": [],
+                "services_to_probe": ["http"],
+                "risk_assessment": "LOW"
+            }
+    
+    async def assess_vulnerability_risk(
+        self,
+        vulnerability: Dict[str, Any],
+        target_context: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """
+        Assess risk level of a vulnerability using AI
+        
+        Args:
+            vulnerability: Vulnerability details
+            target_context: Target environment context
+            
+        Returns:
+            Risk level: "LOW", "MEDIUM", "HIGH", or "CRITICAL"
+        """
+        try:
+            logger.debug(f"Assessing risk for vulnerability: {vulnerability.get('type', 'unknown')}")
+            risk = await self.llm_client.assess_vulnerability_risk(vulnerability, target_context)
+            logger.info(f"Risk assessed as: {risk}")
+            return risk
+        except Exception as e:
+            logger.error(f"Failed to assess vulnerability risk: {e}")
+            # Safe default
+            return vulnerability.get("severity", "MEDIUM").upper()
+    
+    async def plan_attack_strategy(
+        self,
+        target: str,
+        findings: List[Dict[str, Any]],
+        objectives: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        Generate comprehensive attack strategy using AI
+        
+        Args:
+            target: Target URL or IP
+            findings: All findings so far
+            objectives: Attack objectives
+            
+        Returns:
+            Dict with attack plan and strategy
+        """
+        try:
+            logger.debug(f"Planning attack strategy for {target}")
+            result = await self.llm_client.plan_attack_strategy(
+                target,
+                findings,
+                objectives or ["security_assessment"]
+            )
+            logger.info("Attack strategy generated")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to plan attack strategy: {e}")
+            return {
+                "strategy_overview": "Conservative security assessment",
+                "attack_chain": [],
+                "success_probability": 0.5
+            }
 
 
 # Synchronous wrapper for simpler usage

@@ -22,6 +22,16 @@ class Config:
     CONFIG_FILE = "config.yaml"
     LOGS_DIR = "logs"
     REPORTS_DIR = "reports"
+    
+    # Default LLM configuration
+    DEFAULT_LLM_CONFIG = {
+        "model": "gemini-pro",
+        "temperature": 0.7,
+        "max_tokens": 2048,
+        "timeout": 30,
+        "max_retries": 3,
+        "mock_mode": False
+    }
 
     def __init__(self, config_dir: Optional[Path] = None):
         self.config_dir = config_dir or self.DEFAULT_CONFIG_DIR
@@ -65,6 +75,23 @@ class Config:
         if not self.config_data:
             self.load()
         return self.config_data.get(key, default)
+    
+    def get_llm_config(self) -> Dict[str, Any]:
+        """Get LLM configuration with defaults"""
+        if not self.config_data:
+            self.load()
+        
+        llm_config = self.config_data.get("llm", {})
+        
+        # Merge with defaults
+        config = self.DEFAULT_LLM_CONFIG.copy()
+        config.update(llm_config)
+        
+        # Add API key from root config if not in llm section
+        if "api_key" not in config and "api_key" in self.config_data:
+            config["api_key"] = self.config_data["api_key"]
+        
+        return config
 
     def run_setup_wizard(self) -> Dict[str, Any]:
         """Run interactive setup wizard"""
@@ -106,6 +133,16 @@ class Config:
 
         console.print("[green]✓ API key validated[/green]\n")
         config["api_key"] = api_key
+        
+        # LLM Configuration (using Gemini)
+        config["llm"] = {
+            "model": "gemini-pro",
+            "temperature": 0.7,
+            "max_tokens": 2048,
+            "timeout": 30,
+            "max_retries": 3,
+            "mock_mode": False  # Set to True for testing without API calls
+        }
 
         # Step 2: Target Environment
         console.print("[bold yellow][2/4][/bold yellow] [cyan]Target Environment[/cyan]")

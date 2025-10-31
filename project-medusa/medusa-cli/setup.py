@@ -29,7 +29,7 @@ setup(
     description="AI-powered autonomous penetration testing CLI for security professionals",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/medusa-security/medusa-cli",
+    url="https://github.com/hidaroz/project-medusa",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     classifiers=[
@@ -60,8 +60,8 @@ setup(
     },
     zip_safe=False,
     project_urls={
-        "Bug Reports": "https://github.com/medusa-security/medusa-cli/issues",
+        "Bug Reports": "https://github.com/hidaroz/project-medusa/issues",
         "Documentation": "https://docs.medusa.dev",
-        "Source": "https://github.com/medusa-security/medusa-cli",
+        "Source": "https://github.com/hidaroz/project-medusa",
     },
 )

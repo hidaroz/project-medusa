@@ -1,0 +1,513 @@
+---
+description: Project restructuring and architecture guidelines
+alwaysApply: false
+---
+# MEDUSA Restructuring Rules
+
+## Current Mission
+Transform MEDUSA from 70% complete with messy structure to 100% complete with clean monorepo architecture.
+
+## Target Structure
+
+```
+medusa/
+├── medusa-cli/                      # Main AI agent (Python)
+│   ├── README.md
+│   ├── pyproject.toml
+│   ├── setup.py
+│   ├── requirements.txt
+│   ├── .env.example
+│   │
+│   ├── medusa/                      # Source code
+│   │   ├── __init__.py
+│   │   ├── cli.py                   # CLI entry point
+│   │   ├── config.py                # Configuration
+│   │   │
+│   │   ├── core/                    # Core logic
+│   │   │   ├── __init__.py
+│   │   │   ├── agent.py            # AI agent orchestration
+│   │   │   ├── approval.py         # Approval gate system
+│   │   │   ├── llm.py              # LLM integration (NEW)
+│   │   │   └── operations.py       # Pentest operations
+│   │   │
+│   │   ├── ui/                      # Terminal UI
+│   │   │   ├── __init__.py
+│   │   │   ├── display.py          # Rich terminal output
+│   │   │   └── prompts.py          # User prompts
+│   │   │
+│   │   └── utils/                   # Utilities
+│   │       ├── __init__.py
+│   │       ├── logger.py           # Structured logging (NEW)
+│   │       └── reporter.py         # Report generation
+│   │
+│   └── tests/                       # Test suite (NEW)
+│       ├── __init__.py
+│       ├── conftest.py             # Shared fixtures
+│       ├── unit/                    # Unit tests
+│       ├── integration/             # Integration tests
+│       └── fixtures/                # Test data
+│
+├── lab-environment/                 # Docker vulnerable targets
+│   ├── README.md
+│   ├── docker-compose.yml
+│   ├── .env.example
+│   ├── setup.sh                    # One-command setup
+│   ├── verify.sh                   # Verification script
+│   │
+│   ├── services/                   # Service definitions
+│   │   ├── ehr-webapp/
+│   │   ├── ehr-api/
+│   │   ├── ehr-database/
+│   │   ├── ssh-server/
+│   │   ├── file-server/
+│   │   ├── ldap-server/
+│   │   ├── log-collector/
+│   │   └── workstation/
+│   │
+│   └── data/                       # Seed data
+│       ├── database/
+│       ├── medical-records/
+│       └── vulnerabilities/
+│
+├── training-data/                  # AI training datasets
+│   ├── README.md
+│   ├── validate.py                 # Dataset validation
+│   ├── preprocess.py               # Data preprocessing
+│   │
+│   ├── raw/                        # Original datasets
+│   │   ├── full_agent_dataset.json
+│   │   ├── recon_dataset.json
+│   │   └── ...
+│   │
+│   └── processed/                  # Preprocessed for training
+│
+├── docs/                           # All documentation
+│   ├── README.md
+│   ├── ARCHITECTURE.md
+│   ├── API.md
+│   ├── DEVELOPMENT.md
+│   ├── DEPLOYMENT.md
+│   └── SECURITY.md
+│
+├── scripts/                        # Development scripts
+│   ├── setup-dev.sh               # Dev environment setup
+│   ├── run-tests.sh               # Test runner
+│   ├── build-docker.sh            # Docker lab builder
+│   └── deploy.sh                  # Deployment
+│
+├── archive/                        # Deprecated code
+│   └── medusa-backend/            # Archived incomplete backend
+│
+├── .gitignore
+├── README.md                      # Main project README
+└── AGENTS.md                      # Cursor agent instructions
+```
+
+## Migration Rules
+
+### What to Archive (NOT Delete)
+1. **medusa-backend/** → `archive/medusa-backend/`
+   - Reason: Incomplete (60%), misaligned with CLI
+   - Create README explaining why archived
+   - Docker lab replaces its functionality
+
+### What to Move
+1. **docker-lab/** → `lab-environment/`
+2. **All dataset JSONs** → `training-data/raw/`
+3. **medusa-webapp/** → `lab-environment/services/ehr-webapp-static/`
+   - It's a target, not a functional component
+4. **Scattered docs/** → `docs/`
+
+### What to Create
+1. **medusa-cli/medusa/core/llm.py** - Real LLM integration
+2. **medusa-cli/medusa/utils/logger.py** - Structured logging
+3. **medusa-cli/tests/** - Complete test infrastructure
+4. **scripts/** - Development automation
+5. **archive/README.md** - Explain archived components
+
+### Import Path Updates
+After moving files, update imports:
+
+```python
+# Before (scattered)
+from client import MedusaClient
+from operations import run_reconnaissance
+
+# After (organized)
+from medusa.core.llm import LLMClient
+from medusa.core.operations import run_reconnaissance
+```
+
+## File Movement Checklist
+
+Before moving any file:
+- [ ] Identify all files that import it
+- [ ] Update import paths
+- [ ] Run tests to verify imports work
+- [ ] Git commit before and after
+
+```bash
+# Safe file move process
+git status                          # Clean working tree
+git mv old/path new/path           # Git-aware move
+# Update imports in affected files
+python -c "import medusa"          # Test imports
+pytest tests/ -v                   # Run tests
+git commit -m "refactor: move X to Y"
+```
+
+## Component Responsibilities
+
+### medusa-cli/
+**Purpose:** Main AI agent - the brains of MEDUSA
+
+**Contains:**
+- CLI interface (Typer-based)
+- AI decision making (LLM integration)
+- Approval gates and safety
+- Operation execution
+- Report generation
+
+**Does NOT contain:**
+- Vulnerable targets (that's lab-environment/)
+- Training data (that's training-data/)
+- Backend API (archived - not needed)
+
+### lab-environment/
+**Purpose:** Vulnerable infrastructure for testing
+
+**Contains:**
+- 8 Docker services with intentional vulnerabilities
+- Network configuration (DMZ + Internal)
+- Seed data for databases
+- Setup and verification scripts
+
+**Does NOT contain:**
+- Pentest logic (that's medusa-cli/)
+- AI decision making (that's medusa-cli/)
+
+### training-data/
+**Purpose:** Datasets for AI training/fine-tuning
+
+**Contains:**
+- Raw JSON datasets by MITRE ATT&CK phase
+- Validation scripts
+- Preprocessing scripts
+- Processed data ready for training
+
+**Does NOT contain:**
+- Live pentest results (those are ephemeral)
+- Configuration (that's in medusa-cli/)
+
+## Dependency Management
+
+### Python Dependencies
+All in `medusa-cli/requirements.txt`:
+```
+google-generativeai>=0.3.0
+typer[all]>=0.9.0
+rich>=13.0.0
+loguru>=0.7.0
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+```
+
+### Docker Dependencies
+All in `lab-environment/docker-compose.yml`:
+- Define services
+- Network configuration
+- Volume mounts
+- Environment variables
+
+## Configuration Strategy
+
+### Environment Variables (.env)
+```bash
+# API Keys
+GOOGLE_API_KEY=your_key_here
+
+# LLM Configuration
+LLM_MODEL=gemini-pro
+LLM_TEMPERATURE=0.7
+LLM_MAX_TOKENS=2048
+
+# Logging
+LOG_LEVEL=INFO
+LOG_FILE=logs/medusa.log
+```
+
+### Config Files (YAML)
+```yaml
+# medusa-cli/config.yml
+target:
+  ip: "192.168.1.100"
+  ports: [80, 443, 22]
+
+mode: observe  # observe, autonomous, shell
+
+llm:
+  model: gemini-pro
+  temperature: 0.7
+  timeout: 30
+
+approval:
+  auto_approve:
+    - LOW
+    - MEDIUM
+  require_approval:
+    - HIGH
+    - CRITICAL
+```
+
+## Version Control
+
+### What to Commit
+- Source code
+- Tests
+- Documentation
+- Configuration templates (.env.example)
+- Scripts
+
+### What to .gitignore
+- `venv/`, `__pycache__/`, `*.pyc`
+- `.env` (secrets)
+- `logs/`, `reports/` (generated)
+- `node_modules/` (if any)
+- `.DS_Store`, `.cursor/`
+- `htmlcov/`, `.coverage` (test artifacts)
+
+### Commit Message Format
+```
+type(scope): description
+
+feat(llm): implement real Gemini API integration
+fix(approval): correct risk assessment for LOW operations
+refactor(structure): reorganize into monorepo layout
+test(llm): add unit tests for LLM client
+docs(readme): update installation instructions
+chore(deps): update google-generativeai to 0.3.1
+```
+
+## Code Organization Principles
+
+### 1. Single Responsibility
+Each module has one job:
+- `llm.py` - LLM interaction only
+- `approval.py` - Approval logic only
+- `operations.py` - Pentest operations only
+
+### 2. Dependency Direction
+```
+CLI → Core → Utils
+  ↓
+  UI
+```
+- UI depends on Core, not vice versa
+- Core has no UI knowledge
+- Utils are pure functions
+
+### 3. No Circular Dependencies
+```python
+# ❌ Bad
+# file_a.py imports file_b
+# file_b.py imports file_a
+
+# ✅ Good
+# Extract shared code to file_c
+# file_a and file_b both import file_c
+```
+
+## Migration Process
+
+### Phase 1: Analyze
+```bash
+# List all Python files
+find . -name "*.py" -type f
+
+# Check import dependencies
+grep -r "^from" . --include="*.py" | sort | uniq
+
+# Identify what imports what
+# Create dependency graph (mental or tool)
+```
+
+### Phase 2: Archive
+```bash
+# Create archive directory
+mkdir -p archive
+
+# Move backend with git
+git mv medusa-backend archive/medusa-backend
+
+# Create explanation
+cat > archive/README.md << EOF
+# Archived Components
+
+## medusa-backend/
+Archived on $(date +%Y-%m-%d)
+Reason: Incomplete (60%), misaligned with CLI expectations
+Replacement: Docker lab in lab-environment/
+EOF
+
+# Commit
+git commit -m "chore: archive incomplete backend"
+```
+
+### Phase 3: Reorganize
+```bash
+# Move docker lab
+git mv docker-lab lab-environment
+
+# Move datasets
+mkdir -p training-data/raw
+git mv *.json training-data/raw/
+
+# Consolidate docs
+mkdir -p docs
+git mv doc1.md doc2.md docs/
+
+# Commit after each major move
+git commit -m "refactor: consolidate training datasets"
+```
+
+### Phase 4: Create New Structure
+```bash
+# Create new directories
+mkdir -p medusa-cli/medusa/core
+mkdir -p medusa-cli/medusa/utils
+mkdir -p medusa-cli/tests/unit
+mkdir -p scripts
+
+# Create placeholder files
+touch medusa-cli/medusa/core/llm.py
+touch medusa-cli/medusa/utils/logger.py
+touch medusa-cli/tests/conftest.py
+
+# Commit structure
+git commit -m "chore: create new project structure"
+```
+
+### Phase 5: Update Imports
+```bash
+# Find all imports that need updating
+grep -r "from client import" medusa-cli/
+
+# Update each file
+# Test imports after each update
+python -c "import medusa.core.llm"
+
+# Commit
+git commit -m "refactor: update import paths"
+```
+
+### Phase 6: Verify
+```bash
+# Can Python import the package?
+cd medusa-cli && python -c "import medusa; print('✅')"
+
+# Do tests run?
+pytest tests/ -v
+
+# Does CLI work?
+medusa --version
+
+# All good? Tag it
+git tag -a v2.0-restructured -m "Project restructured"
+```
+
+## Common Migration Issues
+
+### Issue: Broken imports after move
+**Solution:**
+```python
+# Update __init__.py files
+# medusa/__init__.py
+from .core import llm, approval, operations
+from .ui import display, prompts
+from .utils import logger, reporter
+
+__all__ = ["llm", "approval", "operations", "display", "prompts", "logger", "reporter"]
+```
+
+### Issue: Circular imports
+**Solution:**
+- Extract shared code to separate module
+- Use typing.TYPE_CHECKING for type hints
+- Refactor to remove dependency
+
+### Issue: Tests can't find modules
+**Solution:**
+```bash
+# Install in development mode
+cd medusa-cli
+pip install -e .
+
+# Or update PYTHONPATH
+export PYTHONPATH="${PYTHONPATH}:/path/to/medusa/medusa-cli"
+```
+
+### Issue: Git history lost
+**Solution:**
+```bash
+# Use git mv, not mv
+git mv old/path new/path
+
+# Git log should show history
+git log --follow new/path
+```
+
+## Validation Checklist
+
+After restructuring, verify:
+
+- [ ] All Python files import successfully
+- [ ] Tests run and pass
+- [ ] CLI commands work (`medusa --version`, `medusa status`)
+- [ ] Docker lab deploys (`docker-compose up -d`)
+- [ ] Documentation is updated
+- [ ] No broken links in docs
+- [ ] .gitignore is comprehensive
+- [ ] README reflects new structure
+- [ ] All scripts are executable (`chmod +x scripts/*.sh`)
+- [ ] Archive directory has explanation README
+
+## Documentation Updates Needed
+
+After restructuring:
+1. Update main README.md with new structure
+2. Update ARCHITECTURE.md with component diagram
+3. Update DEVELOPMENT.md with new paths
+4. Update all relative links in docs
+5. Update examples to use new import paths
+6. Create migration notes for contributors
+
+## Communication
+
+When restructuring is complete:
+```markdown
+# Project Restructured
+
+## Summary
+MEDUSA has been reorganized into a clean monorepo structure.
+
+## Major Changes
+- ✅ Archived incomplete backend
+- ✅ Reorganized into medusa-cli, lab-environment, training-data
+- ✅ Created test infrastructure
+- ✅ Added development scripts
+
+## Action Required
+1. Pull latest: `git pull`
+2. Reinstall dependencies: `cd medusa-cli && pip install -e .`
+3. Update local .env with new paths
+4. Review new structure in README.md
+
+## Breaking Changes
+- Import paths changed: `from client import` → `from medusa.core.llm import`
+- Backend archived: Use Docker lab instead
+- Configuration location: Now in medusa-cli/
+
+## Questions?
+See docs/RESTRUCTURING.md or ask in team chat.
+```

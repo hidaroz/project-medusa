@@ -46,8 +46,11 @@ class ObserveMode:
         display.console.print(f"[dim]Operation ID: {self.operation_id}[/dim]\n")
 
         start_time = time.time()
+        
+        # Get LLM config from global config
+        llm_config = self.config.get_llm_config()
 
-        async with MedusaClient(self.target, self.api_key) as client:
+        async with MedusaClient(self.target, self.api_key, llm_config=llm_config) as client:
             # Phase 1: Passive Reconnaissance
             await self._passive_reconnaissance(client)
 

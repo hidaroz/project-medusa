@@ -1,0 +1,448 @@
+---
+description: Testing standards and best practices for MEDUSA
+globs: conftest.py,test_*.py
+alwaysApply: false
+---
+# Testing Rules for MEDUSA
+
+## Philosophy
+Tests are not optional. They prevent regressions, document behavior, and enable confident refactoring.
+
+## Test Structure
+
+### Organize by Type
+```
+tests/
+├── conftest.py              # Shared fixtures
+├── unit/                    # Fast, isolated tests
+│   ├── test_approval.py
+│   ├── test_llm.py
+│   └── test_config.py
+├── integration/             # Multi-component tests
+│   ├── test_observe_mode.py
+│   └── test_cli_workflows.py
+└── fixtures/                # Reusable test data
+    ├── mock_config.yml
+    └── mock_scan_results.json
+```
+
+## Naming Conventions
+
+### Test Files
+- Prefix with `test_`: `test_approval.py`
+- Mirror source structure: `medusa/core/approval.py` → `tests/unit/test_approval.py`
+
+### Test Functions
+```python
+# ✅ Good - descriptive, uses underscores
+def test_low_risk_operations_auto_approve():
+    pass
+
+def test_critical_operations_require_explicit_approval():
+    pass
+
+# ❌ Bad - vague, unclear
+def test_approval():
+    pass
+
+def test_1():
+    pass
+```
+
+### Test Classes
+```python
+class TestApprovalGate:
+    """Group related tests."""
+    
+    def test_initialization_with_observe_mode(self):
+        pass
+    
+    def test_initialization_with_autonomous_mode(self):
+        pass
+```
+
+## Fixture Best Practices
+
+### In conftest.py
+```python
+import pytest
+from pathlib import Path
+import tempfile
+import shutil
+
+@pytest.fixture
+def temp_dir():
+    """Provide a temporary directory that's cleaned up after test."""
+    temp = tempfile.mkdtemp()
+    yield Path(temp)
+    shutil.rmtree(temp)
+
+@pytest.fixture
+def mock_config():
+    """Standard test configuration."""
+    return {
+        "target": "192.168.1.100",
+        "mode": "observe",
+        "llm": {
+            "model": "gemini-pro",
+            "temperature": 0.7
+        }
+    }
+
+@pytest.fixture
+def mock_llm_client():
+    """Mock LLM client for testing without API calls."""
+    from medusa.core.llm import MockLLMClient
+    return MockLLMClient()
+
+@pytest.fixture
+def mock_scan_results():
+    """Typical reconnaissance scan results."""
+    return {
+        "target": "192.168.1.100",
+        "ports": [
+            {"port": 22, "service": "ssh", "state": "open"},
+            {"port": 80, "service": "http", "state": "open"},
+            {"port": 443, "service": "https", "state": "open"}
+        ],
+        "os": "Linux"
+    }
+```
+
+## Unit Test Patterns
+
+### Test One Thing
+```python
+# ✅ Good - focused test
+def test_approval_gate_denies_critical_operations_in_observe_mode():
+    gate = ApprovalGate(mode="observe")
+    result = gate.check_approval(RiskLevel.CRITICAL, "exploit")
+    assert result is False
+
+# ❌ Bad - tests multiple things
+def test_approval_gate():
+    gate = ApprovalGate(mode="observe")
+    assert gate.check_approval(RiskLevel.LOW, "scan") is True
+    assert gate.check_approval(RiskLevel.HIGH, "exploit") is False
+    assert gate.mode == "observe"
+    # Too much in one test!
+```
+
+### Use Parametrize for Similar Tests
+```python
+@pytest.mark.parametrize("risk_level,expected", [
+    (RiskLevel.LOW, True),
+    (RiskLevel.MEDIUM, True),
+    (RiskLevel.HIGH, False),
+    (RiskLevel.CRITICAL, False),
+])
+def test_observe_mode_approval_by_risk_level(risk_level, expected):
+    gate = ApprovalGate(mode="observe")
+    result = gate.check_approval(risk_level, "test_operation")
+    assert result is expected
+```
+
+### Test Edge Cases
+```python
+def test_approval_gate_handles_invalid_risk_level():
+    gate = ApprovalGate(mode="observe")
+    with pytest.raises(ValueError, match="Invalid risk level"):
+        gate.check_approval("INVALID", "operation")
+
+def test_approval_gate_handles_empty_operation_description():
+    gate = ApprovalGate(mode="observe")
+    result = gate.check_approval(RiskLevel.LOW, "")
+    # Should still work or raise clear error
+    assert isinstance(result, bool)
+```
+
+## Async Testing
+
+### Use pytest-asyncio
+```python
+import pytest
+
+@pytest.mark.asyncio
+async def test_llm_reconnaissance_recommendation():
+    """Test async LLM method."""
+    client = MockLLMClient()
+    result = await client.get_reconnaissance_recommendation("target", {})
+    
+    assert "action" in result
+    assert "reasoning" in result
+
+@pytest.mark.asyncio
+async def test_concurrent_operations():
+    """Test multiple async operations."""
+    client = MockLLMClient()
+    
+    results = await asyncio.gather(
+        client.get_reconnaissance_recommendation("t1", {}),
+        client.get_reconnaissance_recommendation("t2", {}),
+        client.get_reconnaissance_recommendation("t3", {})
+    )
+    
+    assert len(results) == 3
+    assert all("action" in r for r in results)
+```
+
+## Integration Testing
+
+### Mark Appropriately
+```python
+@pytest.mark.integration
+def test_full_observe_mode_workflow(temp_dir, mock_llm_client):
+    """Test complete observe mode from start to finish."""
+    # Setup
+    config = create_test_config(temp_dir)
+    medusa = MedusaAgent(config, llm_client=mock_llm_client)
+    
+    # Execute
+    medusa.run_observe_mode(target="192.168.1.100")
+    
+    # Verify
+    assert (temp_dir / "reports" / "observe_report.json").exists()
+    report = load_report(temp_dir / "reports" / "observe_report.json")
+    assert "reconnaissance" in report
+    assert "enumeration" in report
+```
+
+### Slow Tests
+```python
+@pytest.mark.slow
+@pytest.mark.skipif(not os.getenv("GOOGLE_API_KEY"), reason="No API key")
+async def test_real_llm_api_integration():
+    """Test against real Gemini API (slow, requires key)."""
+    client = LLMClient(api_key=os.getenv("GOOGLE_API_KEY"))
+    result = await client.get_reconnaissance_recommendation("test", {})
+    assert isinstance(result, dict)
+```
+
+## Mocking
+
+### Mock External Dependencies
+```python
+from unittest.mock import Mock, patch, AsyncMock
+
+def test_client_handles_network_failure():
+    """Test graceful handling of network issues."""
+    with patch('medusa.client.httpx.AsyncClient.post') as mock_post:
+        mock_post.side_effect = httpx.ConnectError("Connection refused")
+        
+        client = MedusaClient(config)
+        with pytest.raises(NetworkError, match="Failed to connect"):
+            await client.send_request()
+
+@pytest.mark.asyncio
+async def test_llm_retry_on_rate_limit():
+    """Test LLM client retries on rate limit."""
+    with patch('google.generativeai.GenerativeModel.generate_content_async') as mock:
+        # First call fails, second succeeds
+        mock.side_effect = [
+            Exception("Rate limit exceeded"),
+            AsyncMock(text='{"action": "scan"}')
+        ]
+        
+        client = LLMClient(api_key="test")
+        result = await client.get_reconnaissance_recommendation("target", {})
+        
+        assert mock.call_count == 2
+        assert "action" in result
+```
+
+## Assertions
+
+### Be Specific
+```python
+# ✅ Good - clear expectation
+assert result["risk_level"] == "HIGH"
+assert len(vulnerabilities) == 3
+assert "SQL injection" in vulnerability_types
+
+# ❌ Bad - vague
+assert result
+assert len(vulnerabilities) > 0
+```
+
+### Provide Helpful Messages
+```python
+# ✅ Good - explains what was expected
+assert response.status_code == 200, \
+    f"Expected 200 OK, got {response.status_code}: {response.text}"
+
+# ❌ Bad - no context
+assert response.status_code == 200
+```
+
+## Coverage Requirements
+
+### Aim for 80%+
+```bash
+# Run with coverage
+pytest tests/ --cov=medusa --cov-report=html --cov-report=term
+
+# View report
+open htmlcov/index.html
+```
+
+### Critical Paths Need 100%
+- Approval gate logic
+- LLM integration
+- Risk assessment
+- Configuration loading
+
+### Exclude Non-Critical
+```python
+# .coveragerc
+[run]
+omit =
+    tests/*
+    */__init__.py
+    */venv/*
+    */migrations/*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
+```
+
+## Test Organization
+
+### AAA Pattern
+```python
+def test_vulnerability_assessment():
+    # Arrange - setup test data
+    vuln = {
+        "name": "SQL Injection",
+        "cvss": 9.8,
+        "description": "Unsanitized input"
+    }
+    assessor = VulnerabilityAssessor()
+    
+    # Act - perform the action
+    result = assessor.assess(vuln)
+    
+    # Assert - verify results
+    assert result["severity"] == "CRITICAL"
+    assert result["exploitable"] is True
+```
+
+### Use Context Managers
+```python
+def test_temporary_file_handling():
+    with tempfile.NamedTemporaryFile() as tmp:
+        # File automatically cleaned up
+        config = Config.from_file(tmp.name)
+        assert config.is_valid()
+```
+
+## Error Testing
+
+### Test Exceptions
+```python
+def test_invalid_configuration_raises_error():
+    with pytest.raises(ConfigurationError) as exc_info:
+        Config.from_dict({"target": ""})  # Invalid
+    
+    assert "target cannot be empty" in str(exc_info.value)
+
+def test_missing_api_key_raises_clear_error():
+    with pytest.raises(ConfigurationError, match="GOOGLE_API_KEY not found"):
+        LLMClient(api_key=None)
+```
+
+## Performance Testing
+
+### Mark Slow Tests
+```python
+@pytest.mark.slow
+def test_large_dataset_processing():
+    """Process 10k vulnerability records."""
+    records = generate_test_records(10000)
+    result = processor.batch_process(records)
+    assert len(result) == 10000
+```
+
+### Benchmark Critical Operations
+```python
+def test_llm_response_time(benchmark):
+    """Benchmark LLM query performance."""
+    client = MockLLMClient()
+    result = benchmark(client.get_recommendation, "target", {})
+    assert result is not None
+```
+
+## Test Data Management
+
+### Use Fixtures for Data
+```python
+# tests/fixtures/scan_results.json
+{
+  "target": "192.168.1.100",
+  "ports": [...]
+}
+
+# In test
+@pytest.fixture
+def scan_results():
+    with open("tests/fixtures/scan_results.json") as f:
+        return json.load(f)
+
+def test_enumeration_with_scan_results(scan_results):
+    enumerator = ServiceEnumerator()
+    services = enumerator.extract_services(scan_results)
+    assert len(services) > 0
+```
+
+## Continuous Integration
+
+### Run Tests in CI
+```yaml
+# .github/workflows/test.yml
+name: Tests
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+      - run: pip install -e ".[dev]"
+      - run: pytest tests/ -v --cov=medusa
+```
+
+## Checklist Before Committing
+
+- [ ] All tests pass locally
+- [ ] New features have tests
+- [ ] Coverage didn't decrease
+- [ ] Async tests use @pytest.mark.asyncio
+- [ ] Slow/integration tests marked appropriately
+- [ ] Mock external dependencies
+- [ ] Test edge cases and errors
+- [ ] Clear, descriptive test names
+- [ ] AAA pattern followed
+- [ ] No test warnings
+
+## Common Pitfalls
+
+❌ Testing implementation details
+✅ Test behavior and outcomes
+
+❌ Tests depend on execution order
+✅ Each test is independent
+
+❌ Hardcoded paths: `/home/user/data`
+✅ Use fixtures and temp_dir
+
+❌ Sleep in tests: `time.sleep(5)`
+✅ Mock or use pytest-timeout
+
+❌ Skipped tests without reason
+✅ Document why: `@pytest.mark.skip(reason="Feature not implemented")`

@@ -28,9 +28,12 @@ This project contains:
 
 ## Project Structure
 
-- `medusa-cli/` - Core AI agent implementation
-- `medusa-webapp/` - Web interface and fake EHR system
+- `medusa-cli/` - Core AI agent implementation (main component)
+- `lab-environment/` - Docker-based vulnerable infrastructure for testing
+- `medusa-webapp/` - Web interface source (static build in lab-environment)
+- `training-data/` - AI training datasets (MITRE ATT&CK scenarios)
 - `docs/` - Project documentation and specifications
+- `archive/` - Deprecated components (preserved for reference)
 
 ## Deployment
 
