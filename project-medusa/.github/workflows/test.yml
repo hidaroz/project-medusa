@@ -1,0 +1,195 @@
+name: Test Suite
+
+on:
+    push:
+        branches: [main, develop]
+        paths:
+            - "medusa-cli/**"
+            - ".github/workflows/test.yml"
+    pull_request:
+        branches: [main, develop]
+        paths:
+            - "medusa-cli/**"
+            - ".github/workflows/test.yml"
+    workflow_dispatch:
+
+jobs:
+    test:
+        name: Test Python ${{ matrix.python-version }}
+        runs-on: ubuntu-latest
+        strategy:
+            fail-fast: false
+            matrix:
+                python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+        defaults:
+            run:
+                working-directory: ./medusa-cli
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Python ${{ matrix.python-version }}
+              uses: actions/setup-python@v5
+              with:
+                  python-version: ${{ matrix.python-version }}
+                  cache: "pip"
+
+            - name: Install system dependencies
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y build-essential
+
+            - name: Install Python dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -e .
+                  pip install pytest pytest-asyncio pytest-cov pytest-timeout pytest-mock
+                  pip install coverage[toml]
+
+            - name: Create necessary directories
+              run: |
+                  mkdir -p tests/logs
+
+            - name: Run unit tests
+              run: |
+                  pytest tests/unit -v --tb=short --junitxml=test-results-unit-${{ matrix.python-version }}.xml
+
+            - name: Run integration tests
+              run: |
+                  pytest tests/integration -v --tb=short --junitxml=test-results-integration-${{ matrix.python-version }}.xml
+
+            - name: Run all tests with coverage
+              run: |
+                  pytest tests/ \
+                    --cov=medusa \
+                    --cov-report=xml \
+                    --cov-report=term-missing \
+                    --cov-report=html \
+                    --junitxml=test-results-all-${{ matrix.python-version }}.xml
+              env:
+                  PYTHONPATH: ${{ github.workspace }}/medusa-cli/src
+
+            - name: Check coverage threshold
+              run: |
+                  coverage report --fail-under=70
+
+            - name: Upload coverage to Codecov
+              uses: codecov/codecov-action@v4
+              with:
+                  files: ./medusa-cli/coverage.xml
+                  flags: python-${{ matrix.python-version }}
+                  name: codecov-umbrella
+                  fail_ci_if_error: false
+
+            - name: Upload test results
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: test-results-${{ matrix.python-version }}
+                  path: |
+                      medusa-cli/test-results-*.xml
+                      medusa-cli/htmlcov/
+
+            - name: Upload coverage HTML report
+              uses: actions/upload-artifact@v4
+              if: always()
+              with:
+                  name: coverage-report-${{ matrix.python-version }}
+                  path: medusa-cli/htmlcov/
+
+    lint:
+        name: Lint and Code Quality
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: ./medusa-cli
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+                  cache: "pip"
+
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -e .
+                  pip install flake8 black isort mypy pylint
+
+            - name: Run flake8
+              run: |
+                  flake8 src/medusa --count --select=E9,F63,F7,F82 --show-source --statistics
+                  flake8 src/medusa --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+              continue-on-error: true
+
+            - name: Check code formatting with black
+              run: |
+                  black --check src/medusa tests/
+              continue-on-error: true
+
+            - name: Check import sorting with isort
+              run: |
+                  isort --check-only src/medusa tests/
+              continue-on-error: true
+
+            - name: Run type checking with mypy
+              run: |
+                  mypy src/medusa --ignore-missing-imports --no-strict-optional
+              continue-on-error: true
+
+    security:
+        name: Security Scan
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: ./medusa-cli
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Python
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.11"
+                  cache: "pip"
+
+            - name: Install dependencies
+              run: |
+                  python -m pip install --upgrade pip
+                  pip install -e .
+                  pip install safety bandit
+
+            - name: Run safety check
+              run: |
+                  safety check --json
+              continue-on-error: true
+
+            - name: Run bandit security scan
+              run: |
+                  bandit -r src/medusa -ll
+              continue-on-error: true
+
+    test-summary:
+        name: Test Summary
+        runs-on: ubuntu-latest
+        needs: [test, lint, security]
+        if: always()
+
+        steps:
+            - name: Check test results
+              run: |
+                  echo "Test suite completed"
+                  echo "Test job status: ${{ needs.test.result }}"
+                  echo "Lint job status: ${{ needs.lint.result }}"
+                  echo "Security job status: ${{ needs.security.result }}"
+
+            - name: Fail if tests failed
+              if: needs.test.result == 'failure'
+              run: exit 1

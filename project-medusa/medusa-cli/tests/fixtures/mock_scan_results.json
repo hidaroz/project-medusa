@@ -1,0 +1,165 @@
+{
+    "target": "192.168.1.100",
+    "scan_type": "comprehensive",
+    "timestamp": "2025-10-31T12:00:00Z",
+    "ports": [
+        {
+            "port": 22,
+            "service": "ssh",
+            "version": "OpenSSH 8.2p1",
+            "state": "open",
+            "banner": "SSH-2.0-OpenSSH_8.2p1 Ubuntu-4ubuntu0.5"
+        },
+        {
+            "port": 80,
+            "service": "http",
+            "version": "nginx 1.18.0",
+            "state": "open",
+            "banner": "nginx/1.18.0 (Ubuntu)"
+        },
+        {
+            "port": 443,
+            "service": "https",
+            "version": "nginx 1.18.0",
+            "state": "open",
+            "banner": "nginx/1.18.0 (Ubuntu)"
+        },
+        {
+            "port": 3306,
+            "service": "mysql",
+            "version": "MySQL 8.0.31",
+            "state": "open",
+            "banner": "MySQL 8.0.31-0ubuntu0.20.04.2"
+        },
+        {
+            "port": 3000,
+            "service": "http",
+            "version": "Node.js Express",
+            "state": "open"
+        }
+    ],
+    "os": {
+        "name": "Linux",
+        "version": "Ubuntu 20.04",
+        "kernel": "5.4.0",
+        "confidence": 95
+    },
+    "services": [
+        {
+            "name": "web_server",
+            "type": "nginx",
+            "version": "1.18.0",
+            "technologies": [
+                "PHP 7.4",
+                "MySQL 8.0"
+            ]
+        },
+        {
+            "name": "api_server",
+            "type": "node",
+            "version": "14.17.0",
+            "technologies": [
+                "Express 4.17",
+                "REST API"
+            ]
+        }
+    ],
+    "vulnerabilities": [
+        {
+            "type": "SQL Injection",
+            "severity": "HIGH",
+            "location": "/api/search?q=",
+            "description": "User input not properly sanitized in search endpoint",
+            "cvss_score": 7.5,
+            "cve": "CVE-2023-XXXX",
+            "technique_id": "T1190",
+            "exploitable": true,
+            "proof_of_concept": "' OR '1'='1"
+        },
+        {
+            "type": "Authentication Bypass",
+            "severity": "CRITICAL",
+            "location": "/api/admin",
+            "description": "Admin API endpoints accessible without authentication",
+            "cvss_score": 9.1,
+            "technique_id": "T1078",
+            "exploitable": true
+        },
+        {
+            "type": "Information Disclosure",
+            "severity": "MEDIUM",
+            "location": "/api/users",
+            "description": "User email addresses exposed in API response",
+            "cvss_score": 5.3,
+            "technique_id": "T1590",
+            "exploitable": false
+        }
+    ],
+    "web_endpoints": [
+        {
+            "path": "/",
+            "method": "GET",
+            "status_code": 200,
+            "auth_required": false
+        },
+        {
+            "path": "/api/users",
+            "method": "GET",
+            "status_code": 200,
+            "auth_required": false
+        },
+        {
+            "path": "/api/patients",
+            "method": "GET",
+            "status_code": 401,
+            "auth_required": true
+        },
+        {
+            "path": "/api/admin",
+            "method": "GET",
+            "status_code": 200,
+            "auth_required": false,
+            "note": "Should require authentication!"
+        }
+    ],
+    "dns_records": {
+        "A": [
+            "192.168.1.100"
+        ],
+        "MX": [
+            "mail.example.com"
+        ],
+        "NS": [
+            "ns1.example.com",
+            "ns2.example.com"
+        ]
+    },
+    "ssl_info": {
+        "certificate_valid": true,
+        "issuer": "Let's Encrypt",
+        "expires": "2026-01-30",
+        "protocols": [
+            "TLSv1.2",
+            "TLSv1.3"
+        ],
+        "ciphers": [
+            "AES256-GCM-SHA384",
+            "CHACHA20-POLY1305"
+        ]
+    },
+    "headers": {
+        "Server": "nginx/1.18.0",
+        "X-Powered-By": "PHP/7.4.3",
+        "X-Frame-Options": "SAMEORIGIN"
+    },
+    "metadata": {
+        "scan_duration": 120.5,
+        "total_requests": 450,
+        "scan_tool": "MEDUSA v1.0.0",
+        "techniques_used": [
+            "T1046",
+            "T1590",
+            "T1595"
+        ]
+    }
+}

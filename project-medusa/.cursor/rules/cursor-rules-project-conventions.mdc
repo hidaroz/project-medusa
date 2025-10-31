@@ -1,0 +1,790 @@
+# MEDUSA Project Conventions & Structure Guide
+
+**For Developers, AI Assistants, and Future Contributors**
+
+---
+
+## 📁 Repository Architecture
+
+### High-Level Structure
+
+This is a **monorepo** with clear separation of concerns:
+
+```
+project-medusa/
+├── medusa-cli/              # 🎯 MAIN: Python AI agent
+├── lab-environment/         # 🐳 Docker test infrastructure
+├── medusa-webapp/           # 🌐 Next.js web interface
+├── training-data/           # 📊 AI training datasets
+├── docs/                    # 📚 Project documentation
+├── scripts/                 # 🔧 Utility scripts
+└── archive/                 # 📦 Deprecated code (preserved)
+```
+
+### Component Boundaries
+
+| Component | Purpose | Primary Language | Status |
+|-----------|---------|------------------|--------|
+| `medusa-cli/` | AI pentesting agent | Python 3.9+ | **Active** (85%) |
+| `lab-environment/` | Vulnerable targets | Docker/PHP/JS | **Active** (95%) |
+| `medusa-webapp/` | EHR frontend | TypeScript/Next.js | **Complete** (90%) |
+| `training-data/` | LLM datasets | JSON | **Active** (80%) |
+| `archive/` | Old backend | Node.js | **Archived** |
+
+---
+
+## 🐍 Python Package: medusa-cli
+
+### Directory Structure
+
+```
+medusa-cli/
+├── src/
+│   └── medusa/                    # Main package
+│       ├── __init__.py           # Package exports
+│       ├── core/                 # 🧠 Core functionality
+│       │   ├── __init__.py
+│       │   └── llm.py            # LLM integration
+│       ├── modes/                # 🎮 Operating modes
+│       │   ├── __init__.py
+│       │   ├── autonomous.py     # Full automation
+│       │   ├── interactive.py    # Natural language shell
+│       │   └── observe.py        # Read-only mode
+│       ├── cli.py                # 🚪 CLI entry point (Typer)
+│       ├── client.py             # 📡 Backend/API client
+│       ├── config.py             # ⚙️ Configuration management
+│       ├── display.py            # 🎨 Terminal UI (Rich)
+│       ├── approval.py           # 🛡️ Safety gates
+│       └── reporter.py           # 📊 Report generation
+├── tests/                        # ✅ Test suite
+│   ├── unit/                     # Unit tests
+│   ├── integration/              # Integration tests
+│   └── fixtures/                 # Test data/mocks
+├── docs/                         # Component-specific docs
+│   ├── README.md                 # Overview
+│   ├── ARCHITECTURE.md           # Technical design
+│   ├── QUICKSTART.md             # Getting started
+│   └── USAGE_EXAMPLES.md         # How-to guides
+├── requirements.txt              # Dependencies (pip)
+├── pyproject.toml                # Package metadata
+└── setup.py                      # Installation script
+```
+
+### Module Organization Principles
+
+#### 1. **Core Modules** (`core/`)
+Purpose: Foundational, reusable components
+
+Examples:
+- `llm.py` - LLM client and integration
+- `database.py` - Database abstraction (future)
+- `utils.py` - Shared utilities (future)
+
+**When to add**: Code used by 3+ other modules
+
+#### 2. **Operating Modes** (`modes/`)
+Purpose: Self-contained operation implementations
+
+Each mode:
+- Inherits from base mode class
+- Implements `run()` method
+- Handles user interaction for that mode
+- Is independent of other modes
+
+**When to add**: New operation style (e.g., "training mode", "replay mode")
+
+#### 3. **Top-Level Modules**
+Purpose: Main functionality, not shared
+
+Examples:
+- `cli.py` - CLI interface
+- `client.py` - API communication
+- `display.py` - UI rendering
+- `approval.py` - Risk management
+- `reporter.py` - Output generation
+
+**When to add**: Major feature that stands alone
+
+### File Naming Conventions
+
+| Type | Convention | Example |
+|------|------------|---------|
+| Module | `snake_case.py` | `api_client.py` |
+| Class | `PascalCase` | `class LLMClient:` |
+| Function | `snake_case` | `def get_config():` |
+| Variable | `snake_case` | `api_key = "..."` |
+| Constant | `UPPER_SNAKE_CASE` | `MAX_RETRIES = 3` |
+| Private | `_leading_underscore` | `def _internal():` |
+| Test | `test_*.py` | `test_llm_integration.py` |
+
+### Import Order (PEP 8)
+
+```python
+"""Module docstring"""
+
+# 1. Standard library imports
+import os
+import sys
+from typing import Dict, Any, Optional
+
+# 2. Third-party imports
+import typer
+from rich.console import Console
+import google.generativeai as genai
+
+# 3. Local application imports
+from medusa.config import get_config
+from medusa.core.llm import LLMClient
+from medusa.display import display
+
+# Then: Constants, classes, functions
+```
+
+---
+
+## 🧪 Testing Structure
+
+### Test Organization
+
+```
+tests/
+├── unit/                          # Fast, isolated tests
+│   ├── test_config.py            # Test config.py
+│   ├── test_approval.py          # Test approval.py
+│   └── test_llm.py               # Test LLM client
+├── integration/                   # Component interaction tests
+│   ├── test_cli_modes.py         # Test CLI + modes
+│   ├── test_llm_integration.py   # Test LLM + client
+│   └── test_end_to_end.py        # Full workflow tests
+└── fixtures/                      # Shared test data
+    ├── sample_config.yaml
+    ├── mock_responses.json
+    └── test_targets.json
+```
+
+### Test Naming Convention
+
+```python
+# File: tests/unit/test_config.py
+
+def test_load_valid_config():
+    """Test loading a valid configuration file"""
+    pass
+
+def test_load_missing_config():
+    """Test behavior when config file is missing"""
+    pass
+
+def test_validate_api_key_format():
+    """Test API key validation logic"""
+    pass
+```
+
+### Test Principles
+
+1. **Unit Tests**: Test one function/class in isolation
+   - Mock external dependencies
+   - Fast (< 1 second per test)
+   - No network calls, no file I/O
+
+2. **Integration Tests**: Test component interactions
+   - Can use real dependencies
+   - Slower (< 10 seconds per test)
+   - May use mock APIs
+
+3. **Fixtures**: Shared test data
+   - Reusable across tests
+   - Version-controlled
+   - Realistic data
+
+---
+
+## 📝 Documentation Standards
+
+### File Locations
+
+| Scope | Location | Examples |
+|-------|----------|----------|
+| Project-wide | `/docs/` | PRD, Timeline, Deployment |
+| Component-specific | Component root | `medusa-cli/README.md` |
+| Technical deep-dive | Component root | `ARCHITECTURE.md` |
+| User guides | Component root | `QUICKSTART.md` |
+| API reference | Generated | (future: Sphinx docs) |
+
+### Documentation File Naming
+
+- `README.md` - Always the entry point
+- `ARCHITECTURE.md` - Technical design
+- `QUICKSTART.md` - Getting started
+- `USAGE_EXAMPLES.md` - How-to guides
+- `INTEGRATION_GUIDE.md` - For integrating with other systems
+- `DEPLOYMENT_GUIDE.md` - Deployment instructions
+
+**Convention**: `UPPERCASE_WITH_UNDERSCORES.md` for standalone docs
+
+### README Structure
+
+Every component should have:
+
+```markdown
+# Component Name
+
+Brief one-sentence description
+
+## Overview
+Detailed description
+
+## Installation
+How to install
+
+## Quick Start
+Minimal example to get running
+
+## Usage
+Detailed usage instructions
+
+## Configuration
+Configuration options
+
+## Architecture (optional)
+Or link to ARCHITECTURE.md
+
+## Contributing
+How to contribute
+
+## License
+License information
+```
+
+### Code Documentation
+
+#### Docstrings (Required for Public Functions)
+
+```python
+def get_reconnaissance_recommendation(
+    target: str,
+    context: Dict[str, Any]
+) -> Dict[str, Any]:
+    """
+    Get AI recommendation for reconnaissance phase.
+    
+    This function queries the LLM to generate a reconnaissance
+    strategy based on the target and current context.
+    
+    Args:
+        target: Target URL or IP address to analyze
+        context: Additional context including:
+            - previous_findings: List of previous scan results
+            - target_type: Type of target (web, api, network)
+            - constraints: Any testing limitations
+            
+    Returns:
+        Dictionary containing:
+            - recommended_actions: List of suggested actions
+            - focus_areas: Priority areas to investigate
+            - risk_assessment: Estimated risk level (LOW/MEDIUM/HIGH)
+            - estimated_duration: Expected time in seconds
+            
+    Raises:
+        ValueError: If target format is invalid
+        ConnectionError: If LLM API is unreachable
+        
+    Example:
+        >>> recommendation = await get_reconnaissance_recommendation(
+        ...     "http://example.com",
+        ...     {"target_type": "web"}
+        ... )
+        >>> print(recommendation["risk_assessment"])
+        "LOW"
+    """
+```
+
+#### Inline Comments
+
+```python
+# Good: Explain WHY, not WHAT
+# Retry with exponential backoff to handle rate limiting
+await asyncio.sleep(2 ** attempt)
+
+# Bad: Obvious what code does
+# Sleep for 2 to the power of attempt
+await asyncio.sleep(2 ** attempt)
+```
+
+---
+
+## 🛠️ Configuration Management
+
+### Configuration File Locations
+
+```
+~/.medusa/               # User config directory
+├── config.yaml         # Main configuration
+├── logs/              # Operation logs
+├── reports/           # Generated reports
+└── cache/             # Temporary cache
+```
+
+### Configuration Structure
+
+```yaml
+# config.yaml
+api:
+  gemini_api_key: "your-key-here"
+  backend_url: "http://localhost:3001"
+
+pentest:
+  target: "http://localhost:8080"
+  auto_approve:
+    - LOW
+    - MEDIUM
+  # HIGH and CRITICAL require manual approval
+
+output:
+  log_level: INFO
+  report_format: html
+  save_logs: true
+```
+
+### Environment Variables
+
+```bash
+# Override config values
+MEDUSA_API_KEY=your-key
+MEDUSA_TARGET=http://example.com
+MEDUSA_LOG_LEVEL=DEBUG
+
+# Run CLI
+medusa run --autonomous
+```
+
+**Priority**: ENV vars > config.yaml > defaults
+
+---
+
+## 🔒 Security Practices
+
+### What to NEVER Commit
+
+❌ **Never commit**:
+- Real API keys (`GEMINI_API_KEY`, etc.)
+- Credentials (usernames, passwords)
+- Training datasets with real data
+- `.env` files with secrets
+- Production configuration files
+- SSH keys, certificates
+
+✅ **Always commit**:
+- `.env.example` (template with fake values)
+- Mock/test data
+- Public configuration examples
+
+### .gitignore Patterns
+
+```gitignore
+# Secrets
+.env
+.env.local
+*.key
+*.pem
+
+# Training data
+training-data/raw/*.json
+
+# Build artifacts
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+out/
+
+# User data
+~/.medusa/
+reports/
+logs/
+```
+
+### Safe Defaults
+
+```python
+# Good: Default to safe mode
+def run_pentest(auto_approve: List[str] = None):
+    if auto_approve is None:
+        auto_approve = ["LOW"]  # Only approve low-risk actions
+
+# Good: Require explicit permission
+def delete_data(confirm: bool = False):
+    if not confirm:
+        raise ValueError("Must explicitly confirm deletion")
+```
+
+---
+
+## 🎨 Code Style Guidelines
+
+### Python Style (PEP 8 + Project-Specific)
+
+#### Line Length
+- **Soft limit**: 100 characters
+- **Hard limit**: 120 characters
+- Break long lines logically
+
+#### Indentation
+- **4 spaces** (never tabs)
+- Hanging indents: 4 spaces
+
+#### Spacing
+```python
+# Good
+def function(arg1: str, arg2: int) -> Dict[str, Any]:
+    result = process_data(arg1, arg2)
+    return {"status": "success", "data": result}
+
+# Bad
+def function( arg1:str,arg2:int )->Dict[str,Any]:
+    result=process_data( arg1,arg2 )
+    return { "status":"success","data":result }
+```
+
+#### Type Hints
+**Required** for:
+- Function parameters
+- Function return values
+- Class attributes (when not obvious)
+
+```python
+from typing import Dict, List, Optional, Any
+
+def process_findings(
+    findings: List[Dict[str, Any]],
+    threshold: float = 0.5
+) -> Optional[Dict[str, Any]]:
+    """Process findings and return summary"""
+    pass
+```
+
+#### Async/Await
+Use for:
+- Network requests (API calls)
+- File I/O operations
+- Long-running operations
+- Concurrent operations
+
+```python
+async def fetch_data(url: str) -> Dict[str, Any]:
+    """Async function for network call"""
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url)
+        return response.json()
+```
+
+---
+
+## 🏗️ Adding New Features
+
+### Checklist for New Feature
+
+1. **Plan**
+   - [ ] Define scope and API
+   - [ ] Identify affected modules
+   - [ ] Check for breaking changes
+
+2. **Implement**
+   - [ ] Create feature branch (`git checkout -b feat/feature-name`)
+   - [ ] Write code following conventions
+   - [ ] Add type hints and docstrings
+   - [ ] Handle errors gracefully
+
+3. **Test**
+   - [ ] Write unit tests (`tests/unit/`)
+   - [ ] Write integration tests if needed
+   - [ ] Run existing tests to ensure no regressions
+   - [ ] Test manually
+
+4. **Document**
+   - [ ] Update relevant README
+   - [ ] Add docstrings to public functions
+   - [ ] Update ARCHITECTURE.md if design changed
+   - [ ] Add usage examples
+
+5. **Review & Merge**
+   - [ ] Self-review code
+   - [ ] Check git diff
+   - [ ] Write clear commit message
+   - [ ] Merge to main
+
+### Example: Adding New LLM Model Support
+
+```
+1. Plan:
+   - Add new model to core/llm.py
+   - Update config.py to support new model
+   - Add tests for new model
+
+2. Implement:
+   File: src/medusa/core/llm.py
+   - Add model configuration
+   - Add model-specific parameters
+   
+   File: src/medusa/config.py
+   - Add validation for new model
+
+3. Test:
+   File: tests/unit/test_llm.py
+   - test_load_new_model_config()
+   - test_new_model_inference()
+
+4. Document:
+   File: medusa-cli/README.md
+   - Add new model to supported models list
+   
+   File: medusa-cli/ARCHITECTURE.md
+   - Document model-specific behavior
+
+5. Commit:
+   git commit -m "feat: add support for claude-3-opus model"
+```
+
+---
+
+## 🐛 Debugging Guidelines
+
+### Logging Levels
+
+```python
+import logging
+
+logger = logging.getLogger(__name__)
+
+# DEBUG: Detailed diagnostic information
+logger.debug(f"Processing request with params: {params}")
+
+# INFO: Confirmation that things are working
+logger.info("Successfully completed reconnaissance phase")
+
+# WARNING: Something unexpected, but not critical
+logger.warning("API rate limit approaching, slowing down requests")
+
+# ERROR: A failure occurred, but program continues
+logger.error(f"Failed to connect to target: {error}")
+
+# CRITICAL: Serious error, program may not continue
+logger.critical("LLM API key invalid, cannot proceed")
+```
+
+### Error Handling
+
+```python
+# Good: Specific exceptions with context
+try:
+    result = await api_call()
+except httpx.TimeoutError:
+    logger.error(f"API call timed out after {timeout}s")
+    return fallback_response()
+except httpx.HTTPStatusError as e:
+    logger.error(f"API returned {e.response.status_code}: {e.response.text}")
+    raise
+except Exception as e:
+    logger.critical(f"Unexpected error: {e}", exc_info=True)
+    raise
+
+# Bad: Bare except, no context
+try:
+    result = api_call()
+except:
+    pass  # Silent failure!
+```
+
+---
+
+## 🔄 Git Workflow
+
+### Branch Naming
+
+```
+feat/llm-integration       # New feature
+fix/config-validation      # Bug fix
+docs/architecture-update   # Documentation
+refactor/client-cleanup    # Code improvement
+test/add-llm-tests        # Test additions
+chore/update-deps         # Maintenance
+```
+
+### Commit Message Format
+
+```
+<type>: <subject>
+
+<body (optional)>
+
+<footer (optional)>
+```
+
+**Types**:
+- `feat:` New feature
+- `fix:` Bug fix
+- `docs:` Documentation only
+- `style:` Formatting changes
+- `refactor:` Code restructure
+- `test:` Adding tests
+- `chore:` Maintenance
+
+**Examples**:
+```
+feat: add LLM integration for autonomous mode
+
+Implements real AI decision-making using Google Gemini API.
+Includes fallback to mock client for testing.
+
+Closes #42
+
+---
+
+fix: correct approval gate risk assessment
+
+The HIGH risk actions were incorrectly categorized as MEDIUM.
+Updated risk levels to match CVSS scoring.
+
+---
+
+docs: update QUICKSTART with LLM setup
+
+Added section on obtaining Gemini API key and configuring
+the LLM client.
+```
+
+---
+
+## 📦 Dependencies Management
+
+### Python (medusa-cli/)
+
+```bash
+# Add new dependency
+pip install <package>
+pip freeze > requirements.txt
+
+# Or use pyproject.toml
+[project]
+dependencies = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "google-generativeai>=0.3.0"
+]
+```
+
+### Dependency Guidelines
+
+1. **Pin major versions**: `typer>=0.9.0,<1.0.0`
+2. **Review before adding**: Is it necessary?
+3. **Prefer stdlib**: When possible, use built-in libraries
+4. **Security**: Check for known vulnerabilities
+5. **Maintenance**: Prefer actively maintained packages
+
+---
+
+## 🎯 Project-Specific Patterns
+
+### Approval Gate Pattern
+
+```python
+from medusa.approval import ApprovalGate, Action, RiskLevel
+
+# Define action
+action = Action(
+    name="exploit_sql_injection",
+    description="Attempt SQL injection on /api/search",
+    risk_level=RiskLevel.MEDIUM,
+    technique_id="T1190"
+)
+
+# Request approval
+gate = ApprovalGate(config)
+if await gate.request_approval(action):
+    # Execute action
+    result = await execute_exploit()
+else:
+    # User denied, skip action
+    logger.info("Action denied by user")
+```
+
+### Display Pattern
+
+```python
+from medusa.display import display
+
+# Show progress
+with display.progress("Scanning ports...") as progress:
+    results = await scan_ports()
+
+# Show results
+display.success("Scan complete")
+display.table(results, title="Open Ports")
+
+# Show error
+display.error("Connection failed")
+```
+
+### LLM Client Pattern
+
+```python
+from medusa.core.llm import LLMConfig, create_llm_client
+
+# Create client
+config = LLMConfig(
+    api_key=get_api_key(),
+    model="gemini-pro",
+    mock_mode=False
+)
+client = create_llm_client(config)
+
+# Use client
+recommendation = await client.get_reconnaissance_recommendation(
+    target="http://example.com",
+    context={"phase": "initial"}
+)
+```
+
+---
+
+## 🎓 Learning Resources
+
+### Internal Documentation
+- `/docs/MEDUSA_PRD.md` - Product requirements
+- `medusa-cli/ARCHITECTURE.md` - Technical architecture
+- `medusa-cli/INTEGRATION_GUIDE.md` - Integration guide
+- `RESTRUCTURE_SUMMARY.md` - Recent restructuring changes
+
+### External Resources
+- [PEP 8](https://pep8.org/) - Python style guide
+- [Typer](https://typer.tiangolo.com/) - CLI framework
+- [Rich](https://rich.readthedocs.io/) - Terminal UI
+- [MITRE ATT&CK](https://attack.mitre.org/) - Attack framework
+
+---
+
+## ✅ Checklist for AI Assistants
+
+When working on this project:
+
+- [ ] Read `.cursorrules` for quick reference
+- [ ] Check existing structure before creating new files
+- [ ] Follow naming conventions (see above)
+- [ ] Put tests in `tests/` directory (not package root)
+- [ ] Add docstrings to public functions
+- [ ] Use type hints for function signatures
+- [ ] Handle errors with specific exceptions
+- [ ] Update documentation when changing behavior
+- [ ] Preserve git history when moving files (`git mv`)
+- [ ] Check for security issues (secrets, input validation)
+
+---
+
+**Document Version**: 1.0  
+**Last Updated**: October 31, 2025  
+**Maintainer**: Project MEDUSA Team
+
+---
+
+*Questions? See main README or open an issue.*
+

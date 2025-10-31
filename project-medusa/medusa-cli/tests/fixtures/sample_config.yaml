@@ -1,0 +1,19 @@
+# Sample test configuration for MEDUSA
+# Used in test suite - NOT for production
+
+api:
+  gemini_api_key: "test-mock-api-key-12345"
+  backend_url: "http://localhost:3001"
+
+pentest:
+  target: "http://test-target.local"
+  auto_approve:
+    - LOW
+    - MEDIUM
+
+output:
+  log_level: DEBUG
+  report_format: html
+  save_logs: true
+  report_dir: "./test_reports"
+

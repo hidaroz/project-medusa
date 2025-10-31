@@ -1,0 +1,242 @@
+# ============================================================================
+# MEDUSA Lab - Docker Compose Override for Development
+# ============================================================================
+# Purpose: Development-specific configurations and enhancements
+# Usage: Place this file alongside docker-compose.yml
+#        Docker Compose will automatically merge it
+# ============================================================================
+# Features:
+# - Source code mounting for live editing
+# - Debug ports exposed
+# - Development tools included
+# - Verbose logging enabled
+# - Hot-reload capabilities
+# ============================================================================
+
+version: '3.8'
+
+services:
+  
+  # ==========================================================================
+  # EHR Web Application - Development Overrides
+  # ==========================================================================
+  ehr-webapp:
+    # Mount source code for live editing
+    volumes:
+      - ./services/ehr-webapp/src:/var/www/html:rw
+      # Keep logs accessible on host
+      - ./dev-logs/ehr-webapp:/var/log/apache2:rw
+    
+    environment:
+      # Enable development mode
+      - PHP_DISPLAY_ERRORS=On
+      - PHP_ERROR_REPORTING=E_ALL
+      - XDEBUG_MODE=debug
+      - XDEBUG_CONFIG=client_host=host.docker.internal client_port=9003
+    
+    # Disable resource limits for development
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+  
+  # ==========================================================================
+  # EHR API - Development Overrides
+  # ==========================================================================
+  ehr-api:
+    # Mount source for live reload
+    volumes:
+      - ./services/ehr-api/src:/app/src:rw
+      - ./dev-logs/ehr-api:/var/log/api:rw
+    
+    environment:
+      - NODE_ENV=development
+      - DEBUG=*
+      - LOG_LEVEL=debug
+      - ENABLE_SWAGGER=true
+    
+    # Expose debug port
+    ports:
+      - "9229:9229"  # Node.js debugger
+    
+    # Enable development command with nodemon for hot-reload
+    command: npm run dev
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+  
+  # ==========================================================================
+  # MySQL Database - Development Overrides
+  # ==========================================================================
+  ehr-database:
+    # Keep database accessible on host with separate volume
+    volumes:
+      - ./dev-data/mysql:/var/lib/mysql:rw
+      - ./init-scripts/db:/docker-entrypoint-initdb.d:ro
+      - ./dev-logs/mysql:/var/log/mysql:rw
+      # Mount development SQL scripts
+      - ./dev-scripts/db:/docker-entrypoint-dev.d:ro
+    
+    environment:
+      # Enable query logging for debugging
+      - MYSQL_GENERAL_LOG=1
+      - MYSQL_LOG_QUERIES_NOT_USING_INDEXES=1
+    
+    command: >
+      --general_log=1
+      --general_log_file=/var/log/mysql/query.log
+      --slow_query_log=1
+      --slow_query_log_file=/var/log/mysql/slow.log
+      --long_query_time=0.1
+      --log_error=/var/log/mysql/error.log
+      --log_error_verbosity=3
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+  
+  # ==========================================================================
+  # SSH Server - Development Overrides
+  # ==========================================================================
+  ssh-server:
+    volumes:
+      - ./dev-logs/ssh:/var/log:rw
+      - ./shared-files:/opt/shared:rw  # Make shared files writable
+      # Mount custom scripts for testing
+      - ./dev-scripts/ssh:/opt/dev-scripts:ro
+    
+    environment:
+      - LOG_LEVEL=DEBUG
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+  
+  # ==========================================================================
+  # FTP Server - Development Overrides
+  # ==========================================================================
+  file-server:
+    volumes:
+      - ./dev-data/ftp:/home/ftpuser:rw
+      - ./dev-logs/ftp:/var/log/vsftpd:rw
+      # Mount test files
+      - ./mock-data/medical-records:/home/ftpuser/medical_records:rw
+    
+    environment:
+      - FTP_LOG_LEVEL=DEBUG
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+  
+  # ==========================================================================
+  # LDAP Server - Development Overrides
+  # ==========================================================================
+  ldap-server:
+    volumes:
+      - ./dev-data/ldap:/var/lib/ldap:rw
+      - ./dev-data/ldap-config:/etc/ldap/slapd.d:rw
+      - ./dev-logs/ldap:/var/log/slapd:rw
+    
+    environment:
+      - LDAP_LOG_LEVEL=256  # Stats logging
+      - LDAP_TLS=false
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+  
+  # ==========================================================================
+  # Log Collector - Development Overrides
+  # ==========================================================================
+  log-collector:
+    volumes:
+      - ./dev-logs/centralized:/var/log/collected:rw
+      - ./analysis:/var/log/analysis:rw
+      # Mount custom log viewer
+      - ./services/log-collector/web:/var/www/html:rw
+    
+    environment:
+      - LOG_LEVEL=DEBUG
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+  
+  # ==========================================================================
+  # Workstation - Development Overrides
+  # ==========================================================================
+  workstation:
+    volumes:
+      - ./dev-data/workstation:/home/doctor:rw
+      - ./dev-logs/workstation:/var/log:rw
+      - ./mock-data/documents:/home/doctor/Documents:rw
+    
+    environment:
+      - DEBUG=1
+    
+    # Expose VNC for easier debugging
+    ports:
+      - "5900:5900"  # VNC
+      - "445:445"    # SMB
+      - "3389:3389"  # RDP
+    
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1G
+
+# ==========================================================================
+# Development-specific volumes
+# ==========================================================================
+volumes:
+  # Use local directories for easier access during development
+  dev-data:
+    driver: local
+  dev-logs:
+    driver: local
+
+# ==========================================================================
+# USAGE NOTES
+# ==========================================================================
+# This file automatically merges with docker-compose.yml
+# 
+# Start with dev overrides:
+#   docker-compose up -d
+#
+# To explicitly use only base config (ignore override):
+#   docker-compose -f docker-compose.yml up -d
+#
+# Development features enabled:
+# - Live code reload (PHP, Node.js)
+# - Debug ports exposed
+# - Verbose logging
+# - Source mounted for editing
+# - Larger resource limits
+# - Accessible logs and data
+#
+# Directory structure created:
+#   dev-data/       - Development databases and state
+#   dev-logs/       - Accessible log files
+#   dev-scripts/    - Custom development scripts
+#
+# Performance note:
+#   Volume mounting may be slower on macOS/Windows
+#   Use Docker Desktop with VirtioFS for better performance
+# ==========================================================================
+

@@ -1,0 +1,693 @@
+---
+description: Docker, DevOps, and deployment guidelines for MEDUSA lab environment
+globs: docker-compose.yml,Dockerfile
+alwaysApply: false
+---
+# DevOps & Docker Rules for MEDUSA
+
+## Context
+You're working on the MEDUSA vulnerable lab environment - 8 Docker services that simulate a healthcare network for penetration testing practice.
+
+## Lab Architecture
+
+### Services Overview
+```yaml
+services:
+  ehr-webapp:      # Port 8080 - PHP web app with SQLi, XSS
+  ehr-api:         # Port 3000 - REST API with auth bypass
+  ehr-database:    # Port 3306 - MySQL with weak credentials
+  ssh-server:      # Port 2222 - SSH with common passwords
+  file-server:     # Port 21 - FTP with anonymous access
+  ldap-server:     # Port 389 - LDAP directory
+  log-collector:   # Port 8081 - Centralized logging
+  workstation:     # Ports 445, 3389, 5900 - Windows simulation
+```
+
+### Network Design
+- **DMZ Network**: 172.20.0.0/24 (public-facing services)
+- **Internal Network**: 172.21.0.0/24 (backend services)
+- **Isolation**: Proper segmentation between networks
+
+## Docker Compose Best Practices
+
+### Service Definition Pattern
+```yaml
+service-name:
+  build:
+    context: ./services/service-name
+    dockerfile: Dockerfile
+  container_name: medusa-service-name
+  networks:
+    - dmz  # or internal
+  ports:
+    - "host:container"
+  environment:
+    - KEY=value
+  volumes:
+    - ./data/service:/data
+  healthcheck:
+    test: ["CMD", "curl", "-f", "http://localhost/health"]
+    interval: 30s
+    timeout: 10s
+    retries: 3
+  restart: unless-stopped
+  depends_on:
+    - other-service
+```
+
+### Critical Requirements
+
+#### 1. Always Include Healthchecks
+Every service must have a health check:
+```yaml
+healthcheck:
+  test: ["CMD-SHELL", "curl -f http://localhost:port/health || exit 1"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 40s
+```
+
+#### 2. Proper Network Configuration
+```yaml
+networks:
+  dmz:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+  internal:
+    driver: bridge
+    internal: true  # No external access
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+```
+
+#### 3. Volume Management
+```yaml
+volumes:
+  db-data:
+    driver: local
+  logs:
+    driver: local
+
+services:
+  database:
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+```
+
+#### 4. Environment Variables
+```yaml
+# Use .env file
+env_file:
+  - .env
+
+# Or explicit environment
+environment:
+  - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+  - MYSQL_DATABASE=${MYSQL_DATABASE}
+  - MYSQL_USER=${MYSQL_USER}
+  - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+```
+
+## Dockerfile Best Practices
+
+### Multi-Stage Builds
+```dockerfile
+# Build stage
+FROM node:18-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+RUN npm run build
+
+# Production stage
+FROM node:18-alpine
+WORKDIR /app
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["node", "dist/index.js"]
+```
+
+### Security Best Practices
+```dockerfile
+# Use specific versions
+FROM python:3.9.18-slim
+
+# Don't run as root
+RUN useradd -m -u 1000 appuser
+USER appuser
+
+# Update packages
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy only what's needed
+COPY --chown=appuser:appuser requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s \
+  CMD curl -f http://localhost:8080/health || exit 1
+```
+
+### Vulnerable Service Pattern (Intentional)
+```dockerfile
+# For MEDUSA lab - these are INTENTIONALLY vulnerable
+FROM php:7.4-apache
+
+# Install vulnerable versions (for educational purposes)
+RUN apt-get update && \
+    apt-get install -y \
+        mysql-client \
+        # Specific vulnerable versions
+    && docker-php-ext-install mysqli pdo_mysql
+
+# Disable security features (INTENTIONAL for lab)
+RUN echo "display_errors = On" >> /usr/local/etc/php/php.ini
+RUN echo "allow_url_fopen = On" >> /usr/local/etc/php/php.ini
+
+# Add vulnerable code
+COPY src/ /var/www/html/
+
+# Weak permissions (INTENTIONAL)
+RUN chmod 777 /var/www/html/uploads
+
+EXPOSE 80
+```
+
+## Shell Script Standards
+
+### Script Header
+```bash
+#!/bin/bash
+set -e  # Exit on error
+set -u  # Exit on undefined variable
+set -o pipefail  # Catch errors in pipes
+
+# Script metadata
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Helper functions
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+}
+
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+```
+
+### Setup Script Pattern
+```bash
+#!/bin/bash
+set -euo pipefail
+
+log_info "Starting MEDUSA lab setup..."
+
+# Check prerequisites
+check_prerequisites() {
+    log_info "Checking prerequisites..."
+    
+    if ! command -v docker &> /dev/null; then
+        log_error "Docker is not installed"
+        exit 1
+    fi
+    
+    if ! command -v docker-compose &> /dev/null; then
+        log_error "Docker Compose is not installed"
+        exit 1
+    fi
+    
+    log_info "Prerequisites OK"
+}
+
+# Create necessary directories
+create_directories() {
+    log_info "Creating directories..."
+    mkdir -p data/{database,logs,uploads}
+    mkdir -p reports
+    log_info "Directories created"
+}
+
+# Build images
+build_images() {
+    log_info "Building Docker images..."
+    docker-compose build --no-cache
+    log_info "Images built successfully"
+}
+
+# Start services
+start_services() {
+    log_info "Starting services..."
+    docker-compose up -d
+    log_info "Services started"
+}
+
+# Wait for health
+wait_for_health() {
+    log_info "Waiting for services to be healthy..."
+    
+    local max_attempts=30
+    local attempt=0
+    
+    while [ $attempt -lt $max_attempts ]; do
+        if docker-compose ps | grep -q "unhealthy"; then
+            log_warning "Some services still starting... ($((attempt+1))/$max_attempts)"
+            sleep 5
+            ((attempt++))
+        else
+            log_info "All services healthy!"
+            return 0
+        fi
+    done
+    
+    log_error "Services failed to become healthy"
+    docker-compose ps
+    docker-compose logs
+    exit 1
+}
+
+# Main execution
+main() {
+    check_prerequisites
+    create_directories
+    build_images
+    start_services
+    wait_for_health
+    
+    log_info "✅ Lab setup complete!"
+    log_info ""
+    log_info "Access points:"
+    log_info "  Web App:  http://localhost:8080"
+    log_info "  API:      http://localhost:3000"
+    log_info "  SSH:      ssh user@localhost -p 2222"
+    log_info "  FTP:      ftp://localhost:21"
+    log_info ""
+    log_info "Stop with: docker-compose down"
+}
+
+main "$@"
+```
+
+### Verification Script Pattern
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# Test each service
+test_services() {
+    local failed=0
+    
+    # Web app
+    if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080 | grep -q "200"; then
+        log_info "✅ Web app responding"
+    else
+        log_error "❌ Web app not responding"
+        ((failed++))
+    fi
+    
+    # API
+    if curl -s http://localhost:3000/health | grep -q "ok"; then
+        log_info "✅ API responding"
+    else
+        log_error "❌ API not responding"
+        ((failed++))
+    fi
+    
+    # Database
+    if docker-compose exec -T ehr-database mysql -u root -p"$MYSQL_ROOT_PASSWORD" -e "SELECT 1" &>/dev/null; then
+        log_info "✅ Database accessible"
+    else
+        log_error "❌ Database not accessible"
+        ((failed++))
+    fi
+    
+    # SSH
+    if nc -zv localhost 2222 2>&1 | grep -q "succeeded"; then
+        log_info "✅ SSH server listening"
+    else
+        log_error "❌ SSH server not listening"
+        ((failed++))
+    fi
+    
+    # FTP
+    if nc -zv localhost 21 2>&1 | grep -q "succeeded"; then
+        log_info "✅ FTP server listening"
+    else
+        log_error "❌ FTP server not listening"
+        ((failed++))
+    fi
+    
+    return $failed
+}
+
+# Main
+log_info "Testing MEDUSA lab services..."
+if test_services; then
+    log_info "✅ All services operational"
+    exit 0
+else
+    log_error "❌ Some services failed"
+    exit 1
+fi
+```
+
+## Environment Configuration
+
+### .env.example
+```bash
+# MEDUSA Lab Environment Configuration
+
+# Database
+MYSQL_ROOT_PASSWORD=vulnerablepass
+MYSQL_DATABASE=ehr_db
+MYSQL_USER=ehr_user
+MYSQL_PASSWORD=weakpass123
+
+# Application
+APP_ENV=development
+APP_DEBUG=true  # INTENTIONAL for lab
+
+# API Keys (for lab only)
+API_KEY=test_key_12345
+
+# Network
+DMZ_SUBNET=172.20.0.0/24
+INTERNAL_SUBNET=172.21.0.0/24
+
+# Logging
+LOG_LEVEL=DEBUG
+LOG_FILE=/var/log/medusa/app.log
+```
+
+### .env Validation
+```bash
+check_env() {
+    if [ ! -f .env ]; then
+        log_error ".env file not found"
+        log_info "Creating from .env.example..."
+        cp .env.example .env
+        log_warning "Please review and update .env file"
+        exit 1
+    fi
+    
+    # Check required variables
+    required_vars=(
+        "MYSQL_ROOT_PASSWORD"
+        "MYSQL_DATABASE"
+        "MYSQL_USER"
+        "MYSQL_PASSWORD"
+    )
+    
+    for var in "${required_vars[@]}"; do
+        if ! grep -q "^${var}=" .env; then
+            log_error "Missing required variable: $var"
+            exit 1
+        fi
+    done
+}
+```
+
+## Common Docker Commands
+
+### Development Workflow
+```bash
+# Build without cache
+docker-compose build --no-cache
+
+# Start in foreground (see logs)
+docker-compose up
+
+# Start in background
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+docker-compose logs -f service-name
+
+# Check status
+docker-compose ps
+
+# Execute command in container
+docker-compose exec service-name bash
+
+# Stop services
+docker-compose stop
+
+# Stop and remove
+docker-compose down
+
+# Stop, remove, and clean volumes
+docker-compose down -v
+
+# Restart single service
+docker-compose restart service-name
+```
+
+### Debugging
+```bash
+# Check why service is unhealthy
+docker-compose ps
+docker inspect --format='{{json .State.Health}}' container-name
+
+# View logs for specific time
+docker-compose logs --since 10m service-name
+
+# Get into failing container
+docker-compose exec service-name sh
+
+# Check network connectivity
+docker-compose exec service-name ping other-service
+
+# View resource usage
+docker stats
+
+# Clean up everything
+docker-compose down -v
+docker system prune -a
+```
+
+## Security Considerations
+
+### Intentional Vulnerabilities (Document Them!)
+```yaml
+# docker-compose.yml
+services:
+  webapp:
+    # INTENTIONAL VULNERABILITIES FOR EDUCATIONAL PURPOSES:
+    # 1. SQL injection in patient search (search.php)
+    # 2. XSS in patient notes (notes.php)
+    # 3. Weak session management
+    # 4. Directory traversal in file upload
+    # 5. Missing CSRF protection
+    environment:
+      - PHP_DISPLAY_ERRORS=1  # INTENTIONAL
+      - ALLOW_URL_FOPEN=1     # INTENTIONAL
+```
+
+### What Should NEVER Be Vulnerable
+```yaml
+# ❌ DO NOT make these actually vulnerable
+# - Host system access
+# - Network escape
+# - Container breakout
+# - Host file system access
+
+# ✅ Vulnerabilities should be:
+# - Contained within the network
+# - Documented
+# - Reversible (can tear down)
+```
+
+## Testing Docker Setup
+
+### Integration Test Script
+```bash
+#!/bin/bash
+# test-lab.sh
+
+run_integration_tests() {
+    log_info "Running integration tests..."
+    
+    # Test 1: All services running
+    test "All services running" \
+        "[ $(docker-compose ps -q | wc -l) -eq 8 ]"
+    
+    # Test 2: Web app serves content
+    test "Web app accessible" \
+        "curl -s http://localhost:8080 | grep -q 'EHR System'"
+    
+    # Test 3: API responds
+    test "API health check" \
+        "curl -s http://localhost:3000/health | grep -q 'ok'"
+    
+    # Test 4: Database has data
+    test "Database initialized" \
+        "docker-compose exec -T ehr-database mysql -u root -p'$MYSQL_ROOT_PASSWORD' -e 'SHOW DATABASES;' | grep -q 'ehr_db'"
+    
+    # Test 5: Networks exist
+    test "DMZ network exists" \
+        "docker network ls | grep -q 'medusa_dmz'"
+    
+    log_info "All integration tests passed!"
+}
+
+test() {
+    local name=$1
+    local command=$2
+    
+    if eval "$command" &>/dev/null; then
+        log_info "  ✅ $name"
+    else
+        log_error "  ❌ $name"
+        exit 1
+    fi
+}
+```
+
+## Performance Optimization
+
+### Resource Limits
+```yaml
+services:
+  webapp:
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+```
+
+### Build Optimization
+```dockerfile
+# Use build cache effectively
+FROM python:3.9-slim
+
+# Install dependencies first (better caching)
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy code last (changes more frequently)
+COPY . .
+```
+
+## Checklist for New Services
+
+- [ ] Dockerfile with specific base image version
+- [ ] Multi-stage build if applicable
+- [ ] Healthcheck defined
+- [ ] Network assignment (DMZ or Internal)
+- [ ] Environment variables in .env
+- [ ] Volume for persistent data
+- [ ] Service dependencies (depends_on)
+- [ ] Resource limits set
+- [ ] Documented vulnerabilities
+- [ ] Logs to stdout/stderr
+- [ ] Graceful shutdown handling
+
+## Common Pitfalls
+
+### ❌ Bad: Hardcoded credentials
+```yaml
+environment:
+  - MYSQL_PASSWORD=secret123
+```
+
+### ✅ Good: Use .env
+```yaml
+environment:
+  - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+```
+
+### ❌ Bad: No healthcheck
+```yaml
+services:
+  api:
+    image: api:latest
+    ports:
+      - "3000:3000"
+```
+
+### ✅ Good: With healthcheck
+```yaml
+services:
+  api:
+    image: api:latest
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+```
+
+### ❌ Bad: root user
+```dockerfile
+COPY app.py /app/
+CMD ["python", "app.py"]
+```
+
+### ✅ Good: Non-root user
+```dockerfile
+RUN useradd -m appuser
+USER appuser
+COPY --chown=appuser:appuser app.py /app/
+CMD ["python", "app.py"]
+```
+
+## Documentation Requirements
+
+Every service needs:
+1. **README.md** in service directory
+2. **Documented vulnerabilities** with MITRE ATT&CK mapping
+3. **Access credentials** clearly listed
+4. **Expected behavior** described
+5. **Troubleshooting** section
+
+Example service README:
+```markdown
+# EHR Web Application
+
+## Purpose
+Vulnerable healthcare web application for penetration testing practice.
+
+## Access
+- URL: http://localhost:8080
+- Default credentials: admin/admin
+
+## Intentional Vulnerabilities
+1. SQL Injection in patient search
+   - MITRE ATT&CK: T1190 (Exploit Public-Facing Application)
+   - Location: search.php line 42
+   - Example: `' OR '1'='1`
+
+2. XSS in patient notes
+   - MITRE ATT&CK: T1189 (Drive-by Compromise)
+   - Location: notes.php line 67
+   - Example: `<script>alert('XSS')</script>`
+
+## Troubleshooting
+- Logs: `docker-compose logs ehr-webapp`
+- Shell access: `docker-compose exec ehr-webapp bash`
+```
