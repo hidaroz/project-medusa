@@ -293,7 +293,7 @@ MEDUSA> exploit sql-injection
 
 ```bash
 # Clone repository
-git clone https://github.com/medusa-security/medusa-cli
+git clone https://github.com/hidaroz/project-medusa
 cd medusa-cli
 
 # Install in editable mode
@@ -406,8 +406,8 @@ No backend required for development!
 
 ### Getting Help
 - 📚 Read the documentation
-- 🐛 [Report issues](https://github.com/medusa-security/medusa-cli/issues)
-- 💬 [Ask questions](https://github.com/medusa-security/medusa-cli/discussions)
+- 🐛 [Report issues](https://github.com/hidaroz/project-medusa/issues)
+- 💬 [Ask questions](https://github.com/hidaroz/project-medusa/discussions)
 
 ### Contributing
 - Fork the repository

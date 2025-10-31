@@ -12,7 +12,7 @@ medusa setup
 
 ### Install from Source
 ```bash
-git clone https://github.com/medusa-security/medusa-cli
+git clone https://github.com/hidaroz/project-medusa
 cd medusa-cli
 pip install -e .
 medusa setup
@@ -568,7 +568,7 @@ chmod 600 ~/.medusa/config.yaml
 ## Next Steps
 
 1. **Learn More**: Read the full [README](README.md)
-2. **Report Issues**: [GitHub Issues](https://github.com/medusa-security/medusa-cli/issues)
+2. **Report Issues**: [GitHub Issues](https://github.com/hidaroz/project-medusa/issues)
 3. **Contribute**: [Contributing Guidelines](CONTRIBUTING.md)
 4. **Get Help**: [Documentation](https://docs.medusa.dev)
 

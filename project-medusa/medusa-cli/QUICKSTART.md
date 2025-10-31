@@ -290,8 +290,8 @@ medusa logs --latest
 ## Getting Help
 
 - 📚 Read the [README](README.md)
-- 🐛 Report issues: [GitHub Issues](https://github.com/medusa-security/medusa-cli/issues)
-- 💬 Ask questions: [GitHub Discussions](https://github.com/medusa-security/medusa-cli/discussions)
+- 🐛 Report issues: [GitHub Issues](https://github.com/hidaroz/project-medusa/issues)
+- 💬 Ask questions: [GitHub Discussions](https://github.com/hidaroz/project-medusa/discussions)
 - 📖 Documentation: [docs.medusa.dev](https://docs.medusa.dev)
 
 ---

@@ -49,8 +49,11 @@ class InteractiveMode:
             )
         )
         console.print()
+        
+        # Get LLM config from global config
+        llm_config = self.config.get_llm_config()
 
-        async with MedusaClient(self.target or "http://localhost:3001", self.api_key) as client:
+        async with MedusaClient(self.target or "http://localhost:3001", self.api_key, llm_config=llm_config) as client:
             while self.running:
                 try:
                     # Get user command

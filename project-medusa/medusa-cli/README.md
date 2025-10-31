@@ -61,7 +61,7 @@ pip install medusa-pentest
 Or install from source:
 
 ```bash
-git clone https://github.com/medusa-security/medusa-cli
+git clone https://github.com/hidaroz/project-medusa
 cd medusa-cli
 pip install -e .
 ```
@@ -458,7 +458,7 @@ medusa-cli/
 ### Install for Development
 
 ```bash
-git clone https://github.com/medusa-security/medusa-cli
+git clone https://github.com/hidaroz/project-medusa
 cd medusa-cli
 pip install -e .
 ```
@@ -584,8 +584,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 📞 Support
 
 - **Documentation**: [https://docs.medusa.dev](https://docs.medusa.dev)
-- **Issues**: [GitHub Issues](https://github.com/medusa-security/medusa-cli/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/medusa-security/medusa-cli/discussions)
+- **Issues**: [GitHub Issues](https://github.com/hidaroz/project-medusa/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/hidaroz/project-medusa/discussions)
 
 ---
 

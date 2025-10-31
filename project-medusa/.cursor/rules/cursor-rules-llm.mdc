@@ -1,0 +1,264 @@
+---
+description: Guidelines for implementing LLM integration with Google Gemini
+globs: llm.py,client.py,test_llm.py
+alwaysApply: false
+---
+# LLM Integration Rules
+
+## Context
+You're working on integrating real Google Gemini API to replace mock AI responses in MEDUSA.
+
+## Critical Requirements
+
+### 1. Remove ALL Mock Responses
+Search for and eliminate:
+- Hardcoded return dictionaries
+- Mock recommendation functions
+- Fake AI decisions
+- Placeholder responses
+
+### 2. Use google-generativeai Library
+```python
+import google.generativeai as genai
+
+# Configure once at init
+genai.configure(api_key=self.api_key)
+self.model = genai.GenerativeModel(self.model_name)
+
+# Query with async
+response = await self.model.generate_content_async(
+    prompt,
+    generation_config=genai.types.GenerationConfig(
+        temperature=self.temperature,
+        max_output_tokens=self.max_tokens,
+    )
+)
+```
+
+### 3. Prompt Engineering Pattern
+Every LLM method should:
+```python
+async def get_action_recommendation(self, context: Dict) -> Dict:
+    # 1. Build specific, detailed prompt
+    prompt = self._build_prompt_for_action(context)
+    
+    # 2. Query LLM with error handling
+    try:
+        response = await self._query_llm(prompt)
+    except Exception as e:
+        logger.error(f"LLM query failed: {e}")
+        raise LLMError(f"Could not get recommendation: {e}")
+    
+    # 3. Parse and validate response
+    result = self._parse_response(response)
+    self._validate_result(result)
+    
+    # 4. Log for debugging
+    logger.info(f"LLM recommended: {result['action']}")
+    
+    return result
+```
+
+### 4. Error Handling Must Include
+- Network failures (timeout, connection refused)
+- API errors (rate limit, quota exceeded, invalid key)
+- Invalid responses (unparseable, missing fields)
+- Fallback strategies (default actions, retry logic)
+
+Example:
+```python
+async def _query_llm(self, prompt: str, retries: int = 3) -> str:
+    """Query LLM with retry logic."""
+    for attempt in range(retries):
+        try:
+            response = await self.model.generate_content_async(prompt)
+            return response.text
+        except genai.types.BlockedPromptException:
+            logger.error("Prompt was blocked by safety filters")
+            raise LLMError("Prompt blocked - adjust content")
+        except genai.types.StopCandidateException:
+            logger.warning("Response generation stopped")
+            if attempt < retries - 1:
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                continue
+            raise
+        except Exception as e:
+            if attempt < retries - 1:
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                await asyncio.sleep(2 ** attempt)
+                continue
+            logger.error(f"All retry attempts failed: {e}")
+            raise LLMError(f"LLM query failed after {retries} attempts")
+```
+
+### 5. Prompt Construction
+Prompts should be:
+- **Specific**: Clear task description
+- **Contextual**: Include relevant background
+- **Structured**: Request formatted output
+- **Constrained**: Provide boundaries
+
+Good prompt example:
+```python
+def _build_recon_prompt(self, target: str, context: Dict) -> str:
+    return f"""You are a penetration testing AI assistant analyzing a target system.
+
+Target: {target}
+Current Phase: Reconnaissance
+Previous Findings: {context.get('findings', 'None yet')}
+
+Your task: Recommend the next reconnaissance action.
+
+Provide your response in this JSON format:
+{{
+    "action": "specific_action_to_take",
+    "tool": "tool_name",
+    "reasoning": "why_this_action",
+    "expected_info": "what_we'll_learn",
+    "risk_level": "LOW|MEDIUM|HIGH|CRITICAL"
+}}
+
+Consider:
+1. What information is still missing about the target
+2. Which reconnaissance technique is most appropriate
+3. Potential risks of each action
+4. Priority based on MITRE ATT&CK reconnaissance tactics
+
+Respond ONLY with valid JSON, no additional text."""
+```
+
+### 6. Response Parsing
+Always handle malformed responses:
+```python
+def _parse_response(self, response: str) -> Dict:
+    """Parse LLM response with error handling."""
+    try:
+        # Try JSON parsing first
+        result = json.loads(response)
+    except json.JSONDecodeError:
+        logger.warning("Response not valid JSON, extracting structured data")
+        # Fallback: extract using regex or LLM cleanup
+        result = self._extract_structure_from_text(response)
+    
+    # Validate required fields
+    required = ["action", "reasoning"]
+    missing = [f for f in required if f not in result]
+    if missing:
+        raise ValueError(f"Response missing fields: {missing}")
+    
+    return result
+```
+
+### 7. Testing Requirements
+For every LLM method, create:
+
+A) Unit test with MockLLMClient:
+```python
+@pytest.mark.asyncio
+async def test_reconnaissance_recommendation():
+    client = MockLLMClient()
+    result = await client.get_reconnaissance_recommendation("192.168.1.1", {})
+    
+    assert "action" in result
+    assert "reasoning" in result
+    assert result["action"] in ["port_scan", "service_enum", "os_detect"]
+```
+
+B) Integration test with real API (marked slow):
+```python
+@pytest.mark.asyncio
+@pytest.mark.slow
+@pytest.mark.skipif(not os.getenv("GOOGLE_API_KEY"), reason="No API key")
+async def test_real_llm_integration():
+    client = LLMClient(api_key=os.getenv("GOOGLE_API_KEY"))
+    result = await client.get_reconnaissance_recommendation("test.example.com", {})
+    
+    # Verify real LLM returns valid structure
+    assert isinstance(result, dict)
+    assert "action" in result
+```
+
+### 8. Configuration
+LLM settings should be configurable:
+```python
+@dataclass
+class LLMConfig:
+    api_key: str
+    model: str = "gemini-pro"
+    temperature: float = 0.7
+    max_tokens: int = 2048
+    timeout: int = 30
+    retry_attempts: int = 3
+```
+
+### 9. Logging
+Log all LLM interactions for debugging:
+```python
+logger.info("LLM query initiated", extra={
+    "model": self.model_name,
+    "prompt_length": len(prompt),
+    "temperature": self.temperature
+})
+
+logger.debug("Full prompt", extra={"prompt": prompt})
+
+logger.info("LLM response received", extra={
+    "response_length": len(response.text),
+    "finish_reason": response.candidates[0].finish_reason
+})
+```
+
+### 10. MockLLMClient for Testing
+Always maintain a mock client:
+```python
+class MockLLMClient(LLMClient):
+    """Mock LLM client for testing without API calls."""
+    
+    def __init__(self):
+        """Initialize without API key."""
+        self.model_name = "mock"
+        self.temperature = 0.7
+        logger.info("Mock LLM client initialized")
+    
+    async def _query_llm(self, prompt: str) -> str:
+        """Return deterministic mock responses."""
+        if "reconnaissance" in prompt.lower():
+            return json.dumps({
+                "action": "port_scan",
+                "tool": "nmap",
+                "reasoning": "Start with port scan to discover services",
+                "expected_info": "Open ports and running services",
+                "risk_level": "LOW"
+            })
+        # ... more mock responses
+```
+
+## Checklist Before Committing
+
+- [ ] No hardcoded mock responses in production code
+- [ ] All LLM calls use async/await
+- [ ] Error handling covers network, API, and parsing errors
+- [ ] Prompts are specific and request structured output
+- [ ] Response parsing handles malformed data
+- [ ] Tests include both mock and real API cases
+- [ ] All LLM interactions are logged
+- [ ] Configuration is externalized
+- [ ] API key never committed in code
+- [ ] MockLLMClient provides deterministic responses
+
+## Common Pitfalls to Avoid
+
+❌ Synchronous calls: `response = model.generate_content()`
+✅ Use async: `response = await model.generate_content_async()`
+
+❌ Assuming response format: `return response.json()`
+✅ Validate and parse: `return self._parse_and_validate(response)`
+
+❌ Generic error handling: `except Exception: pass`
+✅ Specific handling: `except APIError as e: logger.error(f"API failed: {e}")`
+
+❌ Vague prompts: "What should I do next?"
+✅ Specific prompts: "Based on these 3 open ports, recommend the next enumeration step"
+
+❌ No fallback: Fails if LLM unavailable
+✅ Graceful degradation: "return safe_default_action()"
