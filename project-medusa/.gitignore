@@ -59,4 +59,24 @@ jspm_packages/
 Thumbs.db
 
 # Training datasets (contain fake API keys for LLM training)
-local-datasets/
+training-data/raw/*.json
+
+# GitHub Pages build artifacts (deployed to gh-pages branch, not main)
+/404/
+/admin/
+/appointments/
+/clinical/
+/dashboard/
+/medications/
+/patient/
+/patients/
+/reports/
+/_next/
+/index.html
+/404.html
+/index.txt
+/*.svg
+/*.ico
+/CNAME
+/discovery_results.json
+/data/

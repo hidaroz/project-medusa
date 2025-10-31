@@ -1,0 +1,48 @@
+# Docker Lab .gitignore
+
+# Docker volumes and data
+*.log
+logs/
+analysis/
+*.sql
+*.tar.gz
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# Environment files (if you add any)
+.env.local
+.env.*.local
+
+# Backup files
+backup/
+*.backup
+*.bak
+
+# Extracted data
+medusa_extracted_data/
+medusa_assessment_report.txt
+
+# Node modules (should be in container, not host)
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Docker build context (optional)
+.dockerignore
+

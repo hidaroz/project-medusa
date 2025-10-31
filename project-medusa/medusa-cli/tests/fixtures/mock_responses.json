@@ -1,0 +1,56 @@
+{
+  "reconnaissance": {
+    "recommended_actions": [
+      {
+        "action": "port_scan",
+        "command": "nmap -sV target",
+        "technique_id": "T1046",
+        "technique_name": "Network Service Discovery",
+        "priority": "high",
+        "reasoning": "Discover exposed services"
+      }
+    ],
+    "focus_areas": ["web_services", "databases"],
+    "risk_assessment": "LOW",
+    "estimated_duration": 60
+  },
+  "enumeration": {
+    "recommended_actions": [
+      {
+        "action": "enumerate_api_endpoints",
+        "technique_id": "T1590",
+        "priority": "high",
+        "reasoning": "Discovered REST API"
+      }
+    ],
+    "services_to_probe": ["http", "https", "api"],
+    "risk_assessment": "LOW",
+    "potential_vulnerabilities": ["authentication_bypass", "information_disclosure"]
+  },
+  "vulnerability": {
+    "type": "SQL Injection",
+    "severity": "HIGH",
+    "location": "/api/search?q=",
+    "description": "User input not properly sanitized",
+    "cvss_score": 7.5,
+    "technique_id": "T1190"
+  },
+  "attack_plan": {
+    "strategy_overview": "Multi-stage attack targeting API",
+    "attack_chain": [
+      {
+        "step": 1,
+        "action": "exploit_authentication_bypass",
+        "target_vulnerability": "Unauthenticated API endpoints",
+        "technique_id": "T1078",
+        "expected_outcome": "Gain authenticated session",
+        "risk_level": "MEDIUM",
+        "prerequisites": []
+      }
+    ],
+    "success_probability": 0.75,
+    "estimated_duration": 300,
+    "risks": ["detection by IDS", "account lockout"]
+  }
+}
+

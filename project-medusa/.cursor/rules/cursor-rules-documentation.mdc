@@ -1,0 +1,788 @@
+---
+description: Documentation standards and best practices for MEDUSA project
+alwaysApply: false
+---
+# Documentation Rules for MEDUSA
+
+## Philosophy
+Documentation is code. It should be clear, maintainable, and tested (links checked, examples verified).
+
+## Documentation Structure
+
+### Project Root
+```
+medusa/
+├── README.md                 # Quick start, overview
+├── CHANGELOG.md             # Version history
+├── LICENSE                  # MIT license
+└── SECURITY.md              # Security policy
+```
+
+### Comprehensive Docs
+```
+docs/
+├── README.md                # Documentation index
+├── ARCHITECTURE.md          # System design
+├── API.md                   # API reference
+├── DEVELOPMENT.md           # Developer guide
+├── DEPLOYMENT.md            # Deployment guide
+├── SECURITY.md              # Security considerations
+├── TROUBLESHOOTING.md       # Common issues
+├── CONTRIBUTING.md          # How to contribute
+└── examples/
+    ├── observe_mode.md
+    ├── autonomous_mode.md
+    └── shell_mode.md
+```
+
+## Main README.md Pattern
+
+### Structure
+```markdown
+# Project Name
+
+[Badges: Build Status, Coverage, License]
+
+## 🎯 Overview
+2-3 sentences about what this project does and why it exists.
+
+## ⚡ Quick Start
+Three commands to get started:
+```bash
+# 1. Setup
+# 2. Run
+# 3. Verify
+```
+
+## ✨ Features
+- Feature 1 with brief description
+- Feature 2 with brief description
+- Feature 3 with brief description
+
+## 📦 Installation
+### Prerequisites
+- Requirement 1 (with version)
+- Requirement 2 (with version)
+
+### Setup
+```bash
+# Step-by-step commands
+```
+
+## 🚀 Usage
+### Basic Example
+```bash
+# Show the simplest use case
+```
+
+### Advanced Example
+```bash
+# Show more complex usage
+```
+
+## 📖 Documentation
+- [Architecture](docs/ARCHITECTURE.md)
+- [API Reference](docs/API.md)
+- [Development Guide](docs/DEVELOPMENT.md)
+
+## 🤝 Contributing
+See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## 📄 License
+This project is licensed under the MIT License - see [LICENSE](LICENSE)
+
+## ⚠️ Disclaimer
+Educational purposes only. Only test against authorized systems.
+```
+
+### MEDUSA-Specific README
+```markdown
+# MEDUSA - AI-Powered Autonomous Penetration Testing Framework
+
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)]()
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)]()
+
+## 🎯 Overview
+
+MEDUSA is an AI-powered penetration testing framework that uses Google Gemini for autonomous security assessment. It combines large language model decision-making with traditional pentesting tools to identify and analyze vulnerabilities in authorized test environments.
+
+## ⚡ Quick Start
+
+```bash
+# 1. Install
+cd medusa-cli && pip install -e .
+
+# 2. Configure
+cp .env.example .env
+# Add your GOOGLE_API_KEY
+
+# 3. Deploy lab
+./scripts/build-docker.sh
+
+# 4. Run observe mode (safe, read-only)
+medusa observe --target localhost
+```
+
+## ✨ Features
+
+- **AI-Powered Decision Making**: Google Gemini analyzes targets and recommends actions
+- **Approval Gates**: Risk-based approval system prevents unintended actions
+- **Three Modes**: Observe (read-only), Autonomous (AI-driven), Shell (interactive)
+- **Comprehensive Lab**: 8 vulnerable services for safe testing
+- **Rich Terminal UI**: Beautiful progress indicators and real-time feedback
+- **Detailed Reporting**: JSON logs and HTML reports with MITRE ATT&CK mapping
+
+## 🏗️ Architecture
+
+```mermaid
+graph TB
+    User --> CLI[CLI Interface]
+    CLI --> LLM[LLM Client]
+    LLM --> Gemini[Google Gemini]
+    CLI --> Ops[Operations Engine]
+    Ops --> Lab[Docker Lab]
+    Ops --> Gates[Approval Gates]
+    Gates --> Risk[Risk Assessment]
+    Ops --> Report[Report Generator]
+```
+
+[Continue with Installation, Usage, etc...]
+```
+
+## Documentation Writing Guidelines
+
+### 1. Start with Examples
+```markdown
+# ❌ Bad - starts with theory
+## Authentication
+Our system uses JWT tokens for authentication...
+
+# ✅ Good - starts with example
+## Authentication
+```bash
+# Get an auth token
+curl -X POST http://localhost:3000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin"}'
+
+# Use the token
+curl http://localhost:3000/api/patients \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### 2. Be Concise
+```markdown
+# ❌ Bad - verbose
+The LLM integration module is responsible for handling all interactions with the Google Gemini API, including the construction of prompts, the transmission of requests, the reception of responses, and the parsing of the returned data into structured formats that can be utilized by other components of the system.
+
+# ✅ Good - concise
+The LLM module handles Google Gemini API interactions: prompt building, request/response handling, and response parsing.
+```
+
+### 3. Use Visual Hierarchy
+```markdown
+# ❌ Bad - flat wall of text
+Installation: First you need to install Python 3.9 or higher. Then...
+
+# ✅ Good - clear structure
+## Installation
+
+### Prerequisites
+- Python 3.9+
+- Docker 20.10+
+- Google API key
+
+### Steps
+1. **Install dependencies**
+   ```bash
+   pip install -e .
+   ```
+
+2. **Configure environment**
+   ```bash
+   cp .env.example .env
+   ```
+
+3. **Deploy lab**
+   ```bash
+   ./scripts/build-docker.sh
+   ```
+```
+
+### 4. Include Screenshots/Diagrams
+```markdown
+## Terminal Output
+
+Running observe mode shows:
+- Real-time progress bars
+- Color-coded risk levels
+- Action recommendations
+
+[Screenshot of terminal here or ASCII art]
+
+```
+┌─────────────────────────────────────┐
+│ MEDUSA - Observe Mode               │
+├─────────────────────────────────────┤
+│ ✓ Reconnaissance complete           │
+│ ⚡ Enumeration in progress...       │
+│   └─ HTTP service detected          │
+│   └─ SSH service detected           │
+│ ⏳ Vulnerability assessment pending │
+└─────────────────────────────────────┘
+```
+```
+
+## API Documentation Pattern
+
+### For Each Endpoint/Method
+
+```markdown
+### `get_reconnaissance_recommendation(target, context)`
+
+Get AI recommendation for next reconnaissance action.
+
+**Parameters:**
+- `target` (str): Target IP address or hostname
+- `context` (dict): Current reconnaissance state
+  - `ports` (list): Previously discovered ports
+  - `services` (list): Identified services
+  - `os` (str, optional): Detected operating system
+
+**Returns:**
+- `dict`: Recommendation object
+  - `action` (str): Recommended action name
+  - `tool` (str): Tool to use
+  - `reasoning` (str): Why this action is recommended
+  - `risk_level` (str): Risk level (LOW/MEDIUM/HIGH/CRITICAL)
+
+**Raises:**
+- `LLMError`: If API call fails
+- `ValueError`: If target is invalid
+
+**Example:**
+```python
+from medusa.core.llm import LLMClient
+
+client = LLMClient(api_key="your_key")
+recommendation = await client.get_reconnaissance_recommendation(
+    target="192.168.1.100",
+    context={"ports": [22, 80, 443]}
+)
+
+print(f"Action: {recommendation['action']}")
+print(f"Tool: {recommendation['tool']}")
+print(f"Reasoning: {recommendation['reasoning']}")
+```
+
+**Output:**
+```python
+{
+    "action": "service_enumeration",
+    "tool": "nmap",
+    "reasoning": "Discovered web and SSH services. Enumerate to identify versions.",
+    "risk_level": "LOW"
+}
+```
+```
+
+## Architecture Documentation
+
+### ARCHITECTURE.md Structure
+```markdown
+# MEDUSA Architecture
+
+## System Overview
+
+High-level system diagram showing components and interactions.
+
+## Components
+
+### CLI Layer
+**Responsibility:** User interaction and command processing
+**Technologies:** Typer, Rich
+**Interfaces:** 
+- Commands: `observe`, `autonomous`, `shell`
+- Output: Terminal UI with progress bars
+
+### Core Layer
+**Responsibility:** Business logic and AI decision-making
+**Technologies:** Python 3.9+, Google Gemini API
+**Components:**
+- `llm.py`: AI integration
+- `approval.py`: Risk-based approval system
+- `operations.py`: Penetration testing operations
+
+[Continue for each layer...]
+
+## Data Flow
+
+```mermaid
+sequenceDiagram
+    User->>CLI: medusa observe --target X
+    CLI->>LLM: get_recommendation(target)
+    LLM->>Gemini: API call
+    Gemini-->>LLM: response
+    LLM-->>CLI: action recommendation
+    CLI->>ApprovalGate: check_approval(action)
+    ApprovalGate-->>CLI: approved/denied
+    CLI->>Operations: execute(action)
+    Operations->>Lab: perform scan
+    Lab-->>Operations: results
+    Operations-->>CLI: results
+    CLI->>Reporter: generate_report(results)
+    Reporter-->>User: HTML/JSON report
+```
+
+## Security Model
+
+### Approval Gates
+[Detailed explanation]
+
+### Risk Levels
+[Table of risk levels]
+
+### Network Isolation
+[How Docker lab is isolated]
+```
+
+## Code Documentation
+
+### Docstring Pattern
+```python
+def assess_vulnerability_risk(self, vulnerability: Dict) -> str:
+    """
+    Assess the risk level of a discovered vulnerability.
+    
+    Uses LLM to analyze vulnerability characteristics including:
+    - Exploitability (ease of exploitation)
+    - Impact (potential damage)
+    - Scope (affected systems)
+    - Prerequisites (required access level)
+    
+    Args:
+        vulnerability: Vulnerability information
+            - name (str): Vulnerability identifier
+            - cvss (float, optional): CVSS score if available
+            - description (str): Vulnerability description
+            - service (str): Affected service
+            - port (int): Service port
+    
+    Returns:
+        str: Risk level - one of:
+            - "LOW": Minimal risk, requires complex exploitation
+            - "MEDIUM": Moderate risk, some skill required
+            - "HIGH": Significant risk, readily exploitable
+            - "CRITICAL": Severe risk, trivial exploitation
+    
+    Raises:
+        LLMError: If AI analysis fails
+        ValueError: If vulnerability dict is invalid
+    
+    Example:
+        >>> vulnerability = {
+        ...     "name": "SQL Injection",
+        ...     "cvss": 9.8,
+        ...     "description": "Unsanitized user input",
+        ...     "service": "web",
+        ...     "port": 80
+        ... }
+        >>> risk = await client.assess_vulnerability_risk(vulnerability)
+        >>> print(risk)
+        'CRITICAL'
+    
+    Note:
+        Risk assessment considers organizational context and
+        network position. Same vulnerability may have different
+        risk levels in different contexts.
+    """
+    prompt = self._build_risk_assessment_prompt(vulnerability)
+    response = await self._query_llm(prompt)
+    return self._parse_risk_level(response)
+```
+
+## Troubleshooting Documentation
+
+### TROUBLESHOOTING.md Pattern
+```markdown
+# Troubleshooting Guide
+
+## Quick Diagnostic
+
+Run the validation script:
+```bash
+python scripts/validate.py
+```
+
+## Common Issues
+
+### Issue: "GOOGLE_API_KEY not found"
+
+**Symptom:**
+```
+ConfigurationError: GOOGLE_API_KEY not found in environment
+```
+
+**Cause:** API key not set in environment variables
+
+**Solution:**
+```bash
+# Add to .env file
+echo "GOOGLE_API_KEY=your_key_here" >> .env
+
+# Or export in shell
+export GOOGLE_API_KEY="your_key_here"
+
+# Verify
+echo $GOOGLE_API_KEY
+```
+
+**Prevention:** Always copy .env.example to .env during setup
+
+---
+
+### Issue: Docker services won't start
+
+**Symptom:**
+```
+ERROR: Service 'ehr-webapp' failed to build
+```
+
+**Diagnosis:**
+```bash
+# Check Docker is running
+docker ps
+
+# Check logs
+docker-compose logs ehr-webapp
+
+# Check disk space
+df -h
+```
+
+**Common Causes:**
+1. Docker not running
+2. Port already in use
+3. Insufficient disk space
+4. Corrupted image
+
+**Solutions:**
+
+**If Docker not running:**
+```bash
+# macOS
+open -a Docker
+
+# Linux
+sudo systemctl start docker
+```
+
+**If port in use:**
+```bash
+# Find process using port
+lsof -i :8080
+
+# Kill process or change port in docker-compose.yml
+```
+
+**If disk full:**
+```bash
+# Clean up Docker
+docker system prune -a
+docker volume prune
+```
+
+**If image corrupted:**
+```bash
+# Rebuild without cache
+docker-compose build --no-cache
+```
+
+[Continue for all common issues...]
+
+## Getting Help
+
+1. **Check documentation**: docs/
+2. **Search issues**: GitHub Issues
+3. **Enable debug mode**: `medusa --verbose`
+4. **Collect diagnostics**: `./scripts/collect-diagnostics.sh`
+5. **Ask for help**: Include diagnostics in issue
+```
+
+## Examples Documentation
+
+### Example Document Pattern
+```markdown
+# Example: Running Observe Mode
+
+## Overview
+Observe mode allows you to see what MEDUSA would do without executing actions.
+
+## Prerequisites
+- Docker lab running
+- MEDUSA CLI installed
+- API key configured
+
+## Step-by-Step
+
+### 1. Start Docker Lab
+```bash
+cd lab-environment
+docker-compose up -d
+docker-compose ps  # Verify all services UP
+```
+
+### 2. Run Observe Mode
+```bash
+cd medusa-cli
+source venv/bin/activate
+medusa observe --target localhost --port 8080
+```
+
+### 3. Expected Output
+```
+🔍 MEDUSA - Observe Mode
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Phase 1: Reconnaissance
+  ⚡ Scanning target...
+  ✓ Found 3 open ports: 22, 80, 443
+  ✓ OS detection: Linux
+
+Phase 2: Enumeration
+  ⚡ Enumerating services...
+  ✓ Port 22: OpenSSH 7.4
+  ✓ Port 80: Apache 2.4.6
+  ✓ Port 443: Apache 2.4.6 (TLS)
+
+Phase 3: Vulnerability Assessment
+  ⚡ AI analyzing findings...
+  ⚠️  Potential SQL injection in web form
+  ⚠️  Weak SSH credentials possible
+  ℹ️  Missing security headers
+
+Phase 4: Attack Plan Generation
+  📋 AI recommended strategy:
+    1. Test SQL injection in search form
+    2. Enumerate valid usernames via timing attack
+    3. Attempt common SSH credentials
+    
+  Risk Level: MEDIUM
+  
+✅ Observe mode complete
+📄 Report saved: reports/observe_2024-10-30.html
+```
+
+### 4. Review Report
+```bash
+# Open HTML report
+open reports/observe_2024-10-30.html
+
+# Or view JSON
+cat logs/observe_2024-10-30.json | jq
+```
+
+### 5. Understanding Results
+
+The report includes:
+- **Timeline**: When each action was taken
+- **Findings**: Discovered vulnerabilities
+- **Recommendations**: What AI suggests next
+- **MITRE Mapping**: ATT&CK technique coverage
+
+## Next Steps
+- Review recommendations
+- Try autonomous mode (with approval)
+- Practice with shell mode
+```
+
+## Markdown Best Practices
+
+### Use Proper Headings
+```markdown
+# ✅ Good - hierarchical
+# Main Title
+## Section
+### Subsection
+#### Detail
+
+# ❌ Bad - random levels
+## Title
+#### Something
+## Another Section
+```
+
+### Link Checking
+```markdown
+# Links should be:
+- Relative for internal: [docs](docs/API.md)
+- Absolute for external: [Python](https://python.org)
+- Tested regularly
+
+# Include link checking in CI:
+```bash
+npm install -g markdown-link-check
+find . -name "*.md" -exec markdown-link-check {} \;
+```
+```
+
+### Tables
+```markdown
+# Use proper alignment
+| Component | Status | Coverage |
+|-----------|--------|----------|
+| CLI       | ✅ Done | 95%      |
+| LLM       | 🔄 WIP  | 40%      |
+| Tests     | 📋 TODO | 0%       |
+```
+
+### Code Blocks
+```markdown
+# Always specify language
+```python
+def example():
+    pass
+```
+
+# Not just:
+```
+def example():
+    pass
+```
+```
+
+## Changelog Format
+
+Use [Keep a Changelog](https://keepachangelog.com/) format:
+
+```markdown
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
+
+## [Unreleased]
+### Added
+- New feature descriptions
+
+### Changed
+- Changes to existing functionality
+
+### Fixed
+- Bug fixes
+
+## [2.0.0] - 2024-10-30
+### Added
+- Real LLM integration with Google Gemini
+- Complete test infrastructure with 80% coverage
+- Development automation scripts
+
+### Changed
+- Restructured project into monorepo layout
+- Updated all import paths
+
+### Removed
+- Archived incomplete backend component
+
+### Fixed
+- Corrected approval gate logic for LOW risk operations
+
+## [1.0.0] - 2024-10-01
+### Added
+- Initial CLI implementation
+- Docker lab environment
+- Basic documentation
+```
+
+## Documentation Testing
+
+### Link Checking
+```bash
+#!/bin/bash
+# check-docs.sh
+
+echo "Checking documentation..."
+
+# Check for broken links
+markdown-link-check README.md
+find docs/ -name "*.md" -exec markdown-link-check {} \;
+
+# Check code examples
+python scripts/test-doc-examples.py
+
+# Check for TODO/FIXME
+if grep -r "TODO\|FIXME" docs/; then
+    echo "⚠️  Found TODOs in documentation"
+fi
+
+echo "✅ Documentation checks complete"
+```
+
+### Code Example Testing
+```python
+# scripts/test-doc-examples.py
+"""Extract and test code examples from documentation."""
+
+import re
+import subprocess
+from pathlib import Path
+
+def extract_python_examples(md_file):
+    """Extract Python code blocks from markdown."""
+    content = Path(md_file).read_text()
+    pattern = r"```python\n(.*?)\n```"
+    return re.findall(pattern, content, re.DOTALL)
+
+def test_example(code):
+    """Test if code example runs."""
+    try:
+        exec(code)
+        return True
+    except Exception as e:
+        print(f"❌ Example failed: {e}")
+        return False
+
+# Test all examples in docs
+for md_file in Path("docs").glob("**/*.md"):
+    examples = extract_python_examples(md_file)
+    for example in examples:
+        test_example(example)
+```
+
+## Checklist for New Documentation
+
+- [ ] Clear title and overview
+- [ ] Prerequisites listed
+- [ ] Step-by-step instructions
+- [ ] Code examples included
+- [ ] Code examples tested
+- [ ] Screenshots/diagrams where helpful
+- [ ] Links checked
+- [ ] Grammar and spelling checked
+- [ ] Consistent formatting
+- [ ] Troubleshooting section
+- [ ] Updated in table of contents
+- [ ] Reviewed by another person
+
+## Common Documentation Pitfalls
+
+### ❌ Avoid
+- Outdated examples that don't work
+- Broken links
+- Assuming too much knowledge
+- No error handling shown
+- Missing prerequisites
+- Copy-paste errors
+- Inconsistent terminology
+
+### ✅ Do
+- Test all examples before committing
+- Check all links before committing
+- Explain concepts clearly
+- Show both success and error cases
+- List all prerequisites
+- Verify copy-paste accuracy
+- Use consistent terms throughout

@@ -1,0 +1,409 @@
+version: '3.8'
+
+# ============================================================================
+# MEDUSA Healthcare Network Simulation Lab
+# ============================================================================
+# Purpose: Isolated Docker environment for testing AI-driven red team agent
+# CAUTION: Contains INTENTIONAL vulnerabilities - DO NOT expose to internet
+# ============================================================================
+
+services:
+  
+  # ==========================================================================
+  # 1. VULNERABLE EHR WEB APPLICATION
+  # ==========================================================================
+  # Simulates a healthcare web portal with common web vulnerabilities
+  # Intentional Vulnerabilities:
+  # - SQL Injection in patient search
+  # - XSS in patient notes
+  # - Insecure Direct Object Reference (IDOR)
+  # - Session management issues
+  # - Weak authentication
+  # ==========================================================================
+  ehr-webapp:
+    build: ./services/ehr-webapp
+    container_name: medusa_ehr_web
+    hostname: ehr-portal
+    ports:
+      - "8080:80"      # HTTP access to EHR portal
+    environment:
+      - DB_HOST=ehr-database
+      - DB_USER=ehrapp
+      - DB_PASS=Welcome123!
+      - DB_NAME=healthcare_db
+      - APACHE_RUN_USER=www-data
+      - APACHE_RUN_GROUP=www-data
+    volumes:
+      - ehr-logs:/var/log/apache2
+      - ehr-uploads:/var/www/html/uploads
+    networks:
+      - healthcare-dmz
+      - healthcare-internal
+    depends_on:
+      - ehr-database
+    restart: unless-stopped
+    # Resource limits for laptop use
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # 2. EHR DATABASE (MySQL)
+  # ==========================================================================
+  # Contains synthetic patient data with intentional misconfigurations
+  # Intentional Vulnerabilities:
+  # - Weak root password
+  # - Exposed MySQL port
+  # - Overly permissive user accounts
+  # - Unencrypted sensitive data
+  # - Default configurations retained
+  # ==========================================================================
+  ehr-database:
+    image: mysql:8.0
+    container_name: medusa_ehr_db
+    hostname: db-server
+    ports:
+      - "3306:3306"    # Intentionally exposed for remote access
+    environment:
+      - MYSQL_ROOT_PASSWORD=admin123
+      - MYSQL_DATABASE=healthcare_db
+      - MYSQL_USER=ehrapp
+      - MYSQL_PASSWORD=Welcome123!
+    volumes:
+      - db-data:/var/lib/mysql
+      - ./init-scripts/db:/docker-entrypoint-initdb.d
+      - db-logs:/var/log/mysql
+    networks:
+      - healthcare-internal
+    command: >
+      --general_log=1
+      --general_log_file=/var/log/mysql/query.log
+      --slow_query_log=1
+      --slow_query_log_file=/var/log/mysql/slow.log
+      --log_error=/var/log/mysql/error.log
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # ==========================================================================
+  # 3. VULNERABLE SSH SERVER
+  # ==========================================================================
+  # Linux server with SSH access and intentional misconfigurations
+  # Intentional Vulnerabilities:
+  # - Weak user credentials
+  # - Password authentication enabled
+  # - Sudo misconfigurations
+  # - World-readable sensitive files
+  # - Outdated packages simulation
+  # - SSH key exposure
+  # ==========================================================================
+  ssh-server:
+    build: ./services/ssh-server
+    container_name: medusa_ssh_server
+    hostname: admin-workstation
+    ports:
+      - "2222:22"      # SSH access on non-standard port
+    environment:
+      - ROOT_PASSWORD=password123
+      - USER_NAME=admin
+      - USER_PASSWORD=admin2024
+      - SUDO_ACCESS=true
+    volumes:
+      - ssh-logs:/var/log
+      - ssh-home:/home
+      - ./shared-files:/opt/shared:ro
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  # ==========================================================================
+  # 4. FILE SERVER (FTP)
+  # ==========================================================================
+  # FTP server with medical records and backups
+  # Intentional Vulnerabilities:
+  # - Anonymous FTP access enabled
+  # - Weak credentials
+  # - Sensitive files in accessible locations
+  # - No encryption (plain FTP)
+  # ==========================================================================
+  file-server:
+    build: ./services/ftp-server
+    container_name: medusa_ftp_server
+    hostname: file-storage
+    ports:
+      - "21:21"        # FTP control
+      - "21000-21010:21000-21010"  # FTP passive mode range
+    environment:
+      - FTP_USER=fileadmin
+      - FTP_PASS=Files2024!
+      - ANONYMOUS_ENABLE=YES
+    volumes:
+      - ftp-data:/home/ftpuser
+      - ftp-logs:/var/log/vsftpd
+      - ./mock-data/medical-records:/home/ftpuser/medical_records:ro
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+
+  # ==========================================================================
+  # 5. EHR API SERVER
+  # ==========================================================================
+  # REST API backend for EHR system
+  # Intentional Vulnerabilities:
+  # - Missing authentication on some endpoints
+  # - Verbose error messages exposing system info
+  # - No rate limiting
+  # - JWT with weak secret
+  # - CORS misconfiguration
+  # ==========================================================================
+  ehr-api:
+    build: ./services/ehr-api
+    container_name: medusa_ehr_api
+    hostname: api-server
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=ehr-database
+      - DB_USER=ehrapp
+      - DB_PASS=Welcome123!
+      - DB_NAME=healthcare_db
+      - JWT_SECRET=supersecret123
+      - NODE_ENV=production
+      - LOG_LEVEL=debug
+    volumes:
+      - api-logs:/var/log/api
+    networks:
+      - healthcare-internal
+      - healthcare-dmz
+    depends_on:
+      - ehr-database
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # 6. LDAP DIRECTORY SERVER
+  # ==========================================================================
+  # LDAP for user authentication (simulating Active Directory)
+  # Intentional Vulnerabilities:
+  # - Anonymous bind enabled
+  # - Weak admin password
+  # - Unencrypted LDAP (not LDAPS)
+  # - Sensitive user information exposed
+  # ==========================================================================
+  ldap-server:
+    image: osixia/openldap:1.5.0
+    container_name: medusa_ldap
+    hostname: ldap-server
+    ports:
+      - "389:389"      # LDAP
+      - "636:636"      # LDAPS (not properly configured)
+    environment:
+      - LDAP_ORGANISATION="MedCare Health System"
+      - LDAP_DOMAIN=medcare.local
+      - LDAP_ADMIN_PASSWORD=admin123
+      - LDAP_CONFIG_PASSWORD=config123
+      - LDAP_TLS=false
+    volumes:
+      - ldap-data:/var/lib/ldap
+      - ldap-config:/etc/ldap/slapd.d
+      - ldap-logs:/var/log/slapd
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  # ==========================================================================
+  # 7. NETWORK MONITORING & LOGGING
+  # ==========================================================================
+  # Centralized logging and monitoring container
+  # Collects logs from all services for post-exploitation analysis
+  # ==========================================================================
+  log-collector:
+    build: ./services/log-collector
+    container_name: medusa_logs
+    hostname: log-server
+    ports:
+      - "5514:514/udp"  # Syslog
+      - "5514:514/tcp"  # Syslog TCP
+      - "8081:80"       # Web UI for log viewing
+    volumes:
+      - centralized-logs:/var/log/collected
+      - ./analysis:/var/log/analysis
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 384M
+
+  # ==========================================================================
+  # 8. VULNERABLE WORKSTATION (Windows-like)
+  # ==========================================================================
+  # Simulates a Windows workstation using Wine/Linux
+  # Intentional Vulnerabilities:
+  # - SMB shares with weak permissions
+  # - Cached credentials
+  # - Unpatched system simulation
+  # - Scheduled tasks with elevated privileges
+  # ==========================================================================
+  workstation:
+    build: ./services/workstation
+    container_name: medusa_workstation
+    hostname: ws-doctor01
+    ports:
+      - "445:445"      # SMB
+      - "3389:3389"    # RDP (simulated)
+      - "5900:5900"    # VNC for access
+    environment:
+      - VNC_PASSWORD=vnc123
+      - SMB_USER=doctor
+      - SMB_PASS=Doctor2024!
+    volumes:
+      - workstation-data:/home/doctor
+      - workstation-logs:/var/log
+      - ./mock-data/documents:/home/doctor/Documents:ro
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+# ============================================================================
+# NETWORK DEFINITIONS
+# ============================================================================
+# Two-tier network architecture:
+# 1. healthcare-dmz: External-facing services (web apps)
+# 2. healthcare-internal: Internal services (databases, file servers)
+# ============================================================================
+networks:
+  # DMZ Network - Simulates perimeter network with public-facing services
+  healthcare-dmz:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
+    driver_opts:
+      com.docker.network.bridge.name: medusa-dmz
+
+  # Internal Network - Simulates internal corporate network
+  healthcare-internal:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+          gateway: 172.21.0.1
+    driver_opts:
+      com.docker.network.bridge.name: medusa-internal
+    internal: false  # Set to true for complete isolation (no internet)
+
+# ============================================================================
+# VOLUME DEFINITIONS
+# ============================================================================
+# Persistent storage for data and logs
+# Logs are kept for analysis of MEDUSA's activities
+# ============================================================================
+volumes:
+  # Database volumes
+  db-data:
+    driver: local
+  db-logs:
+    driver: local
+  
+  # Web application volumes
+  ehr-logs:
+    driver: local
+  ehr-uploads:
+    driver: local
+  
+  # API volumes
+  api-logs:
+    driver: local
+  
+  # File server volumes
+  ftp-data:
+    driver: local
+  ftp-logs:
+    driver: local
+  
+  # SSH server volumes
+  ssh-logs:
+    driver: local
+  ssh-home:
+    driver: local
+  
+  # LDAP volumes
+  ldap-data:
+    driver: local
+  ldap-config:
+    driver: local
+  ldap-logs:
+    driver: local
+  
+  # Workstation volumes
+  workstation-data:
+    driver: local
+  workstation-logs:
+    driver: local
+  
+  # Centralized logging
+  centralized-logs:
+    driver: local
+
+# ============================================================================
+# USAGE INSTRUCTIONS
+# ============================================================================
+# Start the lab:
+#   docker-compose up -d
+#
+# View logs:
+#   docker-compose logs -f [service-name]
+#
+# Stop the lab:
+#   docker-compose down
+#
+# Reset completely (WARNING: destroys all data):
+#   docker-compose down -v
+#   docker-compose up -d --build
+#
+# Access services:
+#   EHR Web Portal: http://localhost:8080
+#   EHR API: http://localhost:3000
+#   SSH Server: ssh admin@localhost -p 2222 (password: admin2024)
+#   MySQL: mysql -h localhost -P 3306 -u ehrapp -pWelcome123!
+#   FTP: ftp localhost 21 (user: fileadmin, pass: Files2024!)
+#   Log Viewer: http://localhost:8081
+#
+# Network inspection:
+#   docker network inspect medusa-dmz
+#   docker network inspect medusa-internal
+# ============================================================================
+
