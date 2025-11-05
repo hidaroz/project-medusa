@@ -5,9 +5,9 @@ Creates JSON logs and HTML reports of penetration testing operations
 
 import json
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime
-from jinja2 import Template
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from medusa.config import get_config
 
@@ -17,6 +17,13 @@ class ReportGenerator:
 
     def __init__(self):
         self.config = get_config()
+
+        # Setup Jinja2 environment for template loading
+        template_dir = Path(__file__).parent / "templates"
+        self.env = Environment(
+            loader=FileSystemLoader(str(template_dir)),
+            autoescape=select_autoescape(['html', 'xml'])
+        )
 
     def save_json_log(self, operation_data: Dict[str, Any], operation_id: str) -> Path:
         """Save structured JSON log of operation"""
@@ -44,8 +51,23 @@ class ReportGenerator:
 
         return filepath
 
-    def generate_html_report(self, operation_data: Dict[str, Any], operation_id: str) -> Path:
-        """Generate HTML report of operation"""
+    def generate_html_report(
+        self,
+        operation_data: Dict[str, Any],
+        operation_id: str,
+        report_type: str = "technical"
+    ) -> Path:
+        """
+        Generate HTML report of operation
+
+        Args:
+            operation_data: Dictionary containing operation results
+            operation_id: Unique identifier for the operation
+            report_type: Type of report to generate ('technical', 'executive', or 'legacy')
+
+        Returns:
+            Path to the generated HTML report
+        """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"report-{timestamp}-{operation_id}.html"
         filepath = self.config.reports_dir / filename
@@ -53,8 +75,15 @@ class ReportGenerator:
         # Ensure reports directory exists
         self.config.reports_dir.mkdir(parents=True, exist_ok=True)
 
-        # Generate HTML content
-        html_content = self._generate_html_template(operation_data, operation_id)
+        # Generate HTML content based on report type
+        if report_type == "legacy":
+            # Use inline template for backward compatibility
+            html_content = self._generate_html_template(operation_data, operation_id)
+        else:
+            # Use file-based templates
+            html_content = self._generate_html_from_template(
+                operation_data, operation_id, report_type
+            )
 
         # Write HTML
         with open(filepath, "w") as f:
@@ -62,9 +91,152 @@ class ReportGenerator:
 
         return filepath
 
+    def generate_markdown_report(self, operation_data: Dict[str, Any], operation_id: str) -> Path:
+        """
+        Generate Markdown report of operation
+
+        Args:
+            operation_data: Dictionary containing operation results
+            operation_id: Unique identifier for the operation
+
+        Returns:
+            Path to the generated Markdown report
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"report-{timestamp}-{operation_id}.md"
+        filepath = self.config.reports_dir / filename
+
+        # Ensure reports directory exists
+        self.config.reports_dir.mkdir(parents=True, exist_ok=True)
+
+        # Prepare template data
+        template_data = self._prepare_report_data(operation_data, operation_id)
+
+        # Render template
+        template = self.env.get_template("report.md")
+        markdown_content = template.render(**template_data)
+
+        # Write Markdown
+        with open(filepath, "w") as f:
+            f.write(markdown_content)
+
+        return filepath
+
+    def generate_executive_summary(self, operation_data: Dict[str, Any], operation_id: str) -> Path:
+        """
+        Generate executive summary HTML report (non-technical)
+
+        Args:
+            operation_data: Dictionary containing operation results
+            operation_id: Unique identifier for the operation
+
+        Returns:
+            Path to the generated executive summary report
+        """
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"executive-summary-{timestamp}-{operation_id}.html"
+        filepath = self.config.reports_dir / filename
+
+        # Ensure reports directory exists
+        self.config.reports_dir.mkdir(parents=True, exist_ok=True)
+
+        # Prepare template data
+        template_data = self._prepare_report_data(operation_data, operation_id)
+
+        # Render template
+        template = self.env.get_template("executive_summary.html")
+        html_content = template.render(**template_data)
+
+        # Write HTML
+        with open(filepath, "w") as f:
+            f.write(html_content)
+
+        return filepath
+
+    def generate_pdf_report(self, operation_data: Dict[str, Any], operation_id: str) -> Optional[Path]:
+        """
+        Generate PDF report from HTML (requires weasyprint)
+
+        Args:
+            operation_data: Dictionary containing operation results
+            operation_id: Unique identifier for the operation
+
+        Returns:
+            Path to the generated PDF report, or None if PDF generation fails
+        """
+        try:
+            from weasyprint import HTML
+        except ImportError:
+            print("⚠️  PDF generation requires 'weasyprint' package. Install with: pip install weasyprint")
+            return None
+
+        # First generate HTML report
+        html_path = self.generate_html_report(operation_data, operation_id, report_type="technical")
+
+        # Convert to PDF
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"report-{timestamp}-{operation_id}.pdf"
+        pdf_path = self.config.reports_dir / filename
+
+        try:
+            HTML(str(html_path)).write_pdf(pdf_path)
+            return pdf_path
+        except Exception as e:
+            print(f"⚠️  PDF generation failed: {e}")
+            return None
+
+    def _generate_html_from_template(
+        self, data: Dict[str, Any], operation_id: str, report_type: str
+    ) -> str:
+        """Generate HTML from file-based template"""
+        # Prepare template data
+        template_data = self._prepare_report_data(data, operation_id)
+
+        # Select template based on type
+        template_name = {
+            "technical": "technical_report.html",
+            "executive": "executive_summary.html",
+        }.get(report_type, "technical_report.html")
+
+        # Render template
+        template = self.env.get_template(template_name)
+        return template.render(**template_data)
+
+    def _prepare_report_data(self, data: Dict[str, Any], operation_id: str) -> Dict[str, Any]:
+        """Prepare comprehensive data for report templates"""
+        # Extract or calculate summary data
+        summary = data.get("summary", {})
+
+        # If summary doesn't have counts, calculate them from findings
+        findings = data.get("findings", [])
+
+        if not summary:
+            summary = {
+                "total_findings": len(findings),
+                "critical": len([f for f in findings if f.get("severity") == "critical"]),
+                "high": len([f for f in findings if f.get("severity") == "high"]),
+                "medium": len([f for f in findings if f.get("severity") == "medium"]),
+                "low": len([f for f in findings if f.get("severity") == "low"]),
+                "techniques_used": len(data.get("mitre_coverage", [])),
+                "success_rate": data.get("success_rate", 0.0),
+            }
+
+        return {
+            "operation_id": operation_id,
+            "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "duration": data.get("duration_seconds", 0),
+            "target": data.get("target", "Unknown"),
+            "summary": summary,
+            "findings": findings,
+            "mitre_coverage": data.get("mitre_coverage", []),
+            "phases": data.get("phases", []),
+        }
+
     def _generate_html_template(self, data: Dict[str, Any], operation_id: str) -> str:
-        """Generate HTML report using template"""
-        # Simple inline template (in production, use separate template files)
+        """Generate HTML report using inline template (legacy)"""
+        from jinja2 import Template
+
+        # Simple inline template (for backward compatibility)
         template_str = """
 <!DOCTYPE html>
 <html lang="en">
