@@ -295,13 +295,40 @@ class ObserveMode:
             "attack_plan": self.intelligence.get("attack_plan", {}),
         }
 
-        # Save JSON log
-        json_path = self.reporter.save_json_log(report_data, self.operation_id)
-        display.show_success(f"Intelligence log saved: {json_path}")
+        # Generate reports
+        display.console.print("\n[bold cyan]📝 Generating Reports...[/bold cyan]\n")
 
-        # Save HTML report
-        html_path = self.reporter.generate_html_report(report_data, self.operation_id)
-        display.show_success(f"Intelligence report saved: {html_path}")
+        # Generate JSON log
+        json_path = self.reporter.save_json_log(report_data, self.operation_id)
+        display.show_success(f"JSON log: {json_path.name}")
+
+        # Generate technical HTML report
+        html_path = self.reporter.generate_html_report(
+            report_data, self.operation_id, report_type="technical"
+        )
+        display.show_success(f"Technical report: {html_path.name}")
+
+        # Generate executive summary
+        try:
+            exec_path = self.reporter.generate_executive_summary(
+                report_data, self.operation_id
+            )
+            display.show_success(f"Executive summary: {exec_path.name}")
+        except Exception as e:
+            display.show_warning(f"Executive summary generation failed: {e}")
+
+        # Generate markdown report
+        try:
+            md_path = self.reporter.generate_markdown_report(
+                report_data, self.operation_id
+            )
+            display.show_success(f"Markdown report: {md_path.name}")
+        except Exception as e:
+            display.show_warning(f"Markdown report generation failed: {e}")
+
+        display.console.print(
+            f"\n[dim]Reports location: {self.reporter.config.reports_dir}[/dim]"
+        )
 
         # Display summary
         display.console.print()

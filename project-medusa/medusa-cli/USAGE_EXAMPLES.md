@@ -413,34 +413,166 @@ Note: Attack plan generated but NOT executed. Use autonomous mode to execute.
 
 ---
 
-## View Reports
+## Report Generation & Viewing
 
-### List Reports
+MEDUSA automatically generates multiple report formats after each scan:
+- **Technical HTML Reports** - For security professionals
+- **Executive Summaries** - For management and stakeholders
+- **Markdown Reports** - For documentation and integration
+- **JSON Logs** - For programmatic access
+
+### List All Reports
 ```bash
 medusa reports
 
 Available Reports:
 
+Technical Reports (HTML):
   • report-20240129_143022-auto_001.html
   • report-20240129_145633-auto_002.html
-  • report-20240129_150000-observe_001.html
+
+Executive Summaries:
+  • executive-summary-20240129_143022-auto_001.html
+  • executive-summary-20240129_145633-auto_002.html
+
+Markdown Reports:
+  • report-20240129_143022-auto_001.md
+  • report-20240129_145633-auto_002.md
 
 Location: /Users/you/.medusa/reports
 
 Tip: Use --open to view latest report
+Tip: Use --type to filter by type (html, md, pdf, exec)
+```
+
+### Filter Reports by Type
+```bash
+# Show only technical HTML reports
+medusa reports --type html
+
+# Show only executive summaries
+medusa reports --type exec
+
+# Show only markdown reports
+medusa reports --type md
+
+# Show PDF reports (if generated)
+medusa reports --type pdf
 ```
 
 ### Open Latest Report
 ```bash
+# Open latest technical report
 medusa reports --open
+
+# Open latest executive summary
+medusa reports --type exec --open
+
+# Open markdown report (shows path)
+medusa reports --type md --open
 ```
 
-This opens the HTML report in your browser with:
-- Executive summary
-- Vulnerability details with CVSS scores
-- MITRE ATT&CK coverage
-- Phase breakdown
-- Remediation recommendations
+### Generate Reports from Existing Logs
+
+You can regenerate reports from previous assessments:
+
+```bash
+# Generate all report types from latest log
+medusa generate-report --type all
+
+# Generate only executive summary
+medusa generate-report --type executive
+
+# Generate from specific log file
+medusa generate-report --log ~/.medusa/logs/run-20240129_143022-auto_001.json --type all
+
+# Generate markdown report
+medusa generate-report --type markdown
+
+# Generate PDF (requires weasyprint)
+medusa generate-report --type pdf
+
+# Custom output directory
+medusa generate-report --type all --output /path/to/custom/dir
+```
+
+### Report Types Explained
+
+#### 1. Technical HTML Report
+**Purpose:** Detailed technical analysis for security professionals
+
+**Contains:**
+- Complete vulnerability details with CVSS scores
+- Affected endpoints and components
+- Technical recommendations
+- MITRE ATT&CK technique mapping
+- Operation phases breakdown
+- Full findings organized by severity
+
+**Best for:** Security teams, penetration testers, developers
+
+```bash
+medusa reports --type html --open
+```
+
+#### 2. Executive Summary
+**Purpose:** Business-focused non-technical overview for management
+
+**Contains:**
+- Risk rating and business impact
+- High-level findings summary
+- Strategic recommendations
+- Remediation timeline
+- Budget and resource implications
+
+**Best for:** C-suite, managers, stakeholders
+
+```bash
+medusa reports --type exec --open
+```
+
+#### 3. Markdown Report
+**Purpose:** Integration with documentation systems and version control
+
+**Contains:**
+- All technical details in markdown format
+- Easy to version control and diff
+- Integration with GitHub, GitLab, wikis
+- Can be converted to other formats
+
+**Best for:** Documentation, CI/CD pipelines, team wikis
+
+```bash
+medusa reports --type md
+cat ~/.medusa/reports/report-*.md
+```
+
+#### 4. PDF Report (Optional)
+**Purpose:** Printable and shareable document
+
+**Requires:** `pip install weasyprint`
+
+**Contains:**
+- Same as technical HTML but in PDF format
+- Print-ready for physical reports
+- Easy to email and archive
+
+```bash
+# Install weasyprint first
+pip install weasyprint
+
+# Generate PDF
+medusa generate-report --type pdf
+```
+
+### Automated Report Generation
+
+After each scan, MEDUSA automatically generates:
+1. ✅ JSON log (always)
+2. ✅ Technical HTML report (always)
+3. ✅ Executive summary (always)
+4. ✅ Markdown report (always)
+5. ⚠️  PDF report (manual via generate-report)
 
 ---
 
