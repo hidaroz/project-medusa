@@ -11,7 +11,7 @@ import random
 import logging
 
 from medusa.core.llm import LLMConfig, create_llm_client, LLMClient, MockLLMClient
-from medusa.tools import NmapScanner, WebScanner
+from medusa.tools import NmapScanner, WebScanner, SQLMapScanner, NiktoScanner
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,9 @@ class MedusaClient:
         # Initialize real pentesting tools
         self.nmap = NmapScanner(timeout=600)
         self.web_scanner = WebScanner(timeout=120)
-        logger.info("Real pentesting tools initialized: NmapScanner, WebScanner")
+        self.sqlmap = SQLMapScanner(timeout=900)
+        self.nikto = NiktoScanner(timeout=1800)
+        logger.info("Real pentesting tools initialized: NmapScanner, WebScanner, SQLMapScanner, NiktoScanner")
 
     async def __aenter__(self):
         """Support async context manager entry."""
@@ -532,6 +534,214 @@ class MedusaClient:
                     pass
 
         return vulnerabilities
+
+    async def scan_for_vulnerabilities(
+        self,
+        target: str,
+        enumeration_findings: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Scan for vulnerabilities using REAL tools (SQLMap, Nikto)
+
+        This method performs deep vulnerability scanning based on enumeration findings.
+
+        Process:
+        1. Run Nikto for web vulnerability scanning
+        2. Run SQLMap for SQL injection detection on discovered endpoints
+        3. Analyze and prioritize findings
+        4. Return comprehensive vulnerability report
+
+        Args:
+            target: Target URL or hostname
+            enumeration_findings: Optional findings from enumeration phase
+
+        Returns:
+            Dict with vulnerability findings
+        """
+        logger.info(f"Starting REAL vulnerability scanning on target: {target}")
+        import time
+        start_time = time.time()
+
+        all_findings = []
+        executed_actions = []
+        techniques = []
+
+        # Ensure target has proper URL format
+        if not target.startswith(('http://', 'https://')):
+            target = f"http://{target}"
+
+        # Step 1: Run Nikto web vulnerability scan
+        logger.info(f"Executing REAL Nikto scan on {target}")
+        try:
+            nikto_result = await self.nikto.execute(
+                target_url=target,
+                tuning="123456789",  # All checks
+                output_format="txt"
+            )
+
+            if nikto_result["success"]:
+                logger.info(f"Nikto found {nikto_result['findings_count']} vulnerabilities")
+                all_findings.extend(nikto_result["findings"])
+                executed_actions.append({
+                    "action": "web_vulnerability_scan",
+                    "tool": "nikto",
+                    "success": True,
+                    "findings_count": nikto_result["findings_count"],
+                    "duration": nikto_result["duration_seconds"]
+                })
+                techniques.append({
+                    "id": "T1046",
+                    "name": "Network Service Discovery - Web Vulnerabilities",
+                    "status": "executed"
+                })
+            else:
+                logger.warning(f"Nikto scan failed: {nikto_result.get('error', 'Unknown error')}")
+                executed_actions.append({
+                    "action": "web_vulnerability_scan",
+                    "tool": "nikto",
+                    "success": False,
+                    "error": nikto_result.get("error", "Scan failed")
+                })
+        except Exception as e:
+            logger.error(f"Nikto execution exception: {e}")
+            executed_actions.append({
+                "action": "web_vulnerability_scan",
+                "tool": "nikto",
+                "success": False,
+                "error": str(e)
+            })
+
+        # Step 2: Run SQLMap for SQL injection testing
+        # Test common injection points
+        sql_injection_targets = self._identify_sql_injection_targets(target, enumeration_findings)
+
+        for sql_target in sql_injection_targets[:5]:  # Limit to 5 targets for performance
+            logger.info(f"Testing {sql_target} for SQL injection")
+            try:
+                sqlmap_result = await self.sqlmap.execute(
+                    target_url=sql_target,
+                    risk=2,
+                    level=3,
+                    batch=True
+                )
+
+                if sqlmap_result["success"] and sqlmap_result["findings_count"] > 0:
+                    logger.info(f"SQLMap found {sqlmap_result['findings_count']} SQL injection vulnerabilities")
+                    all_findings.extend(sqlmap_result["findings"])
+                    executed_actions.append({
+                        "action": "sql_injection_scan",
+                        "tool": "sqlmap",
+                        "target": sql_target,
+                        "success": True,
+                        "findings_count": sqlmap_result["findings_count"],
+                        "duration": sqlmap_result["duration_seconds"]
+                    })
+                    techniques.append({
+                        "id": "T1190",
+                        "name": "Exploit Public-Facing Application - SQL Injection",
+                        "status": "detected"
+                    })
+                else:
+                    executed_actions.append({
+                        "action": "sql_injection_scan",
+                        "tool": "sqlmap",
+                        "target": sql_target,
+                        "success": True,
+                        "findings_count": 0,
+                        "message": "No SQL injection detected"
+                    })
+
+            except Exception as e:
+                logger.error(f"SQLMap execution exception on {sql_target}: {e}")
+                executed_actions.append({
+                    "action": "sql_injection_scan",
+                    "tool": "sqlmap",
+                    "target": sql_target,
+                    "success": False,
+                    "error": str(e)
+                })
+
+        # Step 3: Prioritize findings by severity
+        critical_findings = [f for f in all_findings if f.get("severity") == "critical"]
+        high_findings = [f for f in all_findings if f.get("severity") == "high"]
+        medium_findings = [f for f in all_findings if f.get("severity") == "medium"]
+        low_findings = [f for f in all_findings if f.get("severity") == "low"]
+
+        duration = time.time() - start_time
+
+        logger.info(
+            f"Vulnerability scanning complete: {len(all_findings)} total findings "
+            f"(Critical: {len(critical_findings)}, High: {len(high_findings)}, "
+            f"Medium: {len(medium_findings)}, Low: {len(low_findings)}), "
+            f"{duration:.2f}s duration"
+        )
+
+        return {
+            "phase": "vulnerability_scanning",
+            "target": target,
+            "duration": duration,
+            "findings": all_findings,
+            "executed_actions": executed_actions,
+            "techniques": techniques,
+            "findings_count": len(all_findings),
+            "severity_breakdown": {
+                "critical": len(critical_findings),
+                "high": len(high_findings),
+                "medium": len(medium_findings),
+                "low": len(low_findings)
+            },
+            "success": True,
+            "mode": "REAL_TOOLS"
+        }
+
+    def _identify_sql_injection_targets(
+        self,
+        base_url: str,
+        enumeration_findings: Optional[List[Dict[str, Any]]]
+    ) -> List[str]:
+        """
+        Identify potential SQL injection targets from enumeration findings
+
+        Args:
+            base_url: Base target URL
+            enumeration_findings: Findings from enumeration phase
+
+        Returns:
+            List of URLs to test for SQL injection
+        """
+        targets = []
+
+        # Always test base URL
+        targets.append(base_url)
+
+        # Add discovered API endpoints
+        if enumeration_findings:
+            for finding in enumeration_findings:
+                if finding.get("type") == "api_endpoint":
+                    endpoint_url = finding.get("url")
+                    if endpoint_url and endpoint_url not in targets:
+                        # Add parameter for testing
+                        if "?" not in endpoint_url:
+                            endpoint_url = f"{endpoint_url}?id=1"
+                        targets.append(endpoint_url)
+
+        # Add common vulnerable endpoints
+        from urllib.parse import urljoin
+        common_endpoints = [
+            "/search?q=test",
+            "/api/users?id=1",
+            "/login?username=admin",
+            "/products?id=1",
+            "/view?page=1"
+        ]
+
+        for endpoint in common_endpoints:
+            full_url = urljoin(base_url, endpoint)
+            if full_url not in targets:
+                targets.append(full_url)
+
+        logger.info(f"Identified {len(targets)} potential SQL injection targets")
+        return targets
 
     async def attempt_exploitation(
         self, target: str, vulnerability: Dict[str, Any]
