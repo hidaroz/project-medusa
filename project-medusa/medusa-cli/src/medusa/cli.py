@@ -7,6 +7,7 @@ import sys
 import asyncio
 from pathlib import Path
 from typing import Optional
+from datetime import datetime
 
 import typer
 from rich.console import Console
@@ -25,6 +26,28 @@ app = typer.Typer(
 console = Console()
 
 
+@app.callback()
+def main_callback(
+    ctx: typer.Context,
+    skip_checks: bool = typer.Option(False, "--skip-checks", help="Skip dependency checks")
+):
+    """MEDUSA - AI-Powered Penetration Testing"""
+
+    # Skip checks for certain commands
+    if ctx.invoked_subcommand in ["setup", "help", "version", "check_deps"]:
+        return
+
+    if not skip_checks:
+        from medusa.core.dependencies import check_dependencies
+
+        if not check_dependencies():
+            console.print("\n[yellow]⚠[/] Some dependencies are missing")
+            console.print("Run: [cyan]medusa setup[/] to fix")
+
+            if not typer.confirm("Continue anyway?", default=False):
+                raise typer.Exit(1)
+
+
 @app.command()
 def setup(
     force: bool = typer.Option(
@@ -32,14 +55,16 @@ def setup(
     )
 ):
     """
-    🔧 Run the setup wizard to configure MEDUSA.
+    🔧 Run the interactive setup wizard to configure MEDUSA.
 
     This will guide you through:
-    - Setting up your Gemini API key
+    - Setting up your Gemini API key or local Ollama
     - Configuring target environment
     - Setting risk tolerance levels
-    - Initializing Docker environment (optional)
+    - Testing your configuration
     """
+    from medusa.commands.setup_wizard import run_wizard
+
     config = get_config()
 
     # Check if already configured
@@ -51,9 +76,9 @@ def setup(
         )
         raise typer.Exit()
 
-    # Run setup wizard
+    # Run new interactive setup wizard
     try:
-        config.run_setup_wizard()
+        run_wizard()
     except KeyboardInterrupt:
         console.print("\n[yellow]Setup cancelled[/yellow]")
         raise typer.Exit(1)
@@ -152,6 +177,18 @@ def shell(
     _run_interactive_mode(target, api_key)
 
 
+@app.command(name="sh")
+def shell_alias(
+    target: Optional[str] = typer.Option(
+        None, "--target", "-t", help="Target URL (optional)"
+    )
+):
+    """
+    💻 Alias for 'shell' command - interactive mode.
+    """
+    shell(target)
+
+
 @app.command()
 def observe(
     target: Optional[str] = typer.Option(
@@ -188,6 +225,18 @@ def observe(
             raise typer.Exit(1)
 
     _run_observe_mode(target, api_key)
+
+
+@app.command(name="obs")
+def observe_alias(
+    target: Optional[str] = typer.Option(
+        None, "--target", "-t", help="Target URL to observe"
+    )
+):
+    """
+    👁️  Alias for 'observe' command - reconnaissance only mode.
+    """
+    observe(target)
 
 
 @app.command()
@@ -240,6 +289,58 @@ def version():
     📌 Show MEDUSA version.
     """
     console.print(f"[bold cyan]MEDUSA[/bold cyan] version [green]{__version__}[/green]")
+
+
+@app.command(name="check-deps")
+def check_deps():
+    """
+    🔍 Check system dependencies and requirements.
+
+    Verifies that all required and optional dependencies are installed:
+    - Python packages
+    - System tools (nmap, docker, etc.)
+    - Services (Ollama, etc.)
+    """
+    from medusa.core.dependencies import check_dependencies
+
+    all_ok = check_dependencies()
+
+    if all_ok:
+        console.print("\n[bold green]✅ All required dependencies are installed![/bold green]")
+    else:
+        console.print("\n[bold yellow]⚠️  Some required dependencies are missing.[/bold yellow]")
+        console.print("Run [cyan]medusa setup[/cyan] to configure MEDUSA and install dependencies.")
+
+
+@app.command(name="validate-config")
+def validate_config_cmd():
+    """
+    ✅ Validate MEDUSA configuration.
+
+    Checks your configuration file for:
+    - Potential issues
+    - Risky settings
+    - Best practice violations
+    - Missing optional settings
+    """
+    from medusa.core.config_validator import validate_and_display
+
+    config = get_config()
+
+    if not config.exists():
+        console.print(
+            "[red]Error: MEDUSA is not configured.[/red]\n"
+            "Run [bold]medusa setup[/bold] first."
+        )
+        raise typer.Exit(1)
+
+    try:
+        config_data = config.load()
+        console.print("\n[bold cyan]Validating Configuration...[/bold cyan]\n")
+        validate_and_display(config_data)
+    except Exception as e:
+        console.print(f"[red]Error loading configuration: {e}[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -407,6 +508,86 @@ def generate_report(
         import traceback
         traceback.print_exc()
         raise typer.Exit(1)
+
+
+@app.command()
+def export(
+    log_file: Optional[str] = typer.Argument(None, help="Path to log file (defaults to latest)"),
+    format: str = typer.Option("all", "--format", "-f", help="Export format: json, csv, markdown, all"),
+    output_dir: Optional[str] = typer.Option(None, "--output", "-o", help="Output directory")
+):
+    """
+    📤 Export findings in multiple formats.
+
+    Export findings from operation logs to various formats:
+    - JSON: Machine-readable data
+    - CSV: Spreadsheet-friendly format
+    - Markdown: Documentation-friendly format
+
+    Examples:
+        medusa export --format json
+        medusa export /path/to/log.json --format csv
+        medusa export --format all --output ./exports
+    """
+    from medusa.reporting.exporters import JSONExporter, CSVExporter, MarkdownExporter
+    import json
+
+    config = get_config()
+
+    # Determine log file
+    if log_file:
+        log_path = Path(log_file)
+        if not log_path.exists():
+            console.print(f"[red]Error: Log file not found: {log_file}[/red]")
+            raise typer.Exit(1)
+    else:
+        # Use latest log
+        if not config.logs_dir.exists():
+            console.print("[yellow]No logs directory found.[/yellow]")
+            raise typer.Exit()
+
+        log_files = sorted(config.logs_dir.glob("*.json"), key=lambda p: p.stat().st_mtime)
+        if not log_files:
+            console.print("[yellow]No log files found.[/yellow]")
+            raise typer.Exit()
+
+        log_path = log_files[-1]
+        console.print(f"[cyan]Using latest log:[/cyan] {log_path.name}\n")
+
+    # Load findings
+    try:
+        with open(log_path) as f:
+            data = json.load(f)
+    except Exception as e:
+        console.print(f"[red]Error reading log file: {e}[/red]")
+        raise typer.Exit(1)
+
+    findings = data.get("findings", [])
+    target = data.get("target", "unknown")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    output_path = Path(output_dir) if output_dir else config.reports_dir
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    console.print("[bold cyan]Exporting findings...[/bold cyan]\n")
+
+    if format in ["json", "all"]:
+        json_path = output_path / f"findings_{timestamp}.json"
+        JSONExporter.export(findings, json_path)
+        console.print(f"[green]✓[/] Exported JSON: {json_path}")
+
+    if format in ["csv", "all"]:
+        csv_path = output_path / f"findings_{timestamp}.csv"
+        CSVExporter.export(findings, csv_path)
+        console.print(f"[green]✓[/] Exported CSV: {csv_path}")
+
+    if format in ["markdown", "all"]:
+        md_path = output_path / f"findings_{timestamp}.md"
+        MarkdownExporter.export(findings, target, md_path)
+        console.print(f"[green]✓[/] Exported Markdown: {md_path}")
+
+    console.print(f"\n[bold green]✅ Export complete![/bold green]")
+    console.print(f"[dim]Output directory: {output_path}[/dim]")
 
 
 @app.command()

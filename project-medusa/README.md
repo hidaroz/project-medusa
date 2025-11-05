@@ -20,10 +20,41 @@ MEDUSA (Multi-Environment Detection and Understanding System for Autonomous test
 
 ## ⚡ Quick Start
 
-### Option 1: Docker Lab (Recommended)
+### Option 1: One-Command Setup (Recommended) ⭐
 
-Get the full vulnerable environment running in 3 commands:
+Get started in 60 seconds with our interactive setup wizard:
 
+```bash
+# Install MEDUSA
+cd medusa-cli
+pip install -e .
+
+# Run interactive setup wizard
+medusa setup
+```
+
+The setup wizard will guide you through:
+- 🤖 AI integration (Gemini API or local Ollama)
+- 🎯 Default target configuration
+- ⚙️ Operating mode preferences
+- ✅ Configuration validation and testing
+
+### Option 2: Docker Lab Setup
+
+Get the full vulnerable environment with smart configuration:
+
+```bash
+# Run smart setup script
+./scripts/smart-setup.sh
+```
+
+This interactive script will:
+- 🔐 Generate secure random passwords
+- 📝 Create and configure `.env` file
+- 💾 Save credentials to `CREDENTIALS.md`
+- 🚀 Optionally start all services
+
+**Manual Setup:**
 ```bash
 cd lab-environment
 cp .env.example .env
@@ -37,7 +68,7 @@ docker-compose up -d
 
 See [Docker Quick Start](docs/getting-started/QUICK_START_DOCKER.md) for full guide.
 
-### Option 2: CLI Agent
+### Option 3: CLI Agent (Manual)
 
 Install just the MEDUSA AI agent:
 
@@ -171,6 +202,8 @@ project-medusa/
 ### Observe Mode (Safe, Read-Only)
 ```bash
 medusa observe --target localhost --port 8080
+# Or use the short alias
+medusa obs --target localhost
 ```
 Watch what MEDUSA would do without executing actions. Perfect for learning.
 
@@ -183,8 +216,44 @@ AI makes decisions with approval gates for high-risk actions.
 ### Shell Mode (Interactive)
 ```bash
 medusa shell --target localhost
+# Or use the short alias
+medusa sh --target localhost
 ```
 Interactive command execution with AI suggestions.
+
+## 🛠️ Helpful Commands
+
+MEDUSA includes several utility commands to help you manage your setup:
+
+```bash
+# Check system dependencies
+medusa check-deps
+
+# Validate your configuration
+medusa validate-config
+
+# View operation logs
+medusa logs --latest
+
+# Export findings in multiple formats
+medusa export --format json
+medusa export --format csv
+medusa export --format markdown
+medusa export --format all
+
+# Generate reports from logs
+medusa generate-report --type executive
+medusa generate-report --type all
+
+# View generated reports
+medusa reports --open
+
+# Check MEDUSA version
+medusa version
+
+# View current status
+medusa status
+```
 
 ## 🎯 MITRE ATT&CK Coverage
 
@@ -406,6 +475,42 @@ Users are solely responsible for:
 - Any consequences of misuse
 
 The authors and contributors disclaim all liability for misuse of this educational material.
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+#### Issue: `ModuleNotFoundError: No module named 'prompt_toolkit'`
+**Solution:** Install missing dependency:
+```bash
+pip install prompt_toolkit==3.0.52
+```
+
+#### Issue: LLM response parsing errors
+**Symptoms:** Error message about `response.text` accessor  
+**Solution:** Update to latest version with multi-part response support:
+```bash
+cd medusa-cli
+git pull
+pip install -e . --upgrade
+```
+
+#### Issue: FTP server unhealthy in Docker
+**Solution:** Restart the FTP container:
+```bash
+docker-compose restart ftp-server
+docker logs -f medusa_ftp_server
+```
+
+#### Issue: Observe mode hangs or times out
+**Symptoms:** No progress after "Agent Thinking"  
+**Troubleshooting:**
+1. Check API key: `cat ~/.medusa/config.yaml | grep api_key`
+2. Test API connectivity: `curl https://generativelanguage.googleapis.com/v1beta/models -H "x-goog-api-key: YOUR_KEY"`
+3. Check rate limits in Google Cloud Console
+4. Try using mock mode: `medusa observe --target localhost --mock`
+
+**📚 Full troubleshooting guide:** [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 
 ## 📞 Contact & Support
 

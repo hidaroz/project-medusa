@@ -86,12 +86,25 @@ class LLMClient:
                     timeout=self.config.timeout
                 )
                 
-                if response and response.text:
-                    self.logger.debug(f"LLM response received: {len(response.text)} chars")
-                    return response.text
+                if response:
+                    # Handle multi-part responses properly
+                    try:
+                        # Try simple text accessor first (for backwards compatibility)
+                        text = self._extract_text_from_response(response)
+                        if text:
+                            self.logger.debug(f"LLM response received: {len(text)} chars")
+                            return text
+                        else:
+                            self.logger.warning("Empty response from LLM")
+                            last_error = "Empty response"
+                    except Exception as e:
+                        last_error = f"Error parsing response: {str(e)}"
+                        self.logger.warning(f"Attempt {attempt + 1} failed: {last_error}")
+                        await asyncio.sleep(2 ** attempt)
+                        continue
                 else:
-                    self.logger.warning("Empty response from LLM")
-                    last_error = "Empty response"
+                    self.logger.warning("No response from LLM")
+                    last_error = "No response"
                     
             except asyncio.TimeoutError:
                 last_error = f"Request timeout after {self.config.timeout}s"
@@ -104,6 +117,68 @@ class LLMClient:
                 await asyncio.sleep(2 ** attempt)
         
         raise Exception(f"LLM request failed after {self.config.max_retries} attempts: {last_error}")
+
+    def _extract_text_from_response(self, response) -> str:
+        """
+        Extract text from Gemini response, handling both simple and complex responses.
+
+        Args:
+            response: Gemini API response object
+
+        Returns:
+            Extracted text string
+
+        Raises:
+            ValueError: If response cannot be parsed
+        """
+        # Try the simple text accessor first (for single-part responses)
+        try:
+            if hasattr(response, 'text') and response.text:
+                return response.text
+        except ValueError as e:
+            # This is expected for multi-part responses
+            self.logger.debug(f"Simple text accessor failed (expected for multi-part): {e}")
+
+        # Handle multi-part responses
+        if not hasattr(response, 'candidates') or not response.candidates:
+            raise ValueError("Response has no candidates")
+
+        if len(response.candidates) == 0:
+            raise ValueError("Response candidates list is empty")
+
+        candidate = response.candidates[0]
+
+        # Check if response was blocked by safety filters
+        if hasattr(candidate, 'finish_reason'):
+            try:
+                from google.generativeai.types import FinishReason
+                if candidate.finish_reason == FinishReason.SAFETY:
+                    self.logger.warning("Response blocked by safety filters")
+                    raise ValueError("Response blocked by safety filters")
+                elif candidate.finish_reason == FinishReason.RECITATION:
+                    self.logger.warning("Response blocked due to recitation")
+                    raise ValueError("Response blocked due to recitation")
+            except (ImportError, AttributeError):
+                # If FinishReason enum not available, continue
+                pass
+
+        # Extract text from all parts
+        if not hasattr(candidate, 'content') or not candidate.content:
+            raise ValueError("Candidate has no content")
+
+        if not hasattr(candidate.content, 'parts') or not candidate.content.parts:
+            raise ValueError("Content has no parts")
+
+        # Concatenate all text parts
+        text_parts = []
+        for part in candidate.content.parts:
+            if hasattr(part, 'text') and part.text:
+                text_parts.append(part.text)
+
+        if not text_parts:
+            raise ValueError("No text found in response parts")
+
+        return ''.join(text_parts)
 
     def _extract_json_from_response(self, response: str) -> Dict[str, Any]:
         """Extract JSON from LLM response, handling markdown code blocks"""

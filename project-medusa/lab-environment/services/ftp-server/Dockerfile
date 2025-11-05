@@ -76,9 +76,9 @@ RUN echo "-- MedCare Database Backup" > /home/ftpuser/backups/db_backup_2024.sql
 
 EXPOSE 21 21000-21010
 
-# Health check
+# Health check - verify vsftpd is running
 HEALTHCHECK --interval=30s --timeout=3s \
-    CMD netstat -tln | grep 21 || exit 1
+    CMD ps aux | grep vsftpd | grep -v grep || exit 1
 
 CMD ["/usr/sbin/vsftpd", "/etc/vsftpd.conf"]
 
