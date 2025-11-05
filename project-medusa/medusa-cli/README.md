@@ -41,12 +41,23 @@ MEDUSA is a professional-grade command-line tool that uses AI to intelligently p
 - **Emergency abort** - Cancel operations instantly
 - **Detailed logging** - Full audit trail of all actions
 
-### 📊 Reporting
+### 📊 Professional Reporting
 
-- **Structured JSON logs** - Machine-readable operation logs
-- **Beautiful HTML reports** - Professional presentation
-- **MITRE ATT&CK mapping** - Tracks techniques used
-- **Real-time progress** - Rich terminal UI with progress bars
+Multiple report formats automatically generated after each assessment:
+
+- **📄 Technical HTML Reports** - Dark-themed professional reports for security teams
+- **📈 Executive Summaries** - Business-focused reports for management
+- **📝 Markdown Reports** - Integration with documentation systems and Git
+- **📁 JSON Logs** - Machine-readable structured data for automation
+- **🎯 MITRE ATT&CK Mapping** - Complete technique coverage tracking
+- **💎 Beautiful Terminal UI** - Real-time progress with Rich library
+
+All reports include:
+- Risk ratings and severity classifications
+- Detailed findings with CVSS scores
+- Remediation recommendations
+- Attack timeline and phases
+- MITRE ATT&CK technique visualization
 
 ---
 
@@ -129,7 +140,9 @@ Performs reconnaissance and generates attack plan **without** exploitation.
 | `medusa observe --target <url>` | Reconnaissance only |
 | `medusa status` | Show configuration |
 | `medusa logs` | View operation logs |
-| `medusa reports --open` | Open latest report |
+| `medusa reports` | List all generated reports |
+| `medusa reports --open` | Open latest report in browser |
+| `medusa generate-report` | Generate reports from logs |
 | `medusa version` | Show version |
 
 ### Autonomous Mode Options
