@@ -11,6 +11,7 @@ import random
 import logging
 
 from medusa.core.llm import LLMConfig, create_llm_client, LLMClient, MockLLMClient
+from medusa.tools import NmapScanner, WebScanner
 
 logger = logging.getLogger(__name__)
 
@@ -19,9 +20,9 @@ class MedusaClient:
     """Client for communicating with MEDUSA backend API"""
 
     def __init__(
-        self, 
-        base_url: str, 
-        api_key: str, 
+        self,
+        base_url: str,
+        api_key: str,
         timeout: int = 30,
         llm_config: Optional[Dict[str, Any]] = None
     ):
@@ -29,7 +30,7 @@ class MedusaClient:
         self.api_key = api_key
         self.timeout = timeout
         self.client = httpx.AsyncClient(timeout=timeout)
-        
+
         # Initialize LLM client
         if llm_config:
             llm_cfg = LLMConfig(
@@ -47,6 +48,11 @@ class MedusaClient:
             # Fallback to mock mode if no config provided
             self.llm_client = MockLLMClient()
             logger.info("No LLM config provided, using MockLLMClient")
+
+        # Initialize real pentesting tools
+        self.nmap = NmapScanner(timeout=600)
+        self.web_scanner = WebScanner(timeout=120)
+        logger.info("Real pentesting tools initialized: NmapScanner, WebScanner")
 
     async def __aenter__(self):
         """Support async context manager entry."""
@@ -119,97 +125,413 @@ class MedusaClient:
         }
 
     async def perform_reconnaissance(self, target: str) -> Dict[str, Any]:
-        """Perform reconnaissance on target"""
-        # Mock response with realistic data
+        """
+        Perform reconnaissance on target using REAL tools
+
+        This method now uses actual nmap and web scanning instead of mock data.
+
+        Process:
+        1. Get AI recommendation for reconnaissance strategy
+        2. Execute real nmap port scan
+        3. Execute real web reconnaissance
+        4. Return combined findings
+
+        Args:
+            target: Target URL or IP address
+
+        Returns:
+            Dict with real reconnaissance findings
+        """
+        logger.info(f"Starting REAL reconnaissance on target: {target}")
+        import time
+        start_time = time.time()
+
+        all_findings = []
+        executed_actions = []
+        techniques = []
+
+        # Parse target to extract hostname/IP
+        target_host = target
+        if target.startswith(('http://', 'https://')):
+            from urllib.parse import urlparse
+            parsed = urlparse(target)
+            target_host = parsed.netloc or target
+            # Remove port if present for nmap
+            if ':' in target_host:
+                target_host = target_host.split(':')[0]
+
+        # Step 1: Get AI recommendation for reconnaissance strategy
+        try:
+            strategy = await self.get_reconnaissance_strategy(target)
+            logger.info(f"AI recommended {len(strategy.get('recommended_actions', []))} reconnaissance actions")
+        except Exception as e:
+            logger.warning(f"Failed to get AI strategy: {e}, proceeding with default strategy")
+            strategy = {
+                "recommended_actions": [
+                    {"action": "port_scan", "ports": "1-1000"},
+                    {"action": "web_fingerprint"}
+                ],
+                "focus_areas": ["web_services"],
+                "risk_assessment": "LOW"
+            }
+
+        # Step 2: Execute REAL nmap scan
+        logger.info(f"Executing REAL nmap scan on {target_host}")
+        try:
+            nmap_result = await self.nmap.execute(
+                target=target_host,
+                ports="1-1000",
+                scan_type="-sV"
+            )
+
+            if nmap_result["success"]:
+                logger.info(f"Nmap found {nmap_result['findings_count']} open ports/services")
+                all_findings.extend(nmap_result["findings"])
+                executed_actions.append({
+                    "action": "port_scan",
+                    "tool": "nmap",
+                    "success": True,
+                    "findings_count": nmap_result["findings_count"],
+                    "duration": nmap_result["duration_seconds"]
+                })
+                techniques.append({
+                    "id": "T1046",
+                    "name": "Network Service Discovery",
+                    "status": "executed"
+                })
+            else:
+                logger.error(f"Nmap scan failed: {nmap_result.get('error', 'Unknown error')}")
+                executed_actions.append({
+                    "action": "port_scan",
+                    "tool": "nmap",
+                    "success": False,
+                    "error": nmap_result.get("error", "Scan failed")
+                })
+        except Exception as e:
+            logger.error(f"Nmap execution exception: {e}")
+            executed_actions.append({
+                "action": "port_scan",
+                "tool": "nmap",
+                "success": False,
+                "error": str(e)
+            })
+
+        # Step 3: Execute REAL web reconnaissance
+        logger.info(f"Executing REAL web reconnaissance on {target}")
+        try:
+            web_result = await self.web_scanner.execute(
+                target=target,
+                check_https=True,
+                use_whatweb=True,
+                check_endpoints=True
+            )
+
+            if web_result["success"]:
+                logger.info(f"Web scanner found {web_result['findings_count']} findings")
+                all_findings.extend(web_result["findings"])
+                executed_actions.append({
+                    "action": "web_reconnaissance",
+                    "tool": "web_scanner",
+                    "success": True,
+                    "findings_count": web_result["findings_count"],
+                    "duration": web_result["duration_seconds"]
+                })
+                techniques.append({
+                    "id": "T1595",
+                    "name": "Active Scanning - Web Technologies",
+                    "status": "executed"
+                })
+            else:
+                logger.warning(f"Web scan failed: {web_result.get('error', 'Unknown error')}")
+                executed_actions.append({
+                    "action": "web_reconnaissance",
+                    "tool": "web_scanner",
+                    "success": False,
+                    "error": web_result.get("error", "Scan failed")
+                })
+        except Exception as e:
+            logger.error(f"Web scanner exception: {e}")
+            executed_actions.append({
+                "action": "web_reconnaissance",
+                "tool": "web_scanner",
+                "success": False,
+                "error": str(e)
+            })
+
+        duration = time.time() - start_time
+
+        logger.info(
+            f"Reconnaissance complete: {len(all_findings)} total findings, "
+            f"{duration:.2f}s duration"
+        )
+
         return {
             "phase": "reconnaissance",
             "target": target,
-            "duration": random.uniform(30, 60),
-            "findings": [
-                {
-                    "type": "open_port",
-                    "port": 80,
-                    "service": "http",
-                    "version": "nginx 1.21.0",
-                    "severity": "info",
-                },
-                {
-                    "type": "open_port",
-                    "port": 443,
-                    "service": "https",
-                    "version": "nginx 1.21.0",
-                    "severity": "info",
-                },
-                {
-                    "type": "open_port",
-                    "port": 3001,
-                    "service": "http",
-                    "version": "Node.js Express",
-                    "severity": "info",
-                },
-                {
-                    "type": "webapp",
-                    "url": f"{target}",
-                    "title": "MedCare EHR System",
-                    "technologies": ["React", "Node.js", "Express"],
-                    "severity": "info",
-                },
-            ],
-            "techniques": [{"id": "T1046", "name": "Network Service Discovery", "status": "executed"}],
+            "duration": duration,
+            "findings": all_findings,
+            "executed_actions": executed_actions,
+            "techniques": techniques,
+            "strategy": strategy,
+            "findings_count": len(all_findings),
+            "success": len(all_findings) > 0,
+            "mode": "REAL_TOOLS"  # Flag to indicate real tools were used
         }
 
-    async def enumerate_services(self, target: str) -> Dict[str, Any]:
-        """Enumerate services on target"""
-        # Mock response
+    async def enumerate_services(self, target: str, reconnaissance_findings: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """
+        Enumerate services on target using REAL tools
+
+        This method performs deeper enumeration based on reconnaissance findings.
+
+        Process:
+        1. Get AI recommendation for enumeration strategy
+        2. Perform deep web scanning on discovered services
+        3. Test common API endpoints
+        4. Return combined enumeration findings
+
+        Args:
+            target: Target URL or IP address
+            reconnaissance_findings: Optional findings from reconnaissance phase
+
+        Returns:
+            Dict with real enumeration findings
+        """
+        logger.info(f"Starting REAL enumeration on target: {target}")
+        import time
+        start_time = time.time()
+
+        all_findings = []
+        executed_actions = []
+        techniques = []
+
+        # Step 1: Get AI recommendation for enumeration strategy
+        try:
+            if reconnaissance_findings:
+                strategy = await self.get_enumeration_strategy(target, reconnaissance_findings)
+                logger.info(f"AI recommended {len(strategy.get('recommended_actions', []))} enumeration actions")
+            else:
+                strategy = {
+                    "recommended_actions": [{"action": "enumerate_web_paths"}],
+                    "services_to_probe": ["http", "https"],
+                    "risk_assessment": "LOW"
+                }
+        except Exception as e:
+            logger.warning(f"Failed to get AI enumeration strategy: {e}, proceeding with default")
+            strategy = {
+                "recommended_actions": [{"action": "enumerate_web_paths"}],
+                "services_to_probe": ["http", "https"],
+                "risk_assessment": "LOW"
+            }
+
+        # Step 2: Deep web enumeration
+        logger.info(f"Executing deep web enumeration on {target}")
+        try:
+            # Check for common API endpoints
+            api_findings = await self._enumerate_api_endpoints(target)
+            all_findings.extend(api_findings)
+
+            if api_findings:
+                executed_actions.append({
+                    "action": "api_enumeration",
+                    "tool": "custom_http_prober",
+                    "success": True,
+                    "findings_count": len(api_findings)
+                })
+                techniques.append({
+                    "id": "T1590",
+                    "name": "Gather Victim Network Information",
+                    "status": "executed"
+                })
+        except Exception as e:
+            logger.error(f"API enumeration exception: {e}")
+            executed_actions.append({
+                "action": "api_enumeration",
+                "success": False,
+                "error": str(e)
+            })
+
+        # Step 3: Analyze web services for misconfigurations
+        if reconnaissance_findings:
+            logger.info("Analyzing reconnaissance findings for security issues")
+            analysis_findings = self._analyze_findings_for_vulnerabilities(reconnaissance_findings)
+            all_findings.extend(analysis_findings)
+
+            if analysis_findings:
+                executed_actions.append({
+                    "action": "vulnerability_analysis",
+                    "tool": "custom_analyzer",
+                    "success": True,
+                    "findings_count": len(analysis_findings)
+                })
+                techniques.append({
+                    "id": "T1592",
+                    "name": "Gather Victim Host Information",
+                    "status": "executed"
+                })
+
+        duration = time.time() - start_time
+
+        logger.info(
+            f"Enumeration complete: {len(all_findings)} findings, "
+            f"{duration:.2f}s duration"
+        )
+
         return {
             "phase": "enumeration",
             "target": target,
-            "duration": random.uniform(40, 80),
-            "findings": [
-                {
-                    "type": "api_endpoint",
-                    "path": "/api/patients",
-                    "method": "GET",
-                    "authentication": "none",
-                    "severity": "medium",
-                    "title": "Unauthenticated API Endpoint",
-                    "description": "Patient data endpoint accessible without authentication",
-                },
-                {
-                    "type": "api_endpoint",
-                    "path": "/api/employees",
-                    "method": "GET",
-                    "authentication": "none",
-                    "severity": "high",
-                    "title": "Employee Data Exposure",
-                    "description": "Employee credentials exposed via unauthenticated endpoint",
-                },
-                {
-                    "type": "vulnerability",
-                    "cve": "CVE-2021-XXXX",
-                    "severity": "high",
-                    "title": "SQL Injection Vulnerability",
-                    "description": "Possible SQL injection in search parameter",
-                    "confidence": "medium",
-                },
-                {
-                    "type": "misconfiguration",
-                    "severity": "medium",
-                    "title": "CORS Misconfiguration",
-                    "description": "Overly permissive CORS policy allows any origin",
-                },
-                {
-                    "type": "information_disclosure",
-                    "severity": "low",
-                    "title": "Server Version Disclosure",
-                    "description": "Server headers reveal version information",
-                },
-            ],
-            "techniques": [
-                {"id": "T1590", "name": "Gather Victim Network Information", "status": "executed"},
-                {"id": "T1592", "name": "Gather Victim Host Information", "status": "executed"},
-            ],
+            "duration": duration,
+            "findings": all_findings,
+            "executed_actions": executed_actions,
+            "techniques": techniques,
+            "strategy": strategy,
+            "findings_count": len(all_findings),
+            "success": True,
+            "mode": "REAL_TOOLS"
         }
+
+    async def _enumerate_api_endpoints(self, target: str) -> List[Dict[str, Any]]:
+        """
+        Enumerate common API endpoints
+
+        Args:
+            target: Target URL
+
+        Returns:
+            List of API endpoint findings
+        """
+        findings = []
+
+        # Common API endpoints to check
+        api_endpoints = [
+            "/api/v1/users",
+            "/api/users",
+            "/api/patients",
+            "/api/employees",
+            "/api/admin",
+            "/api/config",
+            "/api/health",
+            "/api/status",
+            "/api/docs",
+            "/api/swagger",
+            "/graphql",
+            "/api/graphql",
+        ]
+
+        if not target.startswith(('http://', 'https://')):
+            target = f"http://{target}"
+
+        try:
+            import aiohttp
+            from urllib.parse import urljoin
+
+            async with aiohttp.ClientSession() as session:
+                for endpoint in api_endpoints:
+                    url = urljoin(target, endpoint)
+
+                    try:
+                        async with session.get(
+                            url,
+                            timeout=aiohttp.ClientTimeout(total=5),
+                            ssl=False,
+                            allow_redirects=False
+                        ) as response:
+                            if response.status in [200, 401, 403]:
+                                # Endpoint exists
+                                auth_required = response.status in [401, 403]
+
+                                finding = {
+                                    "type": "api_endpoint",
+                                    "url": url,
+                                    "path": endpoint,
+                                    "method": "GET",
+                                    "status_code": response.status,
+                                    "authentication": "required" if auth_required else "none",
+                                    "severity": "low" if auth_required else "medium",
+                                    "title": f"API Endpoint Discovered: {endpoint}",
+                                    "description": f"API endpoint accessible at {url}",
+                                    "confidence": "high"
+                                }
+
+                                # Check if returns JSON
+                                content_type = response.headers.get('content-type', '')
+                                if 'json' in content_type.lower():
+                                    finding["content_type"] = "application/json"
+                                    finding["severity"] = "low" if auth_required else "medium"
+
+                                findings.append(finding)
+                                logger.debug(f"Found API endpoint: {url} (status: {response.status})")
+
+                    except aiohttp.ClientError:
+                        # Endpoint doesn't exist or isn't accessible
+                        pass
+
+        except Exception as e:
+            logger.error(f"API enumeration failed: {e}")
+
+        return findings
+
+    def _analyze_findings_for_vulnerabilities(self, findings: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Analyze reconnaissance findings to identify potential vulnerabilities
+
+        Args:
+            findings: List of reconnaissance findings
+
+        Returns:
+            List of potential vulnerability findings
+        """
+        vulnerabilities = []
+
+        for finding in findings:
+            finding_type = finding.get("type", "")
+
+            # Check for outdated software versions
+            if finding_type == "open_port":
+                service = finding.get("service", "")
+                version = finding.get("version", "")
+
+                # Check for known vulnerable services
+                if service in ["ftp", "telnet", "rexec", "rlogin"]:
+                    vulnerabilities.append({
+                        "type": "vulnerability",
+                        "severity": "high",
+                        "title": f"Insecure Service Detected: {service.upper()}",
+                        "description": f"{service.upper()} is an insecure protocol that transmits data in cleartext",
+                        "port": finding.get("port"),
+                        "service": service,
+                        "confidence": "high",
+                        "recommendation": f"Disable {service.upper()} and use secure alternatives (SSH, SFTP)"
+                    })
+
+                # Check for exposed databases
+                if finding.get("port") in [3306, 5432, 27017, 6379, 9200]:
+                    db_map = {
+                        3306: "MySQL",
+                        5432: "PostgreSQL",
+                        27017: "MongoDB",
+                        6379: "Redis",
+                        9200: "Elasticsearch"
+                    }
+                    db_name = db_map.get(finding.get("port"), "Database")
+
+                    vulnerabilities.append({
+                        "type": "misconfiguration",
+                        "severity": "high",
+                        "title": f"Exposed {db_name} Database",
+                        "description": f"{db_name} database port is accessible externally",
+                        "port": finding.get("port"),
+                        "confidence": "high",
+                        "recommendation": f"Restrict {db_name} access to internal networks only"
+                    })
+
+            # Check for security header issues (already detected in reconnaissance)
+            if finding_type == "misconfiguration":
+                if "CORS" in finding.get("title", ""):
+                    # Already detected, no need to duplicate
+                    pass
+
+        return vulnerabilities
 
     async def attempt_exploitation(
         self, target: str, vulnerability: Dict[str, Any]
