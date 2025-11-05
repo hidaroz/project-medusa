@@ -1,0 +1,99 @@
+[run]
+# Coverage.py configuration for MEDUSA
+source = src/medusa
+omit =
+    */tests/*
+    */__init__.py
+    */__pycache__/*
+    */venv/*
+    */site-packages/*
+    */dist-packages/*
+    */.venv/*
+    */build/*
+    */dist/*
+
+# Measure branch coverage
+branch = True
+
+# Run coverage in parallel mode for faster execution
+parallel = False
+
+[report]
+# Reporting options
+precision = 2
+show_missing = True
+skip_covered = False
+skip_empty = True
+
+# Lines to exclude from coverage
+exclude_lines =
+    # Standard pragmas
+    pragma: no cover
+
+    # Don't complain about missing debug-only code
+    def __repr__
+    def __str__
+
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+    raise RuntimeError
+
+    # Don't complain about abstract methods
+    @abstractmethod
+    @abc.abstractmethod
+
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    if __name__ == "__main__":
+
+    # Don't complain about type checking code
+    if TYPE_CHECKING:
+    if typing.TYPE_CHECKING:
+
+    # Don't complain about ellipsis in stubs
+    \.\.\.
+
+    # Don't complain about pass statements
+    pass
+
+    # Don't complain about sys.exit
+    sys.exit
+
+# Fail under this percentage
+fail_under = 70
+
+[html]
+# HTML report configuration
+directory = htmlcov
+title = MEDUSA Test Coverage Report
+
+[xml]
+# XML report configuration (for CI/CD)
+output = coverage.xml
+
+[json]
+# JSON report configuration
+output = coverage.json
+pretty_print = True
+
+# ============================================================================
+# Coverage Requirements by Module
+# ============================================================================
+# These are targets, not enforced by this config
+
+# Critical modules (should aim for 90%+):
+#   - src/medusa/client.py
+#   - src/medusa/core/llm.py
+#   - src/medusa/approval.py
+#   - src/medusa/config.py
+
+# Important modules (should aim for 85%+):
+#   - src/medusa/tools/*.py
+#   - src/medusa/modes/*.py
+
+# Support modules (should aim for 80%+):
+#   - src/medusa/utils/*.py
+#   - src/medusa/reporter.py
+
+# Overall target: 70%+ (enforced by fail_under above)
