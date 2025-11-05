@@ -9,9 +9,16 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from rich.console import Console
-from rich.prompt import Prompt
 from rich.panel import Panel
 from rich.table import Table
+
+try:
+    from prompt_toolkit import PromptSession
+    from prompt_toolkit.history import InMemoryHistory
+    PROMPT_TOOLKIT_AVAILABLE = True
+except ImportError:
+    PROMPT_TOOLKIT_AVAILABLE = False
+    from rich.prompt import Prompt
 
 from medusa.client import MedusaClient
 from medusa.display import display
@@ -19,6 +26,8 @@ from medusa.approval import ApprovalGate, Action, RiskLevel
 from medusa.config import get_config
 from medusa.command_parser import CommandParser
 from medusa.session import Session, CommandSuggester
+from medusa.completers import MedusaCompleter, CommandAliasManager
+from medusa.exporters import SessionExporter
 
 console = Console()
 logger = logging.getLogger(__name__)
@@ -38,6 +47,18 @@ class InteractiveMode:
         self.session = Session(target=target or "unknown")
         self.command_suggester = CommandSuggester()
         self.command_parser: Optional[CommandParser] = None  # Initialized when client is ready
+        self.alias_manager = CommandAliasManager()
+
+        # Setup prompt session with completion if available
+        if PROMPT_TOOLKIT_AVAILABLE:
+            self.prompt_session = PromptSession(
+                history=InMemoryHistory(),
+                completer=MedusaCompleter(),
+                complete_while_typing=False,
+            )
+        else:
+            self.prompt_session = None
+            logger.warning("prompt_toolkit not available, tab completion disabled")
 
     async def run(self):
         """Start interactive shell"""
@@ -68,14 +89,28 @@ class InteractiveMode:
 
             while self.running:
                 try:
-                    # Get user command
-                    command = Prompt.ask("\n[bold cyan]medusa>[/bold cyan]", default="")
+                    # Get user command with tab completion
+                    if self.prompt_session:
+                        # Use prompt_toolkit for better input with completion
+                        command = await asyncio.get_event_loop().run_in_executor(
+                            None,
+                            lambda: self.prompt_session.prompt("\nmedusa> ")
+                        )
+                    else:
+                        # Fallback to rich prompt
+                        from rich.prompt import Prompt
+                        command = Prompt.ask("\n[bold cyan]medusa>[/bold cyan]", default="")
 
                     if not command.strip():
                         continue
 
+                    # Resolve aliases
+                    resolved_command = self.alias_manager.resolve(command.strip())
+                    if resolved_command != command.strip():
+                        console.print(f"[dim]→ {resolved_command}[/dim]")
+
                     # Process command
-                    await self._process_command(command.strip(), client)
+                    await self._process_command(resolved_command, client)
 
                 except KeyboardInterrupt:
                     console.print("\n[yellow]Use 'exit' to quit[/yellow]")
@@ -133,6 +168,24 @@ class InteractiveMode:
             self._show_history()
             return
 
+        elif cmd_lower == "show aliases":
+            self._show_aliases()
+            return
+
+        elif cmd_lower.startswith("alias "):
+            self._handle_alias_command(command[6:])  # Remove "alias "
+            return
+
+        elif cmd_lower.startswith("unalias "):
+            alias_name = command[8:].strip()
+            self.alias_manager.remove_alias(alias_name)
+            console.print(f"[green]✓ Removed alias: {alias_name}[/green]")
+            return
+
+        elif cmd_lower.startswith("export "):
+            self._handle_export_command(command[7:].strip())
+            return
+
         elif cmd_lower == "clear":
             console.clear()
             return
@@ -163,14 +216,26 @@ class InteractiveMode:
 [bold cyan]Available Commands:[/bold cyan]
 
 [yellow]Built-in Commands:[/yellow]
-  help                    - Show this help message
-  suggestions             - Show context-aware command suggestions
-  set target <url>        - Set the target URL
-  show context            - Display current session context
-  show findings           - Display discovered findings
-  show history            - Display command history
-  clear                   - Clear the screen
-  exit/quit               - Exit the shell
+  help                       - Show this help message
+  suggestions                - Show context-aware command suggestions
+  set target <url>           - Set the target URL
+  show context               - Display current session context
+  show findings              - Display discovered findings
+  show history               - Display command history
+  show aliases               - Display command aliases
+  alias <name> <command>     - Create a command alias
+  unalias <name>             - Remove an alias
+  export <format> [file]     - Export session (json, csv, html, markdown)
+  clear                      - Clear the screen
+  exit/quit                  - Exit the shell
+
+[yellow]Command Aliases:[/yellow]
+  s, scan                    - scan for open ports
+  e, enum                    - enumerate services
+  f, vulns                   - find vulnerabilities
+  sqli, xss                  - test for SQL injection / XSS
+  next                       - what should I do next?
+  [dim]Use 'show aliases' to see all aliases[/dim]
 
 [yellow]Natural Language Commands (examples):[/yellow]
   scan for open ports                    - Perform port scanning
@@ -180,7 +245,10 @@ class InteractiveMode:
   what should I do next?                 - Get AI recommendations
   show me all high severity findings     - Filter findings
 
-[dim]💡 Tip: Use natural language! The AI will understand your intent.[/dim]
+[dim]💡 Tips:[/dim]
+[dim]  • Use TAB for command completion[/dim]
+[dim]  • Use natural language! The AI will understand your intent[/dim]
+[dim]  • Create custom aliases for frequently used commands[/dim]
 """
         console.print(Panel(help_text, border_style="cyan"))
 
@@ -267,6 +335,121 @@ class InteractiveMode:
             table.add_row(str(i), time_str, command, phase)
 
         console.print(table)
+
+    def _show_aliases(self):
+        """Show all command aliases"""
+        aliases = self.alias_manager.list_aliases()
+
+        if not aliases:
+            console.print("[dim]No aliases defined[/dim]")
+            return
+
+        console.print("\n[bold cyan]Command Aliases:[/bold cyan]\n")
+
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("Alias", style="yellow", no_wrap=True)
+        table.add_column("Command", style="cyan")
+        table.add_column("Category", style="dim")
+
+        # Categorize aliases
+        for alias, command in sorted(aliases.items()):
+            # Determine category
+            if len(alias) == 1:
+                category = "shortcut"
+            elif "scan" in command.lower():
+                category = "scanning"
+            elif "enum" in command.lower():
+                category = "enumeration"
+            elif "test" in command.lower() or "sql" in command.lower() or "xss" in command.lower():
+                category = "testing"
+            elif "show" in command.lower():
+                category = "display"
+            else:
+                category = "other"
+
+            table.add_row(alias, command[:60], category)
+
+        console.print(table)
+        console.print("\n[dim]💡 Tip: Use 'alias myalias command' to create custom aliases[/dim]")
+
+    def _handle_alias_command(self, args: str):
+        """Handle alias creation command"""
+        parts = args.split(maxsplit=1)
+
+        if len(parts) < 2:
+            console.print("[red]Usage: alias <name> <command>[/red]")
+            console.print("[yellow]Example: alias myscan scan for open ports[/yellow]")
+            return
+
+        alias_name = parts[0]
+        command = parts[1]
+
+        self.alias_manager.add_alias(alias_name, command)
+        console.print(f"[green]✓ Created alias: {alias_name} → {command}[/green]")
+
+    def _handle_export_command(self, args: str):
+        """Handle session export command"""
+        parts = args.split(maxsplit=1)
+
+        if len(parts) < 1:
+            console.print("[red]Usage: export <format> [filename][/red]")
+            console.print("[yellow]Formats: json, csv, html, markdown[/yellow]")
+            console.print("[yellow]Example: export html my_report.html[/yellow]")
+            return
+
+        export_format = parts[0].lower()
+        filename = parts[1] if len(parts) > 1 else None
+
+        # Generate default filename if not provided
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            extensions = {
+                "json": "json",
+                "csv": "csv",
+                "html": "html",
+                "markdown": "md",
+                "md": "md"
+            }
+            ext = extensions.get(export_format, "txt")
+            filename = f"medusa_report_{timestamp}.{ext}"
+
+        try:
+            # Prepare session data
+            session_data = {
+                "metadata": self.session.metadata,
+                "target": self.session.target,
+                "command_history": self.session.command_history,
+                "findings": self.session.findings,
+                "context": self.session.context,
+                "summary": self.session.get_summary()
+            }
+
+            # Export based on format
+            if export_format == "json":
+                with open(filename, 'w') as f:
+                    json.dump(session_data, f, indent=2)
+                console.print(f"[green]✓ Exported to JSON: {filename}[/green]")
+
+            elif export_format == "csv":
+                filepath = SessionExporter.export_to_csv(session_data, filename)
+                console.print(f"[green]✓ Exported findings to CSV: {filepath}[/green]")
+
+            elif export_format == "html":
+                filepath = SessionExporter.export_to_html(session_data, filename)
+                console.print(f"[green]✓ Exported to HTML: {filepath}[/green]")
+                console.print(f"[dim]Open {filepath} in your browser to view the report[/dim]")
+
+            elif export_format in ["markdown", "md"]:
+                filepath = SessionExporter.export_to_markdown(session_data, filename)
+                console.print(f"[green]✓ Exported to Markdown: {filepath}[/green]")
+
+            else:
+                console.print(f"[red]Unknown export format: {export_format}[/red]")
+                console.print("[yellow]Supported formats: json, csv, html, markdown[/yellow]")
+
+        except Exception as e:
+            console.print(f"[red]Export failed: {e}[/red]")
+            logger.error(f"Export error: {e}", exc_info=True)
 
     async def _execute_action(self, parsed: Dict[str, Any], client: MedusaClient):
         """Execute parsed action"""
