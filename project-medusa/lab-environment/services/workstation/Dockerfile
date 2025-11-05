@@ -92,10 +92,15 @@ RUN chmod -R 755 /home/doctor && \
 
 # Create startup script
 RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'export USER=root' >> /start.sh && \
+    echo 'export HOME=/root' >> /start.sh && \
     echo 'smbd --foreground --no-process-group &' >> /start.sh && \
     echo 'nmbd --foreground --no-process-group &' >> /start.sh && \
-    echo 'vncserver :0 -geometry 1024x768 -depth 24 -rfbport 5900' >> /start.sh && \
-    echo 'tail -f /var/log/samba/*.log' >> /start.sh && \
+    echo 'mkdir -p /var/log/samba' >> /start.sh && \
+    echo 'touch /var/log/samba/log.smbd' >> /start.sh && \
+    echo 'vncserver :0 -geometry 1024x768 -depth 24 -rfbport 5900 &' >> /start.sh && \
+    echo 'sleep 5' >> /start.sh && \
+    echo 'tail -f /var/log/samba/log.smbd /dev/null' >> /start.sh && \
     chmod +x /start.sh
 
 EXPOSE 445 139 5900

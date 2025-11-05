@@ -1,0 +1,494 @@
+version: '3.8'
+
+# ============================================================================
+# MEDUSA - AI-Powered Penetration Testing Platform
+# ============================================================================
+# Complete stack: Frontend (Next.js) + Backend (FastAPI) + Lab Environment
+# CAUTION: Lab services contain INTENTIONAL vulnerabilities
+# ============================================================================
+
+services:
+
+  # ==========================================================================
+  # MEDUSA SERVICES
+  # ==========================================================================
+
+  # --------------------------------------------------------------------------
+  # Frontend: Next.js Web Application (PRIMARY EHR FRONTEND)
+  # --------------------------------------------------------------------------
+  # This is the ONLY frontend for the EHR system - replaces PHP webapp
+  # Connects to: Medusa Backend, EHR API, EHR Database (via API), Redis (via Backend)
+  # --------------------------------------------------------------------------
+  medusa-frontend:
+    build:
+      context: ./medusa-webapp
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_MEDUSA_API_URL: http://localhost:8000
+        NEXT_PUBLIC_MEDUSA_WS_URL: ws://localhost:8000/ws
+        NEXT_PUBLIC_EHR_API_URL: http://localhost:3001/api
+    container_name: medusa_frontend
+    hostname: medusa-frontend
+    ports:
+      - "8080:3000"  # Moved to 8080 as primary EHR frontend
+    environment:
+      - NEXT_PUBLIC_MEDUSA_API_URL=http://localhost:8000
+      - NEXT_PUBLIC_MEDUSA_WS_URL=ws://localhost:8000/ws
+      - NEXT_PUBLIC_EHR_API_URL=http://localhost:3001/api
+      - NODE_ENV=production
+    networks:
+      - medusa-dmz          # Access to Medusa Backend & Redis
+      - healthcare-dmz       # Access to EHR API
+      - healthcare-internal  # Access to EHR Database (if needed)
+    depends_on:
+      medusa-backend:
+        condition: service_healthy
+      ehr-api:
+        condition: service_healthy
+      ehr-database:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # --------------------------------------------------------------------------
+  # Backend: FastAPI Application with WebSocket
+  # --------------------------------------------------------------------------
+  medusa-backend:
+    build:
+      context: ./medusa-backend
+      dockerfile: Dockerfile
+    container_name: medusa_backend
+    hostname: medusa-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - DATABASE_URL=postgresql://medusa:${POSTGRES_PASSWORD:-medusa_secure_pass}@medusa-postgres:5432/medusa_db
+      - REDIS_URL=redis://medusa-redis:6379/0
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - FRONTEND_URL=http://medusa-frontend:3000
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    volumes:
+      # Mount Docker socket for container management
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Mount CLI for integration
+      - ./medusa-cli/src:/app/medusa-cli:ro
+    networks:
+      - medusa-dmz
+      - healthcare-internal  # Access to lab services
+    depends_on:
+      medusa-postgres:
+        condition: service_healthy
+      medusa-redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # --------------------------------------------------------------------------
+  # Database: PostgreSQL for MEDUSA data persistence
+  # --------------------------------------------------------------------------
+  medusa-postgres:
+    image: postgres:15-alpine
+    container_name: medusa_postgres
+    hostname: medusa-postgres
+    environment:
+      - POSTGRES_DB=medusa_db
+      - POSTGRES_USER=medusa
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-medusa_secure_pass}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - medusa-postgres-data:/var/lib/postgresql/data
+    networks:
+      - medusa-dmz
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medusa -d medusa_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # --------------------------------------------------------------------------
+  # Cache: Redis for session management
+  # --------------------------------------------------------------------------
+  medusa-redis:
+    image: redis:7-alpine
+    container_name: medusa_redis
+    hostname: medusa-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - medusa-redis-data:/data
+    networks:
+      - medusa-dmz
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+
+  # ==========================================================================
+  # LAB ENVIRONMENT SERVICES (Vulnerable by Design)
+  # ==========================================================================
+
+  # --------------------------------------------------------------------------
+  # EHR Web Application (PHP) - DISABLED - Using Next.js Frontend Instead
+  # --------------------------------------------------------------------------
+  # REMOVED: PHP frontend replaced by Next.js medusa-frontend on port 8080
+  # Uncomment below if you need to re-enable the PHP frontend for testing
+  # ehr-webapp:
+  #   build: ./lab-environment/services/ehr-webapp
+  #   container_name: medusa_ehr_web
+  #   hostname: ehr-portal
+  #   ports:
+  #     - "8081:80"  # Changed to 8081 to avoid conflict
+  #   environment:
+  #     - DB_HOST=ehr-database
+  #     - DB_USER=ehrapp
+  #     - DB_PASS=Welcome123!
+  #     - DB_NAME=healthcare_db
+  #   volumes:
+  #     - ehr-logs:/var/log/apache2
+  #     - ehr-uploads:/var/www/html/uploads
+  #   networks:
+  #     - healthcare-dmz
+  #     - healthcare-internal
+  #   depends_on:
+  #     - ehr-database
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 512M
+
+  # --------------------------------------------------------------------------
+  # EHR API (Node.js)
+  # --------------------------------------------------------------------------
+  ehr-api:
+    build: ./lab-environment/services/ehr-api
+    container_name: medusa_ehr_api
+    hostname: api-server
+    ports:
+      - "3001:3000"
+    environment:
+      - DB_HOST=ehr-database
+      - DB_USER=ehrapp
+      - DB_PASS=Welcome123!
+      - DB_NAME=healthcare_db
+      - JWT_SECRET=supersecret123
+      - NODE_ENV=production
+    networks:
+      - healthcare-internal
+      - healthcare-dmz
+    depends_on:
+      - ehr-database
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # --------------------------------------------------------------------------
+  # EHR Database (MySQL)
+  # --------------------------------------------------------------------------
+  ehr-database:
+    image: mysql:8.0
+    container_name: medusa_ehr_db
+    hostname: db-server
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=admin123
+      - MYSQL_DATABASE=healthcare_db
+      - MYSQL_USER=ehrapp
+      - MYSQL_PASSWORD=Welcome123!
+    volumes:
+      - ehr-db-data:/var/lib/mysql
+      - ./lab-environment/init-scripts/db:/docker-entrypoint-initdb.d
+      - ehr-db-logs:/var/log/mysql
+    networks:
+      - healthcare-internal
+    command: >
+      --general_log=1
+      --general_log_file=/var/log/mysql/query.log
+      --slow_query_log=1
+      --slow_query_log_file=/var/log/mysql/slow.log
+      --log_error=/var/log/mysql/error.log
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+  # --------------------------------------------------------------------------
+  # SSH Server
+  # --------------------------------------------------------------------------
+  ssh-server:
+    build: ./lab-environment/services/ssh-server
+    container_name: medusa_ssh_server
+    hostname: admin-workstation
+    ports:
+      - "2222:22"
+    environment:
+      - ROOT_PASSWORD=password123
+      - USER_NAME=admin
+      - USER_PASSWORD=admin2024
+      - SUDO_ACCESS=true
+    volumes:
+      - ssh-logs:/var/log
+      - ssh-home:/home
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  # --------------------------------------------------------------------------
+  # FTP Server
+  # --------------------------------------------------------------------------
+  ftp-server:
+    build: ./lab-environment/services/ftp-server
+    container_name: medusa_ftp_server
+    hostname: file-storage
+    ports:
+      - "21:21"
+      - "21000-21010:21000-21010"
+    environment:
+      - FTP_USER=fileadmin
+      - FTP_PASS=Files2024!
+      - ANONYMOUS_ENABLE=YES
+    volumes:
+      - ftp-data:/home/ftpuser
+      - ftp-logs:/var/log/vsftpd
+      - ./lab-environment/mock-data/medical-records:/home/ftpuser/medical_records:ro
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
+
+  # --------------------------------------------------------------------------
+  # LDAP Server
+  # --------------------------------------------------------------------------
+  ldap-server:
+    image: osixia/openldap:1.5.0
+    container_name: medusa_ldap
+    hostname: ldap-server
+    ports:
+      - "389:389"
+      - "636:636"
+    environment:
+      - LDAP_ORGANISATION="MedCare Health System"
+      - LDAP_DOMAIN=medcare.local
+      - LDAP_ADMIN_PASSWORD=admin123
+      - LDAP_CONFIG_PASSWORD=config123
+      - LDAP_TLS=false
+    volumes:
+      - ldap-data:/var/lib/ldap
+      - ldap-config:/etc/ldap/slapd.d
+      - ldap-logs:/var/log/slapd
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 256M
+
+  # --------------------------------------------------------------------------
+  # Log Collector
+  # --------------------------------------------------------------------------
+  log-collector:
+    build: ./lab-environment/services/log-collector
+    container_name: medusa_logs
+    hostname: log-server
+    ports:
+      - "5514:514/udp"
+      - "5514:514/tcp"
+      - "8081:80"
+    volumes:
+      - centralized-logs:/var/log/collected
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.3'
+          memory: 384M
+
+  # --------------------------------------------------------------------------
+  # Workstation (Simulated Windows)
+  # --------------------------------------------------------------------------
+  workstation:
+    build: ./lab-environment/services/workstation
+    container_name: medusa_workstation
+    hostname: ws-doctor01
+    ports:
+      - "445:445"
+      - "3389:3389"
+      - "5900:5900"
+    environment:
+      - VNC_PASSWORD=vnc123
+      - SMB_USER=doctor
+      - SMB_PASS=Doctor2024!
+    volumes:
+      - workstation-data:/home/doctor
+      - workstation-logs:/var/log
+      - ./lab-environment/mock-data/documents:/home/doctor/Documents:ro
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+# ============================================================================
+# NETWORKS
+# ============================================================================
+networks:
+  # MEDUSA DMZ - Frontend and Backend communication
+  medusa-dmz:
+    driver: bridge
+    name: medusa-dmz
+    ipam:
+      config:
+        - subnet: 172.22.0.0/24
+          gateway: 172.22.0.1
+
+  # Healthcare DMZ - Public-facing lab services
+  healthcare-dmz:
+    driver: bridge
+    name: healthcare-dmz
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+          gateway: 172.20.0.1
+
+  # Healthcare Internal - Backend lab services
+  healthcare-internal:
+    driver: bridge
+    name: healthcare-internal
+    ipam:
+      config:
+        - subnet: 172.21.0.0/24
+          gateway: 172.21.0.1
+
+# ============================================================================
+# VOLUMES
+# ============================================================================
+volumes:
+  # MEDUSA volumes
+  medusa-postgres-data:
+    driver: local
+  medusa-redis-data:
+    driver: local
+
+  # Lab environment volumes
+  ehr-db-data:
+    driver: local
+  ehr-db-logs:
+    driver: local
+  ehr-logs:
+    driver: local
+  ehr-uploads:
+    driver: local
+  ftp-data:
+    driver: local
+  ftp-logs:
+    driver: local
+  ssh-logs:
+    driver: local
+  ssh-home:
+    driver: local
+  ldap-data:
+    driver: local
+  ldap-config:
+    driver: local
+  ldap-logs:
+    driver: local
+  workstation-data:
+    driver: local
+  workstation-logs:
+    driver: local
+  centralized-logs:
+    driver: local
+
+# ============================================================================
+# USAGE
+# ============================================================================
+# Start all services:
+#   docker-compose up -d
+#
+# Start only MEDUSA (no lab):
+#   docker-compose up -d medusa-frontend medusa-backend medusa-postgres medusa-redis
+#
+# View logs:
+#   docker-compose logs -f medusa-backend
+#
+# Access services:
+#   MEDUSA Frontend:  http://localhost:3000
+#   MEDUSA Backend:   http://localhost:8000
+#   EHR Web Portal:   http://localhost:8080
+#   EHR API:          http://localhost:3001
+#   SSH:              ssh admin@localhost -p 2222
+#   MySQL:            mysql -h localhost -P 3306 -u ehrapp -pWelcome123!
+#   Log Viewer:       http://localhost:8081
+#
+# Health checks:
+#   curl http://localhost:8000/health
+#   curl http://localhost:3000/api/health
+#
+# Stop services:
+#   docker-compose down
+#
+# Reset everything:
+#   docker-compose down -v
+# ============================================================================
+
