@@ -2,32 +2,31 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getPatientById, getAllPatients, Patient } from '@/lib/api';
+import { getPatientById, Patient } from '@/lib/api';
 import Layout from '@/components/Layout';
 
-// This function is required for static generation but won't be used in client components
-export async function generateStaticParams() {
-  try {
-    const patients = await getAllPatients();
-    return patients.map((patient) => ({
-      id: patient.id,
-    }));
-  } catch (error) {
-    console.error('Error generating static params:', error);
-    return [];
-  }
-}
+// Note: generateStaticParams removed - not compatible with 'use client' in standalone mode
 
-export default function PatientDetailPage({ params }: { params: { id: string } }) {
+export default function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [patientId, setPatientId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Resolve params promise
+    params.then((resolvedParams) => {
+      setPatientId(resolvedParams.id);
+    });
+  }, [params]);
+
+  useEffect(() => {
+    if (!patientId) return;
+
     const fetchPatient = async () => {
       try {
         setLoading(true);
-        const data = await getPatientById(params.id);
+        const data = await getPatientById(patientId);
         setPatient(data);
         setError(null);
       } catch (err) {
@@ -39,7 +38,7 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
     };
 
     fetchPatient();
-  }, [params.id]);
+  }, [patientId]);
 
   if (loading) {
     return (

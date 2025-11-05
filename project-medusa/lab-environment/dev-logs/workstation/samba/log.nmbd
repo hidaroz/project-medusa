@@ -1,0 +1,27 @@
+[2025/11/05 04:15:10.387107,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/05 04:15:33.602173,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.4
+  
+  *****
+[2025/11/05 05:10:31.028573,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/05 05:10:54.124192,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.7
+  
+  *****
+[2025/11/05 05:28:55.861029,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/05 05:29:19.021358,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.2
+  
+  *****

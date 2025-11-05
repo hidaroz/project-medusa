@@ -10,7 +10,7 @@ from datetime import datetime
 import random
 import logging
 
-from medusa.core.llm import LLMConfig, create_llm_client, LLMClient, MockLLMClient
+from medusa.core.llm import LLMConfig, create_llm_client, LLMClient, MockLLMClient, LocalLLMClient
 
 logger = logging.getLogger(__name__)
 

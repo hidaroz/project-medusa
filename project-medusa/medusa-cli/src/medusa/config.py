@@ -4,8 +4,9 @@ Handles setup wizard, config loading/saving, and user preferences
 """
 
 import os
+import asyncio
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 import yaml
 from rich.console import Console
 from rich.panel import Panel
@@ -25,10 +26,12 @@ class Config:
     
     # Default LLM configuration
     DEFAULT_LLM_CONFIG = {
-        "model": "gemini-pro",
+        "provider": "auto",  # Auto-detect: try local first, then Gemini, then mock
+        "model": "mistral:7b-instruct",
+        "ollama_url": "http://localhost:11434",
         "temperature": 0.7,
         "max_tokens": 2048,
-        "timeout": 30,
+        "timeout": 60,  # Increased for local models
         "max_retries": 3,
         "mock_mode": False
     }
@@ -80,18 +83,63 @@ class Config:
         """Get LLM configuration with defaults"""
         if not self.config_data:
             self.load()
-        
+
         llm_config = self.config_data.get("llm", {})
-        
+
         # Merge with defaults
         config = self.DEFAULT_LLM_CONFIG.copy()
         config.update(llm_config)
-        
+
         # Add API key from root config if not in llm section
         if "api_key" not in config and "api_key" in self.config_data:
             config["api_key"] = self.config_data["api_key"]
-        
+
         return config
+
+    async def validate_gemini_api_key(self, api_key: str) -> Tuple[bool, str]:
+        """
+        Validate Google Gemini API key with a test request
+
+        Args:
+            api_key: The API key to validate
+
+        Returns:
+            Tuple of (is_valid: bool, message: str)
+        """
+        try:
+            import google.generativeai as genai
+
+            # Configure with the API key
+            genai.configure(api_key=api_key)
+
+            # Try a simple test request
+            model = genai.GenerativeModel('gemini-pro-latest')
+            response = await asyncio.to_thread(
+                model.generate_content,
+                "Respond with 'OK' if you receive this message."
+            )
+
+            if response and response.text:
+                return True, "✅ API key is valid and working"
+            else:
+                return False, "❌ API key validation failed: No response from Gemini"
+
+        except ImportError:
+            return False, "❌ google-generativeai package not installed. Install with: pip install google-generativeai"
+        except Exception as e:
+            error_msg = str(e).lower()
+
+            # Provide specific error messages based on error type
+            if "api" in error_msg and ("key" in error_msg or "invalid" in error_msg):
+                return False, "❌ Invalid API key. Get a new key from: https://ai.google.dev/gemini-api/docs/quickstart"
+            elif "quota" in error_msg or "rate" in error_msg:
+                return False, "⚠️ API quota exceeded. Check your usage at: https://aistudio.google.com/"
+            elif "permission" in error_msg or "denied" in error_msg:
+                return False, "❌ API key doesn't have required permissions. Enable Gemini API in your Google Cloud project"
+            elif "network" in error_msg or "connection" in error_msg:
+                return False, "⚠️ Network error. Check your internet connection"
+            else:
+                return False, f"❌ Validation error: {str(e)}"
 
     def run_setup_wizard(self) -> Dict[str, Any]:
         """Run interactive setup wizard"""
@@ -113,30 +161,50 @@ class Config:
         console.print(
             "Get your free API key from: [link]https://ai.google.dev/gemini-api/docs/quickstart[/link]"
         )
-        api_key = Prompt.ask("Enter your Google AI API key", password=True)
 
-        # Validate API key (basic check)
-        if len(api_key) < 20:
-            console.print("[red]✗ Invalid API key format[/red]")
+        max_attempts = 3
+        api_key_validated = False
+
+        for attempt in range(max_attempts):
+            api_key = Prompt.ask("Enter your Google AI API key", password=True)
+
+            # Basic format check
+            if len(api_key) < 20:
+                console.print("[yellow]⚠️ API key seems too short[/yellow]")
+                if attempt < max_attempts - 1:
+                    continue
+                else:
+                    console.print("[red]✗ Maximum attempts reached. Setup failed.[/red]")
+                    console.print("[yellow]Run 'medusa setup --force' to try again.[/yellow]")
+                    return {}
+
+            # Validate API key with real test
+            console.print("\n[cyan]Validating API key...[/cyan]")
+
+            is_valid, message = asyncio.run(self.validate_gemini_api_key(api_key))
+            console.print(message)
+
+            if is_valid:
+                api_key_validated = True
+                config["api_key"] = api_key
+                break
+            else:
+                if attempt < max_attempts - 1:
+                    console.print(f"\n[yellow]Attempt {attempt + 1}/{max_attempts}. Please try again.[/yellow]\n")
+                else:
+                    console.print("\n[red]✗ Maximum attempts reached. Setup failed.[/red]")
+                    console.print("[yellow]Run 'medusa setup --force' to try again.[/yellow]")
+                    return {}
+
+        if not api_key_validated:
+            console.print("[red]✗ API key validation failed[/red]")
             return {}
 
-        # Test the API key
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            progress.add_task("Validating API key...", total=None)
-            # TODO: Actually validate with a test API call
-            import time
-            time.sleep(1)
-
-        console.print("[green]✓ API key validated[/green]\n")
-        config["api_key"] = api_key
+        console.print()
         
         # LLM Configuration (using Gemini)
         config["llm"] = {
-            "model": "gemini-pro",
+            "model": "gemini-pro-latest",
             "temperature": 0.7,
             "max_tokens": 2048,
             "timeout": 30,

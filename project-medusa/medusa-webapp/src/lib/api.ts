@@ -1,6 +1,7 @@
 // API client for Medusa Backend
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// Use environment variable for API URL, fallback to localhost for development
+const API_BASE_URL = process.env.NEXT_PUBLIC_EHR_API_URL || 'http://localhost:3001/api';
 
 // Types for API responses
 export interface ApiResponse<T> {
@@ -119,11 +120,62 @@ export async function getAllPatients(): Promise<Patient[]> {
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    const result: ApiResponse<Patient[]> = await response.json();
-    if (result.success && result.data) {
-      return result.data;
+    const result = await response.json();
+    
+    // Handle EHR API response format: { count: number, data: [...] }
+    if (result.data && Array.isArray(result.data)) {
+      return result.data.map((patient: any) => ({
+        id: patient.id?.toString() || '',
+        firstName: patient.first_name || '',
+        lastName: patient.last_name || '',
+        dateOfBirth: patient.dob || '',
+        gender: patient.gender || 'Unknown',
+        bloodType: patient.blood_type || 'Unknown',
+        allergies: patient.allergies ? patient.allergies.split(',').map((a: string) => a.trim()) : [],
+        conditions: patient.medical_notes ? [patient.medical_notes] : [],
+        medications: [],
+        lastVisit: patient.updated_at || patient.created_at || '',
+        nextAppointment: '',
+        phone: patient.phone || '',
+        email: patient.email || '',
+        address: `${patient.address || ''}, ${patient.city || ''}, ${patient.state || ''} ${patient.zip_code || ''}`,
+        emergencyContact: {
+          name: patient.emergency_contact_name || '',
+          relationship: 'Unknown',
+          phone: patient.emergency_contact_phone || ''
+        },
+        insuranceProvider: patient.insurance_provider || '',
+        insuranceNumber: patient.insurance_policy_number || '',
+        primaryPhysician: patient.primary_physician || '',
+        vitalSigns: [],
+        labResults: [],
+        appointments: [],
+        mrn: patient.id?.toString() || '',
+        status: 'active',
+        lastUpdated: patient.updated_at || patient.created_at || '',
+        ssn: patient.ssn || '',
+        driverLicense: '',
+        financialInfo: {
+          creditCardNumber: '',
+          creditCardExpiry: '',
+          creditCardCVV: '',
+          bankAccountNumber: '',
+          bankRoutingNumber: '',
+          outstandingBalance: 0,
+          paymentHistory: []
+        },
+        sensitiveConditions: [],
+        familyHistory: [],
+        socialHistory: {
+          smokingStatus: 'Unknown',
+          alcoholUse: 'Unknown',
+          drugUse: 'Unknown',
+          occupation: 'Unknown',
+          maritalStatus: 'Unknown'
+        }
+      }));
     } else {
-      throw new Error(result.error || 'Failed to fetch patients');
+      throw new Error('Invalid response format from API');
     }
   } catch (error) {
     console.error('Error fetching patients:', error);
@@ -140,12 +192,61 @@ export async function getPatientById(id: string): Promise<Patient> {
       }
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    const result: ApiResponse<Patient> = await response.json();
-    if (result.success && result.data) {
-      return result.data;
-    } else {
-      throw new Error(result.error || 'Failed to fetch patient');
-    }
+    const result = await response.json();
+    
+    // Handle EHR API response format: { success: true, data: {...} }
+    const patient = result.data || result;
+    
+    return {
+      id: patient.id?.toString() || '',
+      firstName: patient.first_name || '',
+      lastName: patient.last_name || '',
+      dateOfBirth: patient.dob || '',
+      gender: patient.gender || 'Unknown',
+      bloodType: patient.blood_type || 'Unknown',
+      allergies: patient.allergies ? patient.allergies.split(',').map((a: string) => a.trim()) : [],
+      conditions: patient.medical_notes ? [patient.medical_notes] : [],
+      medications: [],
+      lastVisit: patient.updated_at || patient.created_at || '',
+      nextAppointment: '',
+      phone: patient.phone || '',
+      email: patient.email || '',
+      address: `${patient.address || ''}, ${patient.city || ''}, ${patient.state || ''} ${patient.zip_code || ''}`,
+      emergencyContact: {
+        name: patient.emergency_contact_name || '',
+        relationship: 'Unknown',
+        phone: patient.emergency_contact_phone || ''
+      },
+      insuranceProvider: patient.insurance_provider || '',
+      insuranceNumber: patient.insurance_policy_number || '',
+      primaryPhysician: patient.primary_physician || '',
+      vitalSigns: [],
+      labResults: [],
+      appointments: [],
+      mrn: patient.id?.toString() || '',
+      status: 'active',
+      lastUpdated: patient.updated_at || patient.created_at || '',
+      ssn: patient.ssn || '',
+      driverLicense: '',
+      financialInfo: {
+        creditCardNumber: '',
+        creditCardExpiry: '',
+        creditCardCVV: '',
+        bankAccountNumber: '',
+        bankRoutingNumber: '',
+        outstandingBalance: 0,
+        paymentHistory: []
+      },
+      sensitiveConditions: [],
+      familyHistory: [],
+      socialHistory: {
+        smokingStatus: 'Unknown',
+        alcoholUse: 'Unknown',
+        drugUse: 'Unknown',
+        occupation: 'Unknown',
+        maritalStatus: 'Unknown'
+      }
+    };
   } catch (error) {
     console.error('Error fetching patient:', error);
     throw error;

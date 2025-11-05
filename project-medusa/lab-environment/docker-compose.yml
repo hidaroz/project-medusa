@@ -10,46 +10,6 @@ version: '3.8'
 services:
   
   # ==========================================================================
-  # 1. VULNERABLE EHR WEB APPLICATION
-  # ==========================================================================
-  # Simulates a healthcare web portal with common web vulnerabilities
-  # Intentional Vulnerabilities:
-  # - SQL Injection in patient search
-  # - XSS in patient notes
-  # - Insecure Direct Object Reference (IDOR)
-  # - Session management issues
-  # - Weak authentication
-  # ==========================================================================
-  ehr-webapp:
-    build: ./services/ehr-webapp
-    container_name: medusa_ehr_web
-    hostname: ehr-portal
-    ports:
-      - "8080:80"      # HTTP access to EHR portal
-    environment:
-      - DB_HOST=ehr-database
-      - DB_USER=ehrapp
-      - DB_PASS=Welcome123!
-      - DB_NAME=healthcare_db
-      - APACHE_RUN_USER=www-data
-      - APACHE_RUN_GROUP=www-data
-    volumes:
-      - ehr-logs:/var/log/apache2
-      - ehr-uploads:/var/www/html/uploads
-    networks:
-      - healthcare-dmz
-      - healthcare-internal
-    depends_on:
-      - ehr-database
-    restart: unless-stopped
-    # Resource limits for laptop use
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-
-  # ==========================================================================
   # 2. EHR DATABASE (MySQL)
   # ==========================================================================
   # Contains synthetic patient data with intentional misconfigurations

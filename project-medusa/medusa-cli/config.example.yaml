@@ -1,0 +1,72 @@
+# MEDUSA Configuration Example
+# Copy this file to ~/.medusa/config.yaml and customize
+
+# LLM Configuration
+llm:
+  # Provider: "local" (Ollama), "gemini" (Google API), "mock" (testing), or "auto" (auto-detect)
+  provider: auto  # Recommended: tries local first, then Gemini, then mock
+  
+  # Local LLM settings (when provider=local or auto)
+  ollama_url: http://localhost:11434
+  model: mistral:7b-instruct  # Options: mistral:7b-instruct, llama3:8b, phi3:mini
+  
+  # Gemini API settings (when provider=gemini or as fallback)
+  # api_key: your-gemini-api-key-here  # Or set GEMINI_API_KEY env var
+  # gemini_model: gemini-pro-latest
+  
+  # Generation parameters
+  temperature: 0.7        # 0.0 = deterministic, 1.0 = creative
+  max_tokens: 2048        # Maximum response length
+  timeout: 60             # Request timeout (seconds) - increased for local models
+  max_retries: 3          # Retry attempts on failure
+  retry_delay: 2          # Initial retry delay (exponential backoff)
+  
+  # Testing mode
+  mock_mode: false        # Set to true to use mock responses (no API calls)
+
+# Target Configuration
+target:
+  type: docker            # "docker" or "custom"
+  url: http://localhost:3001
+
+# Risk Tolerance
+risk_tolerance:
+  auto_approve_low: true
+  auto_approve_medium: false
+  auto_approve_high: false
+
+# Tool Configuration
+tools:
+  nmap:
+    timeout: 300
+    default_ports: "1-1000"
+  
+  web_scanner:
+    timeout: 120
+    user_agent: "MEDUSA/1.0"
+
+# Agent Configuration
+agent:
+  autonomous:
+    auto_approve_low_risk: false  # Require approval even for LOW risk actions
+    checkpoint_enabled: true      # Save state after each phase
+    max_exploitation_attempts: 3
+  
+  observe:
+    detailed_output: true
+    show_recommendations: true
+
+# Reporting
+reporting:
+  output_dir: "./reports"
+  format: "html"  # Options: html, json, markdown
+  include_raw_output: false
+  include_mitre_mapping: true
+
+# Logging
+logging:
+  level: INFO  # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  file: "logs/medusa.log"
+  max_size_mb: 50
+  backup_count: 5
+

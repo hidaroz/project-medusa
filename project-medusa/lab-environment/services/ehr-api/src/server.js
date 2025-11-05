@@ -157,6 +157,149 @@ app.get('/api/patients/search/:term', (req, res) => {
 });
 
 // ============================================================================
+// APPOINTMENTS ENDPOINTS
+// ============================================================================
+
+// Get all appointments (INTENTIONAL: No auth required)
+app.get('/api/appointments', (req, res) => {
+    const query = 'SELECT * FROM appointments ORDER BY date DESC LIMIT 100';
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({
+                error: 'Database error',
+                message: err.message
+            });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// Get appointments by patient ID (INTENTIONAL: IDOR vulnerability)
+app.get('/api/appointments/patient/:patientId', (req, res) => {
+    const patientId = req.params.patientId;
+    const query = `SELECT * FROM appointments WHERE patient_id = ${patientId} ORDER BY date DESC`;
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// ============================================================================
+// PRESCRIPTIONS/MEDICATIONS ENDPOINTS
+// ============================================================================
+
+// Get all prescriptions (INTENTIONAL: No auth required)
+app.get('/api/prescriptions', (req, res) => {
+    const query = 'SELECT * FROM prescriptions LIMIT 100';
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({
+                error: 'Database error',
+                message: err.message
+            });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// Alias for medications endpoint
+app.get('/api/medications', (req, res) => {
+    const query = 'SELECT * FROM prescriptions LIMIT 100';
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({
+                error: 'Database error',
+                message: err.message
+            });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// Get prescriptions by patient ID (INTENTIONAL: IDOR vulnerability)
+app.get('/api/prescriptions/patient/:patientId', (req, res) => {
+    const patientId = req.params.patientId;
+    const query = `SELECT * FROM prescriptions WHERE patient_id = ${patientId}`;
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// ============================================================================
+// LAB RESULTS ENDPOINTS
+// ============================================================================
+
+// Get all lab results (INTENTIONAL: No auth required)
+app.get('/api/lab-results', (req, res) => {
+    const query = 'SELECT * FROM lab_results ORDER BY test_date DESC LIMIT 100';
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({
+                error: 'Database error',
+                message: err.message
+            });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// Get lab results by patient ID (INTENTIONAL: IDOR vulnerability)
+app.get('/api/lab-results/patient/:patientId', (req, res) => {
+    const patientId = req.params.patientId;
+    const query = `SELECT * FROM lab_results WHERE patient_id = ${patientId} ORDER BY test_date DESC`;
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// ============================================================================
+// MEDICAL RECORDS ENDPOINTS
+// ============================================================================
+
+// Get all medical records (INTENTIONAL: No auth required)
+app.get('/api/medical-records', (req, res) => {
+    const query = 'SELECT * FROM medical_records ORDER BY record_date DESC LIMIT 100';
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({
+                error: 'Database error',
+                message: err.message
+            });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// Get medical records by patient ID (INTENTIONAL: IDOR vulnerability)
+app.get('/api/medical-records/patient/:patientId', (req, res) => {
+    const patientId = req.params.patientId;
+    const query = `SELECT * FROM medical_records WHERE patient_id = ${patientId} ORDER BY record_date DESC`;
+    
+    db.query(query, (err, results) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ count: results.length, data: results });
+    });
+});
+
+// ============================================================================
 // USER MANAGEMENT ENDPOINTS
 // ============================================================================
 
@@ -345,6 +488,15 @@ app.listen(PORT, () => {
     console.log('  GET    /api/patients');
     console.log('  GET    /api/patients/:id');
     console.log('  GET    /api/patients/search/:term');
+    console.log('  GET    /api/appointments');
+    console.log('  GET    /api/appointments/patient/:patientId');
+    console.log('  GET    /api/prescriptions');
+    console.log('  GET    /api/medications (alias for prescriptions)');
+    console.log('  GET    /api/prescriptions/patient/:patientId');
+    console.log('  GET    /api/lab-results');
+    console.log('  GET    /api/lab-results/patient/:patientId');
+    console.log('  GET    /api/medical-records');
+    console.log('  GET    /api/medical-records/patient/:patientId');
     console.log('  GET    /api/users');
     console.log('  GET    /api/users/check/:username');
     console.log('  GET    /api/admin/schema');
