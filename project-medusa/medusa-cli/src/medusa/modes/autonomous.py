@@ -1,10 +1,12 @@
 """
 Autonomous mode for MEDUSA
 Agent plans and executes full attack chain with approval gates
+Enhanced with checkpointing for pause/resume capability
 """
 
 import asyncio
-from typing import Dict, Any, List
+import logging
+from typing import Dict, Any, List, Optional
 from datetime import datetime
 import time
 
@@ -13,18 +15,39 @@ from medusa.display import display
 from medusa.approval import ApprovalGate, Action, RiskLevel
 from medusa.reporter import ReportGenerator
 from medusa.config import get_config
+from medusa.checkpoint import CheckpointManager, OperationCheckpoint
+
+logger = logging.getLogger(__name__)
 
 
 class AutonomousMode:
-    """Autonomous penetration testing mode"""
+    """Autonomous penetration testing mode with checkpointing"""
 
-    def __init__(self, target: str, api_key: str):
+    def __init__(
+        self,
+        target: str,
+        api_key: str,
+        resume_operation_id: Optional[str] = None
+    ):
         self.target = target
         self.api_key = api_key
         self.config = get_config()
         self.approval_gate = ApprovalGate()
         self.reporter = ReportGenerator()
-        self.operation_id = f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+
+        # Checkpoint management
+        if resume_operation_id:
+            # Resuming existing operation
+            self.operation_id = resume_operation_id
+            self.resuming = True
+        else:
+            # New operation
+            self.operation_id = f"auto_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            self.resuming = False
+
+        self.checkpoint_mgr = CheckpointManager(self.operation_id)
+        self.operation_checkpoint: Optional[OperationCheckpoint] = None
+
         self.operation_data: Dict[str, Any] = {
             "operation_id": self.operation_id,
             "mode": "autonomous",
@@ -36,50 +59,134 @@ class AutonomousMode:
         }
 
     async def run(self):
-        """Execute autonomous penetration test"""
+        """Execute autonomous penetration test with checkpointing"""
         display.show_banner()
         display.console.print()
-        display.console.print(
-            f"[bold cyan]Starting Autonomous Assessment[/bold cyan] against [yellow]{self.target}[/yellow]"
-        )
-        display.console.print(f"[dim]Operation ID: {self.operation_id}[/dim]\n")
+
+        # Initialize or load checkpoint
+        if self.resuming:
+            checkpoint_data = self.checkpoint_mgr.load()
+            if checkpoint_data:
+                self.operation_checkpoint = OperationCheckpoint.from_dict(checkpoint_data)
+                display.console.print(
+                    f"[bold yellow]Resuming Operation[/bold yellow] [cyan]{self.operation_id}[/cyan]"
+                )
+                display.console.print(
+                    f"[dim]Last phase: {self.operation_checkpoint.current_phase}[/dim]"
+                )
+                display.console.print(
+                    f"[dim]Completed: {', '.join(self.operation_checkpoint.completed_phases) or 'None'}[/dim]\n"
+                )
+            else:
+                display.show_error(f"Checkpoint not found for operation: {self.operation_id}")
+                return
+        else:
+            display.console.print(
+                f"[bold cyan]Starting Autonomous Assessment[/bold cyan] against [yellow]{self.target}[/yellow]"
+            )
+            display.console.print(f"[dim]Operation ID: {self.operation_id}[/dim]\n")
+            self.operation_checkpoint = OperationCheckpoint(
+                self.operation_id,
+                self.target,
+                "autonomous"
+            )
 
         start_time = time.time()
-        
+
         # Get LLM config from global config
         llm_config = self.config.get_llm_config()
 
-        async with MedusaClient(self.target, self.api_key, llm_config=llm_config) as client:
-            # Phase 1: Reconnaissance
-            await self._phase_reconnaissance(client)
+        try:
+            async with MedusaClient(self.target, self.api_key, llm_config=llm_config) as client:
+                # Phase 1: Reconnaissance
+                if not self.operation_checkpoint.should_skip_phase("reconnaissance"):
+                    self.operation_checkpoint.start_phase("reconnaissance")
+                    await self._phase_reconnaissance(client)
+                    self.operation_checkpoint.complete_phase("reconnaissance")
+                    self._save_checkpoint()
+                else:
+                    display.console.print("[dim]Skipping reconnaissance (already completed)[/dim]\n")
 
-            if self.approval_gate.is_aborted():
-                display.show_error("Operation aborted by user")
-                return
+                if self.approval_gate.is_aborted():
+                    self.operation_checkpoint.mark_aborted("User aborted")
+                    self._save_checkpoint()
+                    display.show_error("Operation aborted by user")
+                    return
 
-            # Phase 2: Enumeration
-            await self._phase_enumeration(client)
+                # Phase 2: Enumeration
+                if not self.operation_checkpoint.should_skip_phase("enumeration"):
+                    self.operation_checkpoint.start_phase("enumeration")
+                    await self._phase_enumeration(client)
+                    self.operation_checkpoint.complete_phase("enumeration")
+                    self._save_checkpoint()
+                else:
+                    display.console.print("[dim]Skipping enumeration (already completed)[/dim]\n")
 
-            if self.approval_gate.is_aborted():
-                display.show_error("Operation aborted by user")
-                return
+                if self.approval_gate.is_aborted():
+                    self.operation_checkpoint.mark_aborted("User aborted")
+                    self._save_checkpoint()
+                    display.show_error("Operation aborted by user")
+                    return
 
-            # Phase 3: Exploitation
-            await self._phase_exploitation(client)
+                # Phase 3: Exploitation
+                if not self.operation_checkpoint.should_skip_phase("exploitation"):
+                    self.operation_checkpoint.start_phase("exploitation")
+                    await self._phase_exploitation(client)
+                    self.operation_checkpoint.complete_phase("exploitation")
+                    self._save_checkpoint()
+                else:
+                    display.console.print("[dim]Skipping exploitation (already completed)[/dim]\n")
 
-            if self.approval_gate.is_aborted():
-                display.show_error("Operation aborted by user")
-                return
+                if self.approval_gate.is_aborted():
+                    self.operation_checkpoint.mark_aborted("User aborted")
+                    self._save_checkpoint()
+                    display.show_error("Operation aborted by user")
+                    return
 
-            # Phase 4: Post-Exploitation
-            await self._phase_post_exploitation(client)
+                # Phase 4: Post-Exploitation
+                if not self.operation_checkpoint.should_skip_phase("post_exploitation"):
+                    self.operation_checkpoint.start_phase("post_exploitation")
+                    await self._phase_post_exploitation(client)
+                    self.operation_checkpoint.complete_phase("post_exploitation")
+                    self._save_checkpoint()
+                else:
+                    display.console.print("[dim]Skipping post-exploitation (already completed)[/dim]\n")
 
-        # Calculate final metrics
-        self.operation_data["completed_at"] = datetime.now().isoformat()
-        self.operation_data["duration_seconds"] = time.time() - start_time
+            # Calculate final metrics
+            self.operation_data["completed_at"] = datetime.now().isoformat()
+            self.operation_data["duration_seconds"] = time.time() - start_time
 
-        # Generate reports
-        await self._generate_reports(client)
+            # Generate reports
+            await self._generate_reports(client)
+
+            # Clean up checkpoint on successful completion
+            self.checkpoint_mgr.delete()
+            display.console.print("\n[dim]Checkpoint cleaned up[/dim]")
+
+        except KeyboardInterrupt:
+            display.console.print("\n\n[yellow]⚠ Operation interrupted[/yellow]")
+            display.console.print("[cyan]Progress has been saved. Resume with:[/cyan]")
+            display.console.print(f"[yellow]  medusa autonomous --resume {self.operation_id}[/yellow]")
+            self._save_checkpoint()
+            raise
+
+        except Exception as e:
+            logger.error(f"Operation failed: {e}", exc_info=True)
+            display.show_error(f"Operation failed: {e}")
+            self._save_checkpoint()
+            raise
+
+    def _save_checkpoint(self):
+        """Save current operation state"""
+        try:
+            if self.operation_checkpoint:
+                # Store operation data in checkpoint
+                self.operation_checkpoint.operation_data = self.operation_data
+                checkpoint_data = self.operation_checkpoint.to_dict()
+                filepath = self.checkpoint_mgr.save(checkpoint_data)
+                logger.info(f"Checkpoint saved: {filepath}")
+        except Exception as e:
+            logger.error(f"Failed to save checkpoint: {e}", exc_info=True)
 
     async def _phase_reconnaissance(self, client: MedusaClient):
         """Phase 1: Reconnaissance"""
