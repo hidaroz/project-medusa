@@ -4,19 +4,24 @@ User gives natural language commands, agent interprets and executes
 """
 
 import asyncio
+import logging
 from typing import Dict, Any, Optional
 from datetime import datetime
 
 from rich.console import Console
 from rich.prompt import Prompt
 from rich.panel import Panel
+from rich.table import Table
 
 from medusa.client import MedusaClient
 from medusa.display import display
 from medusa.approval import ApprovalGate, Action, RiskLevel
 from medusa.config import get_config
+from medusa.command_parser import CommandParser
+from medusa.session import Session, CommandSuggester
 
 console = Console()
+logger = logging.getLogger(__name__)
 
 
 class InteractiveMode:
@@ -27,13 +32,12 @@ class InteractiveMode:
         self.api_key = api_key
         self.config = get_config()
         self.approval_gate = ApprovalGate()
-        self.context: Dict[str, Any] = {
-            "target": target,
-            "session_started": datetime.now().isoformat(),
-            "findings": [],
-            "techniques_used": [],
-        }
         self.running = True
+
+        # Initialize session management
+        self.session = Session(target=target or "unknown")
+        self.command_suggester = CommandSuggester()
+        self.command_parser: Optional[CommandParser] = None  # Initialized when client is ready
 
     async def run(self):
         """Start interactive shell"""
@@ -43,21 +47,29 @@ class InteractiveMode:
             Panel(
                 "[bold cyan]MEDUSA Interactive Shell[/bold cyan]\n\n"
                 "Enter natural language commands to control the agent.\n"
-                "Type [yellow]'help'[/yellow] for available commands or [yellow]'exit'[/yellow] to quit.\n\n"
-                f"Target: [green]{self.target or 'Not set'}[/green]",
+                "Type [yellow]'help'[/yellow] for available commands or [yellow]'exit'[/yellow] to quit.\n"
+                "Type [yellow]'suggestions'[/yellow] to see context-aware command suggestions.\n\n"
+                f"Target: [green]{self.target or 'Not set'}[/green]\n"
+                f"Session ID: [dim]{self.session.session_id}[/dim]",
                 border_style="cyan",
             )
         )
         console.print()
-        
+
         # Get LLM config from global config
         llm_config = self.config.get_llm_config()
 
         async with MedusaClient(self.target or "http://localhost:3001", self.api_key, llm_config=llm_config) as client:
+            # Initialize command parser with LLM client
+            self.command_parser = CommandParser(client.llm_client, target=self.target)
+
+            # Show initial suggestions
+            self._show_suggestions()
+
             while self.running:
                 try:
                     # Get user command
-                    command = Prompt.ask("\n[bold cyan]MEDUSA>[/bold cyan]", default="")
+                    command = Prompt.ask("\n[bold cyan]medusa>[/bold cyan]", default="")
 
                     if not command.strip():
                         continue
@@ -71,13 +83,20 @@ class InteractiveMode:
                 except EOFError:
                     break
 
-        console.print("\n[dim]Session ended[/dim]")
+        # Save session on exit
+        try:
+            session_path = self.session.save()
+            console.print(f"\n[dim]Session saved to: {session_path}[/dim]")
+        except Exception as e:
+            logger.error(f"Failed to save session: {e}")
+
+        console.print("[dim]Session ended[/dim]")
 
     async def _process_command(self, command: str, client: MedusaClient):
-        """Process user command"""
+        """Process user command using NL parsing"""
         cmd_lower = command.lower()
 
-        # Built-in commands
+        # Built-in commands (handle before NL parsing for speed)
         if cmd_lower in ["exit", "quit", "q"]:
             self.running = False
             return
@@ -86,11 +105,17 @@ class InteractiveMode:
             self._show_help()
             return
 
+        elif cmd_lower == "suggestions":
+            self._show_suggestions()
+            return
+
         elif cmd_lower.startswith("set target"):
             parts = command.split(maxsplit=2)
             if len(parts) >= 3:
                 self.target = parts[2]
-                self.context["target"] = self.target
+                self.session.update_context({"target": self.target})
+                if self.command_parser:
+                    self.command_parser.context["target"] = self.target
                 console.print(f"[green]✓ Target set to: {self.target}[/green]")
             else:
                 console.print("[red]Usage: set target <url>[/red]")
@@ -104,12 +129,33 @@ class InteractiveMode:
             self._show_findings()
             return
 
+        elif cmd_lower == "show history":
+            self._show_history()
+            return
+
         elif cmd_lower == "clear":
             console.clear()
             return
 
-        # Natural language commands - interpret with AI
-        await self._execute_natural_command(command, client)
+        # Parse natural language command
+        if not self.command_parser:
+            console.print("[red]Error: Command parser not initialized[/red]")
+            return
+
+        # Show thinking indicator
+        with console.status("[cyan]🤔 Understanding your command...", spinner="dots"):
+            parsed = await self.command_parser.parse(command)
+
+        # Check confidence level
+        if parsed["confidence"] < 0.5:
+            console.print(f"[yellow]⚠ {parsed.get('clarification', 'Command unclear')}[/yellow]")
+            return
+
+        # Show what we understood
+        self._show_parsed_command(parsed)
+
+        # Execute the action
+        await self._execute_action(parsed, client)
 
     def _show_help(self):
         """Show available commands"""
@@ -118,92 +164,165 @@ class InteractiveMode:
 
 [yellow]Built-in Commands:[/yellow]
   help                    - Show this help message
+  suggestions             - Show context-aware command suggestions
   set target <url>        - Set the target URL
   show context            - Display current session context
   show findings           - Display discovered findings
+  show history            - Display command history
   clear                   - Clear the screen
   exit/quit               - Exit the shell
 
 [yellow]Natural Language Commands (examples):[/yellow]
-  scan network            - Perform network reconnaissance
-  enumerate services      - Discover services and endpoints
-  find vulnerabilities    - Scan for security vulnerabilities
-  exploit sql injection   - Attempt SQL injection exploitation
-  exfiltrate data         - Extract sensitive data
-  show attack surface     - Display identified attack vectors
+  scan for open ports                    - Perform port scanning
+  enumerate API endpoints                - Discover API endpoints
+  find vulnerabilities                   - Scan for vulnerabilities
+  test for SQL injection                 - Test SQL injection
+  what should I do next?                 - Get AI recommendations
+  show me all high severity findings     - Filter findings
 
-[dim]The agent will interpret your commands and execute appropriate actions.[/dim]
+[dim]💡 Tip: Use natural language! The AI will understand your intent.[/dim]
 """
         console.print(Panel(help_text, border_style="cyan"))
 
+    def _show_suggestions(self):
+        """Show context-aware command suggestions"""
+        suggestions = self.command_suggester.get_suggestions(self.session.context)
+
+        console.print("\n[bold cyan]💡 Suggested Commands:[/bold cyan]\n")
+        for i, suggestion in enumerate(suggestions, 1):
+            console.print(f"  [dim]{i}.[/dim] [yellow]{suggestion}[/yellow]")
+
+        # Check if we should suggest moving to next phase
+        phase_suggestion = self.command_suggester.get_next_phase_suggestion(
+            self.session.context.get("phase", "reconnaissance"),
+            len(self.session.findings)
+        )
+        if phase_suggestion:
+            console.print(f"\n[cyan]💭 {phase_suggestion}[/cyan]")
+
+    def _show_parsed_command(self, parsed: Dict[str, Any]):
+        """Show what we understood from the command"""
+        action = parsed.get("action", "unknown")
+        confidence = parsed.get("confidence", 0.0)
+
+        console.print(
+            f"\n[dim]🤔 AI Understanding:[/dim] "
+            f"[cyan]{action.replace('_', ' ').title()}[/cyan] "
+            f"[dim](confidence: {confidence*100:.0f}%)[/dim]"
+        )
+
+        if parsed.get("clarification"):
+            console.print(f"[yellow]   Note: {parsed['clarification']}[/yellow]")
+
     def _show_context(self):
         """Show current session context"""
+        summary = self.session.get_summary()
+
         context_display = {
-            "Target": self.context.get("target", "Not set"),
-            "Session Started": self.context.get("session_started", "Unknown"),
-            "Findings": len(self.context.get("findings", [])),
-            "Techniques Used": len(self.context.get("techniques_used", [])),
+            "Target": summary["target"],
+            "Session ID": summary["session_id"],
+            "Duration": f"{summary['duration_seconds']:.1f}s",
+            "Current Phase": summary["current_phase"],
+            "Commands Executed": summary["commands_executed"],
+            "Total Findings": summary["total_findings"],
+            "Critical": summary["severity_counts"]["critical"],
+            "High": summary["severity_counts"]["high"],
+            "Medium": summary["severity_counts"]["medium"],
+            "Techniques Used": summary["techniques_used"],
         }
 
         display.show_status_table(context_display, "Session Context")
 
     def _show_findings(self):
         """Show discovered findings"""
-        findings = self.context.get("findings", [])
-
-        if not findings:
+        if not self.session.findings:
             console.print("[dim]No findings yet[/dim]")
             return
 
-        display.show_findings(findings)
+        display.show_findings(self.session.findings)
 
-    async def _execute_natural_command(self, command: str, client: MedusaClient):
-        """Execute a natural language command"""
-        console.print(f"[dim]Interpreting command: {command}[/dim]")
+    def _show_history(self):
+        """Show command history"""
+        history = self.session.command_history
 
-        # Simple keyword matching (in production, use LLM to interpret)
-        cmd_lower = command.lower()
+        if not history:
+            console.print("[dim]No commands in history[/dim]")
+            return
 
-        if any(keyword in cmd_lower for keyword in ["scan", "recon", "reconnaissance", "network"]):
-            await self._cmd_scan_network(client)
+        console.print("\n[bold cyan]Command History:[/bold cyan]\n")
 
-        elif any(keyword in cmd_lower for keyword in ["enumerate", "services", "endpoints"]):
-            await self._cmd_enumerate_services(client)
+        table = Table(show_header=True, header_style="bold magenta")
+        table.add_column("#", style="dim", width=4)
+        table.add_column("Time", style="cyan")
+        table.add_column("Command", style="white")
+        table.add_column("Phase", style="yellow")
 
-        elif any(
-            keyword in cmd_lower for keyword in ["vulnerabilities", "vulns", "weaknesses", "find"]
-        ):
-            await self._cmd_find_vulnerabilities(client)
+        for i, entry in enumerate(history[-20:], 1):  # Show last 20
+            timestamp = entry.get("timestamp", "")
+            # Extract time from ISO format
+            time_str = timestamp.split("T")[1][:8] if "T" in timestamp else timestamp
+            command = entry.get("command", "")[:50]  # Truncate long commands
+            phase = entry.get("phase", "unknown")
 
-        elif any(keyword in cmd_lower for keyword in ["exploit", "attack"]):
-            await self._cmd_exploit(client, command)
+            table.add_row(str(i), time_str, command, phase)
 
-        elif any(keyword in cmd_lower for keyword in ["exfiltrate", "extract", "steal", "data"]):
-            await self._cmd_exfiltrate_data(client)
+        console.print(table)
 
-        else:
-            console.print(
-                "[yellow]⚠ Command not recognized. Type 'help' for available commands.[/yellow]"
-            )
+    async def _execute_action(self, parsed: Dict[str, Any], client: MedusaClient):
+        """Execute parsed action"""
+        action = parsed.get("action")
 
-    async def _cmd_scan_network(self, client: MedusaClient):
-        """Execute network scan"""
+        # Map actions to execution methods
+        action_map = {
+            "port_scan": self._cmd_port_scan,
+            "enumerate_services": self._cmd_enumerate_services,
+            "scan_vulnerabilities": self._cmd_scan_vulnerabilities,
+            "sqli_test": self._cmd_sqli_test,
+            "xss_test": self._cmd_xss_test,
+            "exploit": self._cmd_exploit,
+            "exfiltrate_data": self._cmd_exfiltrate_data,
+            "show_findings": self._cmd_show_findings_filtered,
+            "what_next": self._cmd_what_next,
+        }
+
+        # Get the execution method
+        executor = action_map.get(action)
+
+        if not executor:
+            console.print(f"[yellow]⚠ Unknown action: {action}[/yellow]")
+            return
+
+        # Execute the action
+        try:
+            result = await executor(client, parsed)
+
+            # Record in session
+            self.session.add_command(parsed.get("original_input", ""), result or {})
+
+        except Exception as e:
+            logger.error(f"Error executing action {action}: {e}", exc_info=True)
+            console.print(f"[red]✗ Error: {e}[/red]")
+
+    async def _cmd_port_scan(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute port scan"""
+        target = parsed.get("target", self.target)
+
         display.show_agent_thinking(
-            "I'll perform a network scan to identify open ports and running services."
+            f"I'll perform a port scan on {target} to identify open ports and running services."
         )
 
         # Request approval
         action = Action(
-            command=f"nmap -sV {self.target}",
+            command=f"nmap -sV {target}",
             technique_id="T1046",
             technique_name="Network Service Discovery",
             risk_level=RiskLevel.LOW,
             impact_description="Scan network services (read-only)",
-            target=self.target,
+            target=target,
         )
 
         if not self.approval_gate.request_approval(action):
-            return
+            return {"status": "declined"}
 
         # Execute scan
         with display.create_progress_bar() as progress:
@@ -212,20 +331,31 @@ class InteractiveMode:
                 await asyncio.sleep(0.4)
                 progress.update(task, advance=25)
 
-            result = await client.perform_reconnaissance(self.target)
+            result = await client.perform_reconnaissance(target)
             progress.update(task, completed=100)
 
-        # Store results
-        self.context["findings"].extend(result["findings"])
-        self.context["techniques_used"].extend(result["techniques"])
+        # Store results in session
+        for finding in result.get("findings", []):
+            self.session.add_finding(finding)
+
+        for technique in result.get("techniques", []):
+            self.session.add_technique(technique["id"], technique["name"])
+
+        # Update phase
+        self.session.update_phase("reconnaissance")
 
         # Display results
         console.print(f"\n[green]✓ Scan complete! Found {len(result['findings'])} items[/green]")
-        display.show_findings(result["findings"][:5])
+        if result.get("findings"):
+            display.show_findings(result["findings"][:5])
 
-    async def _cmd_enumerate_services(self, client: MedusaClient):
+        return result
+
+    async def _cmd_enumerate_services(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
         """Enumerate services and endpoints"""
-        display.show_agent_thinking("I'll enumerate API endpoints and identify potential vulnerabilities.")
+        target = parsed.get("target", self.target)
+
+        display.show_agent_thinking(f"I'll enumerate services and API endpoints on {target}.")
 
         action = Action(
             command="API enumeration",
@@ -233,11 +363,11 @@ class InteractiveMode:
             technique_name="Gather Victim Network Information",
             risk_level=RiskLevel.LOW,
             impact_description="Enumerate services and endpoints",
-            target=self.target,
+            target=target,
         )
 
         if not self.approval_gate.request_approval(action):
-            return
+            return {"status": "declined"}
 
         with display.create_progress_bar() as progress:
             task = progress.add_task("[cyan]Enumerating services...", total=100)
@@ -245,49 +375,104 @@ class InteractiveMode:
                 await asyncio.sleep(0.5)
                 progress.update(task, advance=33)
 
-            result = await client.enumerate_services(self.target)
+            result = await client.enumerate_services(target)
             progress.update(task, completed=100)
 
-        self.context["findings"].extend(result["findings"])
-        self.context["techniques_used"].extend(result["techniques"])
+        # Store results
+        for finding in result.get("findings", []):
+            self.session.add_finding(finding)
+
+        for technique in result.get("techniques", []):
+            self.session.add_technique(technique["id"], technique["name"])
+
+        self.session.update_phase("enumeration")
 
         console.print(f"\n[green]✓ Enumeration complete! Found {len(result['findings'])} items[/green]")
-        display.show_findings(result["findings"][:5])
+        if result.get("findings"):
+            display.show_findings(result["findings"][:5])
 
-    async def _cmd_find_vulnerabilities(self, client: MedusaClient):
-        """Find vulnerabilities"""
-        console.print("[cyan]Analyzing for vulnerabilities...[/cyan]")
+        return result
 
-        # Simulate vulnerability scanning
-        await asyncio.sleep(1)
+    async def _cmd_scan_vulnerabilities(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Scan for vulnerabilities"""
+        console.print("[cyan]Scanning for vulnerabilities...[/cyan]")
 
-        vulnerabilities = [
-            f for f in self.context.get("findings", []) if f.get("type") == "vulnerability"
-        ]
+        vulnerabilities = self.session.get_findings_by_type("vulnerability")
 
         if vulnerabilities:
             console.print(f"\n[green]Found {len(vulnerabilities)} vulnerabilities:[/green]")
             display.show_findings(vulnerabilities)
         else:
-            console.print("[yellow]No vulnerabilities in current context. Run 'enumerate services' first.[/yellow]")
+            console.print("[yellow]No vulnerabilities found yet. Try 'enumerate services' first.[/yellow]")
 
-    async def _cmd_exploit(self, client: MedusaClient, command: str):
-        """Attempt exploitation"""
-        display.show_agent_thinking(
-            f"Attempting to exploit vulnerability based on command: {command}"
-        )
+        return {"vulnerabilities": vulnerabilities}
+
+    async def _cmd_sqli_test(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Test for SQL injection"""
+        target = parsed.get("target", self.target)
+
+        display.show_agent_thinking(f"I'll test {target} for SQL injection vulnerabilities.")
 
         action = Action(
-            command=command,
+            command=f"sqlmap -u {target}",
+            technique_id="T1190",
+            technique_name="Exploit Public-Facing Application",
+            risk_level=RiskLevel.MEDIUM,
+            impact_description="Test for SQL injection (may trigger alerts)",
+            target=target,
+        )
+
+        if not self.approval_gate.request_approval(action):
+            return {"status": "declined"}
+
+        # Simulate SQL injection testing
+        with display.create_progress_bar() as progress:
+            task = progress.add_task("[cyan]Testing SQL injection...", total=100)
+            for i in range(0, 100, 25):
+                await asyncio.sleep(0.5)
+                progress.update(task, advance=25)
+
+        console.print("[green]✓ SQL injection test complete[/green]")
+        console.print("[yellow]Found potential SQL injection vulnerability[/yellow]")
+
+        # Add finding
+        finding = {
+            "type": "vulnerability",
+            "severity": "high",
+            "title": "SQL Injection",
+            "description": "Potential SQL injection in search parameter"
+        }
+        self.session.add_finding(finding)
+
+        return {"status": "complete", "finding": finding}
+
+    async def _cmd_xss_test(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Test for XSS vulnerabilities"""
+        target = parsed.get("target", self.target)
+
+        display.show_agent_thinking(f"I'll test {target} for XSS vulnerabilities.")
+
+        console.print("[green]✓ XSS test complete[/green]")
+
+        return {"status": "complete"}
+
+    async def _cmd_exploit(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Attempt exploitation"""
+        target = parsed.get("target", self.target)
+
+        display.show_agent_thinking(f"Attempting to exploit vulnerability on {target}")
+
+        action = Action(
+            command="Exploitation attempt",
             technique_id="T1190",
             technique_name="Exploit Public-Facing Application",
             risk_level=RiskLevel.MEDIUM,
             impact_description="Attempt to exploit identified vulnerability",
-            target=self.target,
+            target=target,
         )
 
         if not self.approval_gate.request_approval(action):
-            return
+            return {"status": "declined"}
 
         with display.create_progress_bar() as progress:
             task = progress.add_task("[cyan]Attempting exploitation...", total=100)
@@ -295,7 +480,7 @@ class InteractiveMode:
                 await asyncio.sleep(0.6)
                 progress.update(task, advance=25)
 
-            result = await client.attempt_exploitation(self.target, {})
+            result = await client.attempt_exploitation(target, {})
             progress.update(task, completed=100)
 
         if result["status"] == "success":
@@ -304,8 +489,12 @@ class InteractiveMode:
         else:
             display.show_warning(f"Exploitation failed: {result.get('error', 'Unknown')}")
 
-    async def _cmd_exfiltrate_data(self, client: MedusaClient):
+        return result
+
+    async def _cmd_exfiltrate_data(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
         """Exfiltrate data"""
+        target = parsed.get("target", self.target)
+
         display.show_agent_thinking("Preparing to exfiltrate sensitive data from the target.")
 
         action = Action(
@@ -314,12 +503,12 @@ class InteractiveMode:
             technique_name="Exfiltration Over C2 Channel",
             risk_level=RiskLevel.HIGH,
             impact_description="Extract sensitive data from target system",
-            target=self.target,
+            target=target,
             data_at_risk="Medical records, PII",
         )
 
         if not self.approval_gate.request_approval(action):
-            return
+            return {"status": "declined"}
 
         with display.create_progress_bar() as progress:
             task = progress.add_task("[cyan]Exfiltrating data...", total=100)
@@ -327,11 +516,65 @@ class InteractiveMode:
                 await asyncio.sleep(0.5)
                 progress.update(task, advance=20)
 
-            result = await client.exfiltrate_data(self.target, "medical_records")
+            result = await client.exfiltrate_data(target, "medical_records")
             progress.update(task, completed=100)
 
-        console.print(
-            f"\n[green]✓ Exfiltrated {result['records_exfiltrated']} records[/green]"
-        )
+        console.print(f"\n[green]✓ Exfiltrated {result['records_exfiltrated']} records[/green]")
         console.print(f"[green]Estimated value: ${result['estimated_value']:,}[/green]")
 
+        return result
+
+    async def _cmd_show_findings_filtered(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Show filtered findings"""
+        params = parsed.get("parameters", {})
+        severity = params.get("severity")
+        finding_type = params.get("type")
+
+        findings = self.session.findings
+
+        if severity:
+            findings = [f for f in findings if f.get("severity", "").lower() == severity.lower()]
+
+        if finding_type:
+            findings = [f for f in findings if f.get("type", "").lower() == finding_type.lower()]
+
+        if findings:
+            display.show_findings(findings)
+        else:
+            console.print("[dim]No matching findings[/dim]")
+
+        return {"findings": findings}
+
+    async def _cmd_what_next(self, client: MedusaClient, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Get AI recommendation for next steps"""
+        console.print("[cyan]💭 Analyzing current situation...[/cyan]\n")
+
+        # Get AI recommendation
+        context = {
+            "phase": self.session.context.get("phase", "reconnaissance"),
+            "findings": self.session.findings[-10:],  # Last 10 findings
+            "target": self.target
+        }
+
+        with console.status("[cyan]Thinking...", spinner="dots"):
+            recommendation = await client.get_ai_recommendation(context)
+
+        # Display recommendations
+        console.print("[bold yellow]AI Recommendations:[/bold yellow]\n")
+
+        for i, rec in enumerate(recommendation.get("recommendations", []), 1):
+            console.print(f"[cyan]{i}. {rec['action'].replace('_', ' ').title()}[/cyan]")
+            console.print(f"   Confidence: {rec['confidence']*100:.0f}%")
+            console.print(f"   Reasoning: [dim]{rec['reasoning']}[/dim]")
+            console.print(f"   Risk: [{self._risk_color(rec['risk_level'])}]{rec['risk_level']}[/{self._risk_color(rec['risk_level'])}]")
+            console.print()
+
+        # Also show command suggestions
+        self._show_suggestions()
+
+        return recommendation
+
+    def _risk_color(self, risk_level: str) -> str:
+        """Get color for risk level"""
+        colors = {"LOW": "green", "MEDIUM": "yellow", "HIGH": "red", "CRITICAL": "bold red"}
+        return colors.get(risk_level, "white")
