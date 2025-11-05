@@ -176,7 +176,7 @@ services:
     container_name: medusa_ehr_api
     hostname: api-server
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - DB_HOST=ehr-database
       - DB_USER=ehrapp
