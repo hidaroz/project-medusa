@@ -8,16 +8,18 @@
 
 ## Overview
 
-Complete API documentation for MEDUSA's backend services and CLI interfaces.
+Complete API documentation for:
+- **MEDUSA AI Agent**: CLI and control interfaces
+- **MedCare EHR System**: Target vulnerable APIs
 
 ## Contents
 
-- [Backend Implementation Plan](backend-implementation-plan.md) - Backend API planning and design
+- [MedCare EHR Backend Plan](medcare-ehr-backend-implementation-plan.md) - MedCare EHR backend design (target system)
 
 ### To Be Created
 - API Overview - High-level API introduction
-- CLI API - Command-line interface API
-- Backend API - REST API endpoints
+- MEDUSA CLI API - Command-line interface API
+- MedCare EHR REST API - Target system REST endpoints
 - OpenAPI Specification - Machine-readable API spec
 - WebHook Reference - Webhook integration
 
@@ -25,8 +27,9 @@ Complete API documentation for MEDUSA's backend services and CLI interfaces.
 
 ## Quick Links
 
-- **Backend README**: [medusa-backend/README.md](../../medusa-backend/README.md)
-- **Live API Docs**: http://localhost:3000/api/docs (when running)
+**MedCare EHR System (Target)**:
+- **Lab Environment**: [lab-environment/README.md](../../lab-environment/README.md)
+- **Live EHR API**: http://localhost:3000 (when lab running)
 
 ---
 
