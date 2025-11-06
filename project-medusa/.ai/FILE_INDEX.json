@@ -1,0 +1,277 @@
+{
+  "version": "2.0",
+  "last_updated": "2025-11-06",
+  "repository": "project-medusa",
+  "description": "Machine-readable file index for AI agents and automated tools",
+
+  "entry_points": {
+    "main_readme": "/README.md",
+    "getting_started": "/GETTING_STARTED.md",
+    "documentation_index": "/docs/INDEX.md",
+    "ai_context": "/.ai/CONTEXT.md",
+    "license": "/LICENSE",
+    "changelog": "/CHANGELOG.md"
+  },
+
+  "components": {
+    "cli": {
+      "path": "/medusa-cli",
+      "type": "python",
+      "main_file": "/medusa-cli/src/medusa/cli.py",
+      "readme": "/medusa-cli/README.md",
+      "architecture": "/medusa-cli/ARCHITECTURE.md",
+      "source_directory": "/medusa-cli/src/medusa/",
+      "test_directory": "/medusa-cli/tests/",
+      "requirements": "/medusa-cli/requirements.txt",
+      "config": "/medusa-cli/pyproject.toml",
+      "key_modules": {
+        "cli_interface": "/medusa-cli/src/medusa/cli.py",
+        "shell": "/medusa-cli/src/medusa/shell.py",
+        "llm_integration": "/medusa-cli/src/medusa/llm/",
+        "attack_modules": "/medusa-cli/src/medusa/attacks/",
+        "approval_system": "/medusa-cli/src/medusa/approval.py"
+      }
+    },
+    "backend": {
+      "path": "/medusa-backend",
+      "type": "python",
+      "main_file": "/medusa-backend/app/main.py",
+      "readme": "/medusa-backend/README.md",
+      "source_directory": "/medusa-backend/app/",
+      "requirements": "/medusa-backend/requirements.txt",
+      "api_routes": "/medusa-backend/app/routes/",
+      "key_modules": {
+        "api_main": "/medusa-backend/app/main.py",
+        "routes": "/medusa-backend/app/routes/",
+        "models": "/medusa-backend/app/models/",
+        "services": "/medusa-backend/app/services/"
+      }
+    },
+    "webapp": {
+      "path": "/medusa-webapp",
+      "type": "javascript",
+      "main_file": "/medusa-webapp/src/main.jsx",
+      "readme": "/medusa-webapp/README.md",
+      "source_directory": "/medusa-webapp/src/",
+      "package_config": "/medusa-webapp/package.json",
+      "key_directories": {
+        "components": "/medusa-webapp/src/components/",
+        "pages": "/medusa-webapp/src/pages/",
+        "services": "/medusa-webapp/src/services/",
+        "public": "/medusa-webapp/public/"
+      }
+    },
+    "lab_environment": {
+      "path": "/lab-environment",
+      "type": "infrastructure",
+      "readme": "/lab-environment/README.md",
+      "docker_compose": "/lab-environment/docker-compose.yml",
+      "services_directory": "/lab-environment/services/",
+      "scripts_directory": "/lab-environment/scripts/",
+      "key_services": {
+        "ldap": "/lab-environment/services/ldap/",
+        "mysql": "/lab-environment/services/mysql/",
+        "vulnerable_webapp": "/lab-environment/services/webapp/"
+      }
+    }
+  },
+
+  "documentation_structure": {
+    "index": "/docs/INDEX.md",
+    "navigation": "/docs/NAVIGATION.md",
+    "sections": {
+      "getting_started": {
+        "path": "/docs/00-getting-started/",
+        "readme": "/docs/00-getting-started/README.md",
+        "description": "Installation, setup, and troubleshooting guides"
+      },
+      "architecture": {
+        "path": "/docs/01-architecture/",
+        "readme": "/docs/01-architecture/README.md",
+        "description": "System design, component architecture, MITRE mapping"
+      },
+      "development": {
+        "path": "/docs/02-development/",
+        "readme": "/docs/02-development/README.md",
+        "description": "Development setup, coding standards, testing guides"
+      },
+      "deployment": {
+        "path": "/docs/03-deployment/",
+        "readme": "/docs/03-deployment/README.md",
+        "description": "Deployment guides, Docker setup, automation"
+      },
+      "usage": {
+        "path": "/docs/04-usage/",
+        "readme": "/docs/04-usage/README.md",
+        "description": "User guides, CLI reference, examples"
+      },
+      "api_reference": {
+        "path": "/docs/05-api-reference/",
+        "readme": "/docs/05-api-reference/README.md",
+        "description": "API documentation, OpenAPI specs"
+      },
+      "security": {
+        "path": "/docs/06-security/",
+        "readme": "/docs/06-security/README.md",
+        "description": "Security policies, approval gates, ethical guidelines"
+      },
+      "research": {
+        "path": "/docs/07-research/",
+        "readme": "/docs/07-research/README.md",
+        "description": "Academic research, LLM integration, papers"
+      },
+      "project_management": {
+        "path": "/docs/08-project-management/",
+        "readme": "/docs/08-project-management/README.md",
+        "description": "Audits, timelines, feedback, QA documentation"
+      }
+    }
+  },
+
+  "common_tasks": {
+    "setup_environment": {
+      "description": "Set up development environment",
+      "files": [
+        "/GETTING_STARTED.md",
+        "/docs/02-development/development-setup.md",
+        "/medusa-cli/README.md"
+      ],
+      "scripts": [
+        "/scripts/setup-dev.sh"
+      ]
+    },
+    "run_tests": {
+      "description": "Execute test suites",
+      "files": [
+        "/docs/02-development/testing-guide.md"
+      ],
+      "test_locations": [
+        "/medusa-cli/tests/",
+        "/medusa-backend/tests/",
+        "/tests/"
+      ],
+      "scripts": [
+        "/scripts/run-tests.sh"
+      ]
+    },
+    "deploy_docker_lab": {
+      "description": "Deploy Docker lab environment",
+      "files": [
+        "/docs/03-deployment/docker-deployment.md",
+        "/lab-environment/README.md"
+      ],
+      "configs": [
+        "/docker-compose.yml",
+        "/lab-environment/docker-compose.yml"
+      ]
+    },
+    "use_cli": {
+      "description": "Use MEDUSA CLI tool",
+      "files": [
+        "/docs/04-usage/cli-reference.md",
+        "/docs/04-usage/interactive-shell.md",
+        "/medusa-cli/README.md"
+      ],
+      "examples": [
+        "/docs/04-usage/examples/"
+      ]
+    },
+    "understand_architecture": {
+      "description": "Understand system architecture",
+      "files": [
+        "/docs/01-architecture/system-overview.md",
+        "/docs/01-architecture/component-design.md",
+        "/docs/01-architecture/mitre-attack-mapping.md"
+      ]
+    },
+    "configure_llm": {
+      "description": "Configure LLM integration",
+      "files": [
+        "/docs/07-research/llm-integration.md",
+        "/docs/07-research/ollama-fine-tuning.md"
+      ]
+    },
+    "review_security": {
+      "description": "Review security policies and approval system",
+      "files": [
+        "/docs/06-security/security-policy.md",
+        "/docs/06-security/approval-gates.md",
+        "/docs/06-security/ethical-guidelines.md"
+      ]
+    }
+  },
+
+  "file_types": {
+    "python_source": {
+      "locations": [
+        "/medusa-cli/src/medusa/",
+        "/medusa-backend/app/",
+        "/lab-environment/scripts/"
+      ]
+    },
+    "tests": {
+      "locations": [
+        "/medusa-cli/tests/",
+        "/medusa-backend/tests/",
+        "/tests/"
+      ]
+    },
+    "documentation": {
+      "locations": [
+        "/docs/",
+        "/medusa-cli/docs/",
+        "/medusa-backend/docs/",
+        "/medusa-webapp/docs/"
+      ]
+    },
+    "configuration": {
+      "docker": [
+        "/docker-compose.yml",
+        "/lab-environment/docker-compose.yml"
+      ],
+      "python": [
+        "/medusa-cli/requirements.txt",
+        "/medusa-cli/pyproject.toml",
+        "/medusa-backend/requirements.txt"
+      ],
+      "javascript": [
+        "/medusa-webapp/package.json",
+        "/medusa-webapp/vite.config.js"
+      ]
+    },
+    "scripts": {
+      "locations": [
+        "/scripts/",
+        "/lab-environment/scripts/"
+      ]
+    },
+    "training_data": {
+      "locations": [
+        "/training-data/datasets/"
+      ]
+    }
+  },
+
+  "infrastructure": {
+    "docker_compose_files": [
+      "/docker-compose.yml",
+      "/lab-environment/docker-compose.yml"
+    ],
+    "environment_templates": [
+      "/env.example",
+      "/medusa-cli/.env.example"
+    ],
+    "ci_cd": [
+      "/.github/workflows/"
+    ]
+  },
+
+  "metadata": {
+    "total_python_files": 44,
+    "total_markdown_files": 77,
+    "primary_language": "Python",
+    "secondary_languages": ["JavaScript", "Shell"],
+    "framework": "Educational Penetration Testing",
+    "license": "Apache-2.0"
+  }
+}
