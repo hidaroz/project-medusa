@@ -1,14 +1,25 @@
 # Lab Environment Status Report
 
+> ⚠️ **HISTORICAL DOCUMENT** - This document describes an older architecture.
+>
+> **Current Architecture**:
+> - **MEDUSA AI Agent** (Attacker): `medusa-cli` (Python), `medusa-webapp` (React control interface)
+> - **MedCare EHR System** (Target): All services in `lab-environment/` including `ehr-api`, `ehr-webapp`, etc.
+>
+> The "medusa-backend" and "medusa-frontend" referenced below were early implementations that have been superseded.
+> See current lab setup: [lab-environment/README.md](../../lab-environment/README.md)
+
+---
+
 **Generated:** $(date)
 
-## ✅ Service Status Summary
+## ✅ Service Status Summary (Historical)
 
-### Core MEDUSA Services
-- ✅ **medusa-frontend** (Next.js) - Port 3000 - **HEALTHY**
-- ✅ **medusa-backend** (FastAPI) - Port 8000 - **HEALTHY**
-- ✅ **medusa-postgres** (PostgreSQL) - **HEALTHY**
-- ✅ **medusa-redis** (Redis) - **HEALTHY**
+### Core MEDUSA Services (Deprecated)
+- ⚠️ **medusa-frontend** (Next.js) - Port 3000 - **DEPRECATED** (now part of lab environment)
+- ⚠️ **medusa-backend** (FastAPI) - Port 8000 - **DEPRECATED** (replaced by ehr-api in lab)
+- ⚠️ **medusa-postgres** (PostgreSQL) - **DEPRECATED**
+- ⚠️ **medusa-redis** (Redis) - **DEPRECATED**
 
 ### Lab Environment Services
 - ✅ **medusa_ehr_web** (PHP Web Portal) - Port 8080 - **HEALTHY**

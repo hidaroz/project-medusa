@@ -1,6 +1,16 @@
 # 🔄 MEDUSA Migration Guide: PHP to Next.js
 
-This guide documents the migration from the PHP-based frontend to the Next.js-based web interface with Docker integration.
+> ⚠️ **HISTORICAL DOCUMENT** - This describes an old migration from PHP to Next.js/FastAPI.
+>
+> **Current Architecture (2025)**:
+> - **MEDUSA AI Agent** (Attacker): `medusa-cli` (Python AI agent), `medusa-webapp` (React control UI)
+> - **MedCare EHR System** (Target): Lab environment with `ehr-api` (Node.js), `ehr-webapp` (vulnerable frontend)
+>
+> The "medusa-backend" (FastAPI) referenced below was an early implementation and is now archived.
+
+---
+
+This guide documents the historical migration from the PHP-based frontend to the Next.js-based web interface with Docker integration.
 
 ---
 

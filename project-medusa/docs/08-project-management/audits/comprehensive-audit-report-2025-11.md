@@ -6,6 +6,17 @@
 **Repository:** hidaroz/project-medusa
 **Branch Audited:** main (commit: fe52b50)
 
+> ⚠️ **ARCHITECTURE NOTE** (Added November 6, 2025)
+>
+> This audit was conducted before the repository reorganization and naming clarification.
+> References to "medusa-backend" and "medusa-frontend" describe an early architecture that has been superseded.
+>
+> **Current Architecture**:
+> - **MEDUSA** = AI-powered autonomous penetration testing agent (attacker)
+> - **MedCare EHR** = Intentionally vulnerable target system in lab-environment
+>
+> See updated architecture: [README.md](../../../README.md)
+
 ---
 
 ## 🎯 EXECUTIVE SUMMARY

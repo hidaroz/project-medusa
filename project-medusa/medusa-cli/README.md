@@ -357,16 +357,16 @@ medusa setup
 medusa run --target http://localhost:3001 --autonomous
 ```
 
-### Manual Docker Setup
+### Manual Lab Environment Setup
 
-If you want to run the backend separately:
+If you want to run the MedCare EHR target lab separately:
 
 ```bash
-cd ../medusa-backend
+cd ../lab-environment
 docker-compose up -d
 
-# Verify it's running
-curl http://localhost:3001/health
+# Verify EHR API is running
+curl http://localhost:3000/health
 ```
 
 ---
