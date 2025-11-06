@@ -1,7 +1,7 @@
 # MEDUSA - AI-Powered Autonomous Penetration Testing Framework
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)]()
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)]()
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Docker](https://img.shields.io/badge/docker-ready-brightgreen.svg)]()
 
 ⚠️ **SECURITY RESEARCH PROJECT - EDUCATIONAL USE ONLY**
@@ -394,7 +394,7 @@ Built with:
 
 ## 📄 License
 
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see [LICENSE](LICENSE) file for details.
 
 ## ⚖️ Legal Disclaimer
 
