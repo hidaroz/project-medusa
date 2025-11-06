@@ -14,54 +14,52 @@
   },
 
   "components": {
-    "cli": {
-      "path": "/medusa-cli",
-      "type": "python",
-      "main_file": "/medusa-cli/src/medusa/cli.py",
-      "readme": "/medusa-cli/README.md",
-      "architecture": "/medusa-cli/ARCHITECTURE.md",
-      "source_directory": "/medusa-cli/src/medusa/",
-      "test_directory": "/medusa-cli/tests/",
-      "requirements": "/medusa-cli/requirements.txt",
-      "config": "/medusa-cli/pyproject.toml",
-      "key_modules": {
-        "cli_interface": "/medusa-cli/src/medusa/cli.py",
-        "shell": "/medusa-cli/src/medusa/shell.py",
-        "llm_integration": "/medusa-cli/src/medusa/llm/",
-        "attack_modules": "/medusa-cli/src/medusa/attacks/",
-        "approval_system": "/medusa-cli/src/medusa/approval.py"
+    "medusa_agent": {
+      "role": "attacker",
+      "description": "MEDUSA AI-powered autonomous penetration testing agent",
+      "cli": {
+        "path": "/medusa-cli",
+        "type": "python",
+        "main_file": "/medusa-cli/src/medusa/cli.py",
+        "readme": "/medusa-cli/README.md",
+        "architecture": "/docs/01-architecture/cli-architecture.md",
+        "source_directory": "/medusa-cli/src/medusa/",
+        "test_directory": "/medusa-cli/tests/",
+        "requirements": "/medusa-cli/requirements.txt",
+        "config": "/medusa-cli/pyproject.toml",
+        "key_modules": {
+          "cli_interface": "/medusa-cli/src/medusa/cli.py",
+          "shell": "/medusa-cli/src/medusa/shell.py",
+          "llm_integration": "/medusa-cli/src/medusa/llm/",
+          "attack_modules": "/medusa-cli/src/medusa/attacks/",
+          "approval_system": "/medusa-cli/src/medusa/approval.py"
+        }
+      },
+      "webapp": {
+        "path": "/medusa-webapp",
+        "type": "javascript",
+        "description": "Control interface and dashboard for MEDUSA agent",
+        "main_file": "/medusa-webapp/src/main.jsx",
+        "readme": "/medusa-webapp/README.md",
+        "source_directory": "/medusa-webapp/src/",
+        "package_config": "/medusa-webapp/package.json",
+        "key_directories": {
+          "components": "/medusa-webapp/src/components/",
+          "pages": "/medusa-webapp/src/pages/",
+          "services": "/medusa-webapp/src/services/",
+          "public": "/medusa-webapp/public/"
+        }
+      },
+      "training_data": {
+        "path": "/training-data",
+        "description": "LLM training datasets for MEDUSA (MITRE ATT&CK)",
+        "datasets": "/training-data/datasets/",
+        "config": "/training-data/CONFIG.md"
       }
     },
-    "backend": {
-      "path": "/medusa-backend",
-      "type": "python",
-      "main_file": "/medusa-backend/app/main.py",
-      "readme": "/medusa-backend/README.md",
-      "source_directory": "/medusa-backend/app/",
-      "requirements": "/medusa-backend/requirements.txt",
-      "api_routes": "/medusa-backend/app/routes/",
-      "key_modules": {
-        "api_main": "/medusa-backend/app/main.py",
-        "routes": "/medusa-backend/app/routes/",
-        "models": "/medusa-backend/app/models/",
-        "services": "/medusa-backend/app/services/"
-      }
-    },
-    "webapp": {
-      "path": "/medusa-webapp",
-      "type": "javascript",
-      "main_file": "/medusa-webapp/src/main.jsx",
-      "readme": "/medusa-webapp/README.md",
-      "source_directory": "/medusa-webapp/src/",
-      "package_config": "/medusa-webapp/package.json",
-      "key_directories": {
-        "components": "/medusa-webapp/src/components/",
-        "pages": "/medusa-webapp/src/pages/",
-        "services": "/medusa-webapp/src/services/",
-        "public": "/medusa-webapp/public/"
-      }
-    },
-    "lab_environment": {
+    "medcare_target": {
+      "role": "target",
+      "description": "MedCare EHR System - Intentionally vulnerable target for MEDUSA to attack",
       "path": "/lab-environment",
       "type": "infrastructure",
       "readme": "/lab-environment/README.md",
@@ -69,9 +67,26 @@
       "services_directory": "/lab-environment/services/",
       "scripts_directory": "/lab-environment/scripts/",
       "key_services": {
+        "ehr_api": {
+          "path": "/lab-environment/services/ehr-api/",
+          "description": "Vulnerable EHR backend API",
+          "type": "nodejs",
+          "main_file": "/lab-environment/services/ehr-api/src/server.js",
+          "package": "/lab-environment/services/ehr-api/package.json"
+        },
+        "ehr_webapp": {
+          "path": "/lab-environment/services/ehr-webapp/",
+          "description": "Vulnerable EHR web frontend"
+        },
+        "ehr_webapp_static": {
+          "path": "/lab-environment/services/ehr-webapp-static/",
+          "description": "Static vulnerable webapp"
+        },
         "ldap": "/lab-environment/services/ldap/",
         "mysql": "/lab-environment/services/mysql/",
-        "vulnerable_webapp": "/lab-environment/services/webapp/"
+        "ftp": "/lab-environment/services/ftp-server/",
+        "ssh": "/lab-environment/services/ssh-server/",
+        "workstation": "/lab-environment/services/workstation/"
       }
     }
   },

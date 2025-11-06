@@ -146,25 +146,36 @@ graph TB
 
 ```
 project-medusa/
-├── medusa-cli/          # 🤖 AI agent (Python)
-├── medusa-backend/      # 🔌 FastAPI REST API
-├── medusa-webapp/       # 🌐 Next.js frontend
-├── lab-environment/     # 🐳 Docker vulnerable infrastructure
-├── training-data/       # 📚 AI training datasets (MITRE ATT&CK)
-├── docs/                # 📖 Documentation
-├── scripts/             # 🛠️ Automation scripts
-└── archive/             # 📦 Deprecated components
+├── MEDUSA AI Agent (Attacker)
+│   ├── medusa-cli/          # 🤖 Python AI penetration testing agent
+│   ├── medusa-webapp/       # 🌐 Control interface for MEDUSA
+│   └── training-data/       # 📚 LLM training datasets (MITRE ATT&CK)
+│
+├── MedCare EHR System (Target)
+│   └── lab-environment/     # 🐳 Vulnerable infrastructure
+│       ├── services/
+│       │   ├── ehr-api/     # Vulnerable backend API
+│       │   ├── ehr-webapp/  # Vulnerable web frontend
+│       │   ├── ldap/        # LDAP service
+│       │   ├── mysql/       # Database
+│       │   └── ...          # Other vulnerable services
+│       └── docker-compose.yml
+│
+├── docs/                    # 📖 Documentation
+├── scripts/                 # 🛠️ Automation scripts
+└── archive/                 # 📦 Deprecated components
 ```
 
 ### Core Components
 
-| Component | Description | Tech Stack |
-|-----------|-------------|------------|
-| **medusa-cli** | Main AI agent with LLM integration | Python 3.9+, Typer, Rich |
-| **medusa-backend** | REST API for patient/employee data | FastAPI, Python 3.11+ |
-| **medusa-webapp** | Healthcare portal interface | Next.js 15, React, TypeScript |
-| **lab-environment** | 8 vulnerable Docker services | Docker, Docker Compose |
-| **training-data** | MITRE ATT&CK training datasets | JSON datasets |
+| Component | Type | Description | Tech Stack |
+|-----------|------|-------------|------------|
+| **medusa-cli** | Attacker | AI-powered autonomous penetration testing agent | Python 3.9+, Click, Rich, LLM |
+| **medusa-webapp** | Attacker | Control interface and dashboard for MEDUSA | Next.js, React, TypeScript |
+| **ehr-api** | Target | Intentionally vulnerable EHR backend API | Node.js, Express, MySQL |
+| **ehr-webapp** | Target | Vulnerable healthcare portal frontend | HTML/JS/PHP |
+| **lab-environment** | Target | 8 vulnerable Docker services (MedCare system) | Docker, Docker Compose |
+| **training-data** | Attacker | MITRE ATT&CK training datasets for LLM | JSON datasets |
 
 ## 🎮 Usage Modes
 
@@ -239,11 +250,15 @@ See [SECURITY.md](docs/SECURITY.md) for complete security policy and legal infor
 - 🎯 [MITRE ATT&CK Mapping](docs/architecture/MITRE_ATTACK_MAPPING.md)
 
 ### Component Documentation
-- [medusa-cli README](medusa-cli/README.md) - CLI agent details
-- [medusa-backend README](medusa-backend/README.md) - API documentation
-- [medusa-webapp README](medusa-webapp/README.md) - Frontend details
-- [lab-environment README](lab-environment/README.md) - Lab setup
-- [training-data README](training-data/README.md) - Training datasets
+
+**MEDUSA AI Agent (Attacker)**:
+- [medusa-cli README](medusa-cli/README.md) - AI penetration testing agent
+- [medusa-webapp README](medusa-webapp/README.md) - Control interface
+- [training-data README](training-data/README.md) - LLM training datasets
+
+**MedCare EHR System (Target)**:
+- [lab-environment README](lab-environment/README.md) - Vulnerable infrastructure setup
+- [MedCare EHR Backend Plan](docs/05-api-reference/medcare-ehr-backend-implementation-plan.md) - EHR API documentation
 
 ## 🛠️ Development
 

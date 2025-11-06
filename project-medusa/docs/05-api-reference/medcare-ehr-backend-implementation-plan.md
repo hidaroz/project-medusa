@@ -1,15 +1,20 @@
-# Medusa Project - Backend Implementation Plan
+# MedCare EHR System - Backend Implementation Plan
 
 ## Overview
 
-This document outlines the specific implementation plan for creating a backend API system that will serve as the attack target for the Medusa CLI AI agent. The goal is to separate the frontend (Next.js) from the backend (Node.js/Express) and create a realistic attack surface for security research.
+This document outlines the implementation plan for the **MedCare EHR System** backend API - the intentionally vulnerable target system that the **MEDUSA AI agent** will attack for security research. The goal is to create a realistic, vulnerable healthcare API that serves as the attack surface for MEDUSA's autonomous penetration testing.
+
+**Clear Distinction**:
+- **MEDUSA** = The AI-powered penetration testing agent (attacker)
+- **MedCare** = The mock Electronic Health Record system (target)
 
 ## Current State Analysis
 
 ### Existing Components
-- **Frontend**: Next.js webapp with static data in `medusa-webapp/src/lib/`
-- **CLI**: Python-based command-line interface in `medusa-cli/`
-- **Data**: Mock patient, employee, and system data embedded in frontend
+- **MEDUSA CLI**: Python-based AI penetration testing agent in `medusa-cli/` (the attacker)
+- **MedCare Frontend**: Next.js webapp with static data in `medusa-webapp/src/lib/` (target UI)
+- **MedCare Data**: Mock patient, employee, and system data for vulnerable EHR
+- **Lab Environment**: Docker-based vulnerable services in `lab-environment/services/ehr-*`
 
 ### Data Locations
 - **Source Data**: `medusa-webapp/src/lib/patients.ts`, `employees.ts`, `system-config.ts`
@@ -20,20 +25,25 @@ This document outlines the specific implementation plan for creating a backend A
 
 ```
 project-medusa/
-├── medusa-webapp/          # Frontend (Next.js) - UI only
-│   └── src/
-│       └── app/            # Pages with API calls
-├── medusa-backend/         # Backend API (Node.js/Express)
-│   ├── src/
-│   │   ├── routes/         # API endpoints
-│   │   └── app.js          # Express setup
-│   └── server.js           # Entry point
-├── data/                   # Centralized data storage (separate folder)
-│   ├── patients.ts
-│   └── employees.ts
-├── medusa-cli/             # CLI (Python) - Attack simulation
-└── docs/
+├── MEDUSA AI Agent (Attacker)
+│   ├── medusa-cli/              # Python AI penetration testing agent
+│   ├── medusa-webapp/           # Control interface for MEDUSA
+│   └── training-data/           # LLM training datasets
+│
+└── MedCare EHR System (Target)
+    └── lab-environment/
+        ├── services/
+        │   ├── ehr-api/         # Vulnerable backend API (Node.js/Express)
+        │   │   ├── src/
+        │   │   │   ├── routes/  # API endpoints
+        │   │   │   └── server.js
+        │   │   └── Dockerfile
+        │   ├── ehr-webapp/      # Vulnerable web frontend
+        │   └── ehr-webapp-static/
+        └── docker-compose.yml
 ```
+
+**Note**: The original `medusa-backend/` concept has been superseded by the Docker-based `lab-environment/services/ehr-api/` implementation, which provides better isolation and realistic vulnerable services.
 
 ## Implementation Phases
 
