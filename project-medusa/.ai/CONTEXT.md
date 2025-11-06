@@ -3,13 +3,17 @@
 **Quick Context for AI Agents**
 
 ## Project Overview
-MEDUSA (Multi-Environment Dynamic Unified Security Assessment) is an LLM-powered penetration testing framework designed for educational and ethical security research.
+MEDUSA (Multi-Environment Dynamic Unified Security Assessment) is an AI-powered **autonomous penetration testing agent** that attacks vulnerable systems for educational security research.
+
+**⚠️ CRITICAL DISTINCTION**:
+- **MEDUSA** = The AI attacker (autonomous penetration testing agent)
+- **MedCare** = The target (intentionally vulnerable EHR system)
 
 ## Key Characteristics
-- **Language**: Python (CLI), JavaScript/React (Web), Python (Backend)
+- **Language**: Python (MEDUSA CLI), JavaScript/React (MEDUSA Web), Node.js (MedCare EHR Target)
 - **License**: Apache 2.0
-- **Purpose**: Educational security testing with ethical approval gates
-- **Architecture**: Modular CLI + Web UI + Docker lab environment
+- **Purpose**: Educational autonomous penetration testing with ethical approval gates
+- **Architecture**: AI Agent (attacker) + Vulnerable Lab Environment (target)
 
 ## Entry Points
 1. **Main README**: `/README.md` - Project overview and quick navigation
@@ -18,10 +22,18 @@ MEDUSA (Multi-Environment Dynamic Unified Security Assessment) is an LLM-powered
 4. **File Index**: `/.ai/FILE_INDEX.json` - Machine-readable navigation
 
 ## Primary Components
-- **medusa-cli**: `/medusa-cli/` - Python CLI tool (main component)
-- **medusa-backend**: `/medusa-backend/` - FastAPI backend service
-- **medusa-webapp**: `/medusa-webapp/` - React frontend interface
+
+### MEDUSA AI Agent (Attacker)
+- **medusa-cli**: `/medusa-cli/` - Python AI penetration testing agent (main attacker)
+- **medusa-webapp**: `/medusa-webapp/` - Control interface and dashboard for MEDUSA
+- **training-data**: `/training-data/` - LLM training datasets (MITRE ATT&CK)
+
+### MedCare EHR System (Target)
 - **lab-environment**: `/lab-environment/` - Docker-based vulnerable infrastructure
+  - **ehr-api**: `/lab-environment/services/ehr-api/` - Vulnerable backend API (Node.js/Express)
+  - **ehr-webapp**: `/lab-environment/services/ehr-webapp/` - Vulnerable web frontend
+  - **ehr-webapp-static**: Static vulnerable webapp
+  - **ldap, mysql, ftp, ssh**: Supporting vulnerable services
 
 ## Common Tasks Quick Reference
 
@@ -70,26 +82,41 @@ MEDUSA (Multi-Environment Dynamic Unified Security Assessment) is an LLM-powered
 ```
 
 ## Code Locations
-- **Python CLI Source**: `/medusa-cli/src/medusa/`
-- **Backend Source**: `/medusa-backend/app/`
-- **Frontend Source**: `/medusa-webapp/src/`
-- **Lab Services**: `/lab-environment/services/`
+
+### MEDUSA AI Agent (Attacker)
+- **CLI Source**: `/medusa-cli/src/medusa/`
+- **Web Interface**: `/medusa-webapp/src/`
 - **Training Data**: `/training-data/datasets/`
 - **Scripts**: `/scripts/`
 
+### MedCare EHR System (Target)
+- **EHR API**: `/lab-environment/services/ehr-api/src/`
+- **EHR Webapp**: `/lab-environment/services/ehr-webapp/`
+- **All Lab Services**: `/lab-environment/services/`
+
 ## Important Files
+
+### MEDUSA (Attacker)
 - **Main CLI Entry**: `/medusa-cli/src/medusa/cli.py`
-- **Backend Main**: `/medusa-backend/app/main.py`
-- **Docker Compose**: `/docker-compose.yml`
+- **LLM Integration**: `/medusa-cli/src/medusa/llm/`
+- **Attack Modules**: `/medusa-cli/src/medusa/attacks/`
+
+### MedCare (Target)
+- **EHR API Server**: `/lab-environment/services/ehr-api/src/server.js`
 - **Lab Compose**: `/lab-environment/docker-compose.yml`
 
 ## Technology Stack
+
+### MEDUSA AI Agent
 - **CLI**: Python 3.x, Click, Rich (terminal UI)
-- **Backend**: FastAPI, Python 3.x
-- **Frontend**: React, Vite
-- **LLM**: Ollama integration (local LLM)
-- **Infrastructure**: Docker, Docker Compose
+- **LLM**: Ollama (local) or Google Gemini
+- **Web UI**: React, Next.js, Vite
 - **Testing**: pytest, unittest
+
+### MedCare EHR Target
+- **EHR Backend**: Node.js, Express, MySQL
+- **EHR Frontend**: HTML/JS/PHP
+- **Infrastructure**: Docker, Docker Compose
 
 ## Key Concepts
 1. **Approval Gates**: Two-tier security system (user + supervisor approval)
