@@ -11,7 +11,7 @@ import random
 import logging
 
 from medusa.core.llm import LLMConfig, create_llm_client, LLMClient, MockLLMClient
-from medusa.tools import NmapScanner, WebScanner
+from medusa.tools import NmapScanner, WebScanner, AmassScanner, HttpxScanner, KerbruteScanner, SQLMapScanner
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,11 @@ class MedusaClient:
         # Initialize real pentesting tools
         self.nmap = NmapScanner(timeout=600)
         self.web_scanner = WebScanner(timeout=120)
-        logger.info("Real pentesting tools initialized: NmapScanner, WebScanner")
+        self.amass = AmassScanner(timeout=300, passive=True)
+        self.httpx = HttpxScanner(timeout=120, threads=50)
+        self.kerbrute = KerbruteScanner(timeout=600, threads=10)
+        self.sqlmap = SQLMapScanner(timeout=600)
+        logger.info("Real pentesting tools initialized: NmapScanner, WebScanner, AmassScanner, HttpxScanner, KerbruteScanner, SQLMapScanner")
 
     async def __aenter__(self):
         """Support async context manager entry."""
@@ -820,6 +824,200 @@ class MedusaClient:
                 "strategy_overview": "Conservative security assessment",
                 "attack_chain": [],
                 "success_probability": 0.5
+            }
+
+    # New reconnaissance tool methods
+    async def perform_subdomain_enumeration(
+        self,
+        domain: str,
+        passive: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Enumerate subdomains using Amass
+        
+        Args:
+            domain: Target domain
+            passive: Use passive enumeration only
+            
+        Returns:
+            Enumeration results
+        """
+        try:
+            logger.info(f"Starting subdomain enumeration for {domain}")
+            result = await self.amass.enumerate_subdomains(domain, passive=passive)
+            logger.info(f"Enumeration found {result.get('findings_count', 0)} subdomains")
+            return result
+        except Exception as e:
+            logger.error(f"Subdomain enumeration failed: {e}")
+            return {
+                "success": False,
+                "findings": [],
+                "error": str(e)
+            }
+
+    async def validate_web_targets(
+        self,
+        targets: List[str],
+        threads: int = 50
+    ) -> Dict[str, Any]:
+        """
+        Validate live web servers using httpx
+        
+        Args:
+            targets: List of URLs or domains
+            threads: Number of concurrent threads
+            
+        Returns:
+            Validation results
+        """
+        try:
+            logger.info(f"Validating {len(targets)} targets with httpx")
+            result = await self.httpx.validate_servers(targets, threads=threads)
+            logger.info(f"Found {result.get('findings_count', 0)} live servers")
+            return result
+        except Exception as e:
+            logger.error(f"Web target validation failed: {e}")
+            return {
+                "success": False,
+                "findings": [],
+                "error": str(e)
+            }
+
+    async def prioritize_reconnaissance_targets(
+        self,
+        amass_findings: List[Dict[str, Any]],
+        httpx_findings: Optional[List[Dict[str, Any]]] = None
+    ) -> Dict[str, Any]:
+        """
+        Prioritize targets using LLM analysis
+        
+        Args:
+            amass_findings: Findings from Amass
+            httpx_findings: Findings from httpx
+            
+        Returns:
+            Prioritized target list
+        """
+        try:
+            logger.info(f"Prioritizing {len(amass_findings)} targets")
+            result = await self.llm_client.prioritize_reconnaissance_targets(
+                amass_findings,
+                httpx_findings
+            )
+            logger.info(f"Prioritization complete")
+            return result
+        except Exception as e:
+            logger.error(f"Target prioritization failed: {e}")
+            return {
+                "prioritized_targets": [],
+                "error": str(e)
+            }
+
+    async def enumerate_kerberos_users(
+        self,
+        dc: str,
+        domain: str,
+        userlist: str
+    ) -> Dict[str, Any]:
+        """
+        Enumerate Kerberos users
+        
+        Args:
+            dc: Domain Controller IP or hostname
+            domain: Domain name
+            userlist: Path to username file
+            
+        Returns:
+            Enumeration results
+        """
+        try:
+            logger.info(f"Enumerating Kerberos users for {domain}")
+            result = await self.kerbrute.enumerate_users(dc, domain, userlist)
+            valid_users = result.get("metadata", {}).get("valid_users", 0)
+            logger.info(f"Found {valid_users} valid users")
+            return result
+        except Exception as e:
+            logger.error(f"Kerberos enumeration failed: {e}")
+            return {
+                "success": False,
+                "findings": [],
+                "error": str(e)
+            }
+
+    async def spray_kerberos_password(
+        self,
+        dc: str,
+        domain: str,
+        userlist: str,
+        password: str
+    ) -> Dict[str, Any]:
+        """
+        Perform Kerberos password spray
+        
+        Args:
+            dc: Domain Controller IP or hostname
+            domain: Domain name
+            userlist: Path to username file
+            password: Password to spray
+            
+        Returns:
+            Spray results
+        """
+        try:
+            logger.info(f"Spraying password against {domain} users")
+            result = await self.kerbrute.password_spray(dc, domain, userlist, password)
+            successes = result.get("metadata", {}).get("successful_logins", 0)
+            logger.info(f"Password spray found {successes} valid credentials")
+            return result
+        except Exception as e:
+            logger.error(f"Kerberos password spray failed: {e}")
+            return {
+                "success": False,
+                "findings": [],
+                "error": str(e)
+            }
+
+    async def test_sql_injection(
+        self,
+        url: str,
+        method: str = "GET",
+        data: Optional[str] = None,
+        level: int = 1,
+        risk: int = 1
+    ) -> Dict[str, Any]:
+        """
+        Test URL for SQL injection vulnerabilities
+        
+        Args:
+            url: Target URL
+            method: HTTP method (GET, POST, etc.)
+            data: POST data if applicable
+            level: Test level (1-5, higher = more thorough)
+            risk: Risk level (1-3, higher = more aggressive)
+            
+        Returns:
+            Test results
+        """
+        try:
+            logger.info(f"Testing {url} for SQL injection")
+            result = await self.sqlmap.test_injection(
+                url=url,
+                method=method,
+                data=data,
+                level=level,
+                risk=risk
+            )
+            if result.get("metadata", {}).get("vulnerable"):
+                logger.warning(f"SQL injection vulnerability found in {url}")
+            else:
+                logger.info(f"No SQL injection found in {url}")
+            return result
+        except Exception as e:
+            logger.error(f"SQL injection test failed: {e}")
+            return {
+                "success": False,
+                "findings": [],
+                "error": str(e)
             }
 
 

@@ -307,7 +307,9 @@ class InteractiveMode:
             console.print("[dim]No findings yet[/dim]")
             return
 
-        display.show_findings(self.session.findings)
+        # Use current phase from session context
+        current_phase = self.session.context.get("phase", "reconnaissance")
+        display.show_findings(self.session.findings, phase=current_phase)
 
     def _show_history(self):
         """Show command history"""
@@ -530,7 +532,7 @@ class InteractiveMode:
         # Display results
         console.print(f"\n[green]✓ Scan complete! Found {len(result['findings'])} items[/green]")
         if result.get("findings"):
-            display.show_findings(result["findings"][:5])
+            display.show_findings(result["findings"][:5], phase="reconnaissance")
 
         return result
 
@@ -572,7 +574,7 @@ class InteractiveMode:
 
         console.print(f"\n[green]✓ Enumeration complete! Found {len(result['findings'])} items[/green]")
         if result.get("findings"):
-            display.show_findings(result["findings"][:5])
+            display.show_findings(result["findings"][:5], phase="enumeration")
 
         return result
 
@@ -584,7 +586,8 @@ class InteractiveMode:
 
         if vulnerabilities:
             console.print(f"\n[green]Found {len(vulnerabilities)} vulnerabilities:[/green]")
-            display.show_findings(vulnerabilities)
+            # Vulnerabilities from enumeration are real data
+            display.show_findings(vulnerabilities, phase="enumeration")
         else:
             console.print("[yellow]No vulnerabilities found yet. Try 'enumerate services' first.[/yellow]")
 
@@ -722,7 +725,9 @@ class InteractiveMode:
             findings = [f for f in findings if f.get("type", "").lower() == finding_type.lower()]
 
         if findings:
-            display.show_findings(findings)
+            # Use current phase from session context
+            current_phase = self.session.context.get("phase", "reconnaissance")
+            display.show_findings(findings, phase=current_phase)
         else:
             console.print("[dim]No matching findings[/dim]")
 

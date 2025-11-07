@@ -63,10 +63,13 @@ class BaseTool(ABC):
         """Return the name of the tool binary (e.g., 'nmap', 'sqlmap')"""
         pass
 
-    @abstractmethod
     async def execute(self, target: str, **kwargs) -> Dict[str, Any]:
         """
         Execute the tool against a target
+        
+        Default implementation - subclasses can override or use custom methods.
+        Some tools use custom methods (e.g., enumerate_subdomains, validate_servers)
+        instead of this generic execute() method.
 
         Args:
             target: Target IP, URL, or hostname
@@ -79,8 +82,13 @@ class BaseTool(ABC):
                 - raw_output: str
                 - duration_seconds: float
                 - error: Optional[str]
+        
+        Raises:
+            NotImplementedError: If subclass doesn't implement execute() or custom methods
         """
-        pass
+        raise NotImplementedError(
+            f"{self.__class__.__name__} should implement execute() or use custom methods"
+        )
 
     @abstractmethod
     def parse_output(self, stdout: str, stderr: str) -> List[Dict[str, Any]]:

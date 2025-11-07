@@ -1,0 +1,257 @@
+"""
+Optimized prompt templates for local Mistral-7B-Instruct model
+
+These prompts are specifically designed for smaller language models:
+- Clear task definitions
+- Explicit JSON structure with examples
+- Concise instructions
+- Rule-based constraints
+- Reduced verbosity compared to Gemini prompts
+"""
+
+import json
+from typing import Dict, Any, List, Optional
+
+
+class PromptTemplates:
+    """
+    Prompt templates optimized for Mistral-7B-Instruct
+
+    Key optimizations:
+    1. Structured format with clear sections
+    2. Explicit JSON examples to guide output format
+    3. Concise language (smaller context window)
+    4. Rule-based constraints to ensure valid responses
+    5. Focus on actionable, specific outputs
+    """
+
+    @staticmethod
+    def reconnaissance_strategy(target: str, context: Dict[str, Any]) -> str:
+        """Generate reconnaissance prompt for Mistral-7B"""
+        context_str = json.dumps(context, indent=2) if context else "{}"
+        return f"""You are a penetration testing AI assistant. Generate a reconnaissance strategy for the target.
+
+TARGET: {target}
+CONTEXT: {context_str}
+
+TASK: Output a JSON object with reconnaissance recommendations.
+
+EXAMPLE OUTPUT FORMAT:
+{{
+  "recommended_actions": [
+    {{
+      "action": "port_scan",
+      "command": "nmap -sV -p- {target}",
+      "technique_id": "T1046",
+      "technique_name": "Network Service Discovery",
+      "priority": "high",
+      "reasoning": "Discover open services and potential entry points"
+    }},
+    {{
+      "action": "web_fingerprint",
+      "command": "whatweb {target}",
+      "technique_id": "T1595.002",
+      "technique_name": "Active Scanning",
+      "priority": "high",
+      "reasoning": "Identify web technologies and versions"
+    }}
+  ],
+  "focus_areas": ["web_services", "network_services", "authentication"],
+  "risk_assessment": "LOW",
+  "estimated_duration": 90
+}}
+
+RULES:
+1. Include 2-4 recommended_actions (not more)
+2. Use valid MITRE ATT&CK technique IDs (format: T####.### or T####)
+3. priority must be: "high", "medium", or "low"
+4. risk_assessment must be: "LOW", "MEDIUM", "HIGH", or "CRITICAL"
+5. Focus on non-intrusive reconnaissance first
+6. Each action must have clear reasoning
+7. Commands should be practical and safe
+
+OUTPUT (JSON only, no explanations):"""
+
+    @staticmethod
+    def enumeration_strategy(target: str, reconnaissance_findings: List[Dict[str, Any]]) -> str:
+        """Generate enumeration prompt based on reconnaissance findings"""
+        findings_str = json.dumps(reconnaissance_findings[:5], indent=2)
+        return f"""You are a penetration testing AI assistant. Based on reconnaissance findings, recommend enumeration actions.
+
+TARGET: {target}
+
+RECONNAISSANCE FINDINGS:
+{findings_str}
+
+TASK: Generate enumeration strategy in JSON format.
+
+EXAMPLE OUTPUT:
+{{
+  "recommended_actions": [
+    {{
+      "action": "enumerate_api_endpoints",
+      "technique_id": "T1590",
+      "technique_name": "Gather Victim Network Information",
+      "priority": "high",
+      "reasoning": "Discovered REST API, enumerate endpoints and methods"
+    }},
+    {{
+      "action": "test_authentication",
+      "technique_id": "T1110",
+      "technique_name": "Brute Force",
+      "priority": "medium",
+      "reasoning": "Test authentication mechanisms for weaknesses"
+    }}
+  ],
+  "services_to_probe": ["http", "https", "api"],
+  "risk_assessment": "LOW",
+  "potential_vulnerabilities": ["authentication_bypass", "information_disclosure"]
+}}
+
+RULES:
+1. Include 2-4 recommended_actions
+2. Use valid MITRE ATT&CK technique IDs
+3. priority: "high", "medium", or "low"
+4. risk_assessment: "LOW", "MEDIUM", "HIGH", or "CRITICAL"
+5. Base recommendations on discovered services
+6. Focus on enumeration, not exploitation
+
+OUTPUT (JSON only):"""
+
+    @staticmethod
+    def vulnerability_risk_assessment(vulnerability: Dict[str, Any], target_context: Optional[Dict[str, Any]] = None) -> str:
+        """Risk assessment prompt for Mistral-7B"""
+        vuln_str = json.dumps(vulnerability, indent=2)
+        context_str = json.dumps(target_context, indent=2) if target_context else "None"
+        return f"""You are a cybersecurity expert. Assess the risk level of this vulnerability.
+
+VULNERABILITY:
+{vuln_str}
+
+TARGET CONTEXT:
+{context_str}
+
+TASK: Determine risk level considering:
+- Exploitability (how easy to exploit)
+- Impact (data breach, system compromise, denial of service)
+- Target environment (healthcare/finance = higher risk)
+- Presence of compensating controls
+
+RISK LEVELS:
+- CRITICAL: Remote code execution, easy exploitation, high impact, no mitigations
+- HIGH: Significant security impact, moderate exploitation difficulty, sensitive data at risk
+- MEDIUM: Limited impact or requires multiple steps to exploit
+- LOW: Information disclosure, requires user interaction, minimal impact
+
+INSTRUCTIONS: Respond with ONLY ONE WORD from: LOW, MEDIUM, HIGH, or CRITICAL
+
+RISK LEVEL:"""
+
+    @staticmethod
+    def attack_strategy_planning(target: str, findings: List[Dict[str, Any]], objectives: List[str]) -> str:
+        """Attack chain planning prompt"""
+        findings_str = json.dumps(findings[:8], indent=2)
+        objectives_str = ", ".join(objectives)
+        return f"""You are a penetration testing strategist. Create an attack plan based on discovered vulnerabilities.
+
+TARGET: {target}
+OBJECTIVES: {objectives_str}
+
+DISCOVERED VULNERABILITIES:
+{findings_str}
+
+TASK: Generate a step-by-step attack chain in JSON format.
+
+EXAMPLE OUTPUT:
+{{
+  "strategy_overview": "Multi-stage attack starting with SQL injection to gain database access",
+  "attack_chain": [
+    {{
+      "step": 1,
+      "action": "exploit_sql_injection",
+      "target_vulnerability": "SQL Injection in /api/search parameter",
+      "technique_id": "T1190",
+      "technique_name": "Exploit Public-Facing Application",
+      "expected_outcome": "Database access",
+      "risk_level": "MEDIUM",
+      "prerequisites": []
+    }},
+    {{
+      "step": 2,
+      "action": "extract_credentials",
+      "target_vulnerability": "Weak password hashing",
+      "technique_id": "T1555",
+      "technique_name": "Credentials from Password Stores",
+      "expected_outcome": "User credentials",
+      "risk_level": "HIGH",
+      "prerequisites": ["database_access"]
+    }}
+  ],
+  "success_probability": 0.75,
+  "estimated_duration": 300,
+  "risks": ["detection by IDS", "account lockout"]
+}}
+
+RULES:
+1. Order steps logically (check prerequisites)
+2. Include 2-5 steps maximum
+3. Map each step to MITRE ATT&CK technique ID
+4. risk_level: "LOW", "MEDIUM", "HIGH", or "CRITICAL"
+5. success_probability: 0.0 to 1.0
+6. estimated_duration in seconds
+
+OUTPUT (JSON only):"""
+
+    @staticmethod
+    def next_action_recommendation(context: Dict[str, Any]) -> str:
+        """Generate prompt for next action recommendation"""
+        context_str = json.dumps(context, indent=2)
+        return f"""You are an AI penetration testing assistant. Based on the current operation state, recommend the next action.
+
+OPERATION CONTEXT:
+{context_str}
+
+TASK: Provide recommendation for the next action.
+
+EXAMPLE OUTPUT:
+{{
+  "recommendations": [
+    {{
+      "action": "exploit_sql_injection",
+      "confidence": 0.85,
+      "reasoning": "High-confidence SQL injection detected in /api/search parameter",
+      "technique": "T1190",
+      "risk_level": "MEDIUM"
+    }},
+    {{
+      "action": "enumerate_databases",
+      "confidence": 0.70,
+      "reasoning": "Alternative: enumerate database structure before exploitation",
+      "technique": "T1046",
+      "risk_level": "LOW"
+    }}
+  ],
+  "context_analysis": "Target shows multiple vulnerabilities. SQL injection has highest confidence.",
+  "suggested_next_phase": "exploitation"
+}}
+
+RULES:
+1. Include 1-3 recommendations (prioritized by confidence)
+2. confidence: 0.0 to 1.0
+3. Use valid MITRE ATT&CK technique IDs
+4. risk_level: "LOW", "MEDIUM", "HIGH", or "CRITICAL"
+5. Provide clear reasoning for each recommendation
+
+OUTPUT (JSON only):"""
+
+    @staticmethod
+    def simple_completion(prompt: str, force_json: bool = False) -> str:
+        """Simple completion prompt without specific structure"""
+        if force_json:
+            return f"""{prompt}
+
+IMPORTANT: Respond with ONLY valid JSON. No explanations or additional text.
+
+JSON OUTPUT:"""
+        else:
+            return prompt
