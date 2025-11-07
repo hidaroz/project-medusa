@@ -23,12 +23,14 @@ class Config:
     LOGS_DIR = "logs"
     REPORTS_DIR = "reports"
     
-    # Default LLM configuration
+    # Default LLM configuration (LLM-agnostic)
     DEFAULT_LLM_CONFIG = {
-        "model": "gemini-pro",
+        "provider": "auto",  # auto, local, openai, anthropic, mock
+        "local_model": "mistral:7b-instruct",
+        "ollama_url": "http://localhost:11434",
         "temperature": 0.7,
         "max_tokens": 2048,
-        "timeout": 30,
+        "timeout": 60,
         "max_retries": 3,
         "mock_mode": False
     }
@@ -87,9 +89,11 @@ class Config:
         config = self.DEFAULT_LLM_CONFIG.copy()
         config.update(llm_config)
         
-        # Add API key from root config if not in llm section
-        if "api_key" not in config and "api_key" in self.config_data:
-            config["api_key"] = self.config_data["api_key"]
+        # Legacy compatibility: Map old api_key to cloud_api_key if needed
+        if "api_key" in self.config_data and "cloud_api_key" not in config:
+            # If we have an old api_key but no provider specified, assume it's for cloud
+            if config.get("provider") in ["openai", "anthropic"] or config.get("provider") == "auto":
+                config["cloud_api_key"] = self.config_data["api_key"]
         
         return config
 
@@ -108,57 +112,131 @@ class Config:
 
         config = {}
 
-        # Step 1: API Key
-        console.print("[bold yellow][1/4][/bold yellow] [cyan]Gemini API Key[/cyan]")
-        console.print(
-            "Get your free API key from: [link]https://ai.google.dev/gemini-api/docs/quickstart[/link]"
-        )
-        api_key = Prompt.ask("Enter your Google AI API key", password=True)
-
-        # Validate API key (basic check)
-        if len(api_key) < 20:
-            console.print("[red]✗ Invalid API key format[/red]")
-            return {}
-
-        # Test the API key
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            console=console,
-        ) as progress:
-            progress.add_task("Validating API key...", total=None)
-            # TODO: Actually validate with a test API call
-            import time
-            time.sleep(1)
-
-        console.print("[green]✓ API key validated[/green]\n")
-        config["api_key"] = api_key
+        # Step 1: LLM Provider Selection
+        console.print("[bold yellow][1/4][/bold yellow] [cyan]LLM Provider Configuration[/cyan]")
+        console.print("MEDUSA uses AI for intelligent penetration testing decisions.")
+        console.print("\nChoose your LLM provider:")
+        console.print("  1. [green]Local (Ollama)[/green] - Recommended (free, private, unlimited)")
+        console.print("  2. [yellow]Cloud (OpenAI/Anthropic)[/yellow] - Requires API key")
+        console.print("  3. [dim]Mock (Testing only)[/dim] - No real AI")
         
-        # LLM Configuration (using Gemini)
-        config["llm"] = {
-            "model": "gemini-pro",
+        provider_choice = Prompt.ask("Choice", choices=["1", "2", "3"], default="1")
+        
+        llm_config = {
             "temperature": 0.7,
             "max_tokens": 2048,
-            "timeout": 30,
+            "timeout": 60,
             "max_retries": 3,
-            "mock_mode": False  # Set to True for testing without API calls
+            "mock_mode": False
         }
+        
+        if provider_choice == "1":
+            # Local Ollama provider
+            llm_config["provider"] = "local"
+            llm_config["local_model"] = "mistral:7b-instruct"
+            llm_config["ollama_url"] = "http://localhost:11434"
+            
+            console.print("\n[cyan]Local Ollama Configuration[/cyan]")
+            console.print("Using local Mistral-7B-Instruct model via Ollama.")
+            
+            # Check if Ollama is available
+            import httpx
+            try:
+                with httpx.Client(timeout=2.0) as client:
+                    response = client.get("http://localhost:11434/api/tags")
+                    if response.status_code == 200:
+                        console.print("[green]✓ Ollama is running[/green]")
+                        # Check if mistral model is available
+                        models = response.json().get("models", [])
+                        mistral_available = any("mistral" in m.get("name", "").lower() for m in models)
+                        if mistral_available:
+                            console.print("[green]✓ Mistral model found[/green]")
+                        else:
+                            console.print("[yellow]⚠ Mistral model not found[/yellow]")
+                            console.print("  Run: [cyan]ollama pull mistral:7b-instruct[/cyan]")
+                    else:
+                        console.print("[yellow]⚠ Ollama not responding[/yellow]")
+                        console.print("  Install: [cyan]curl -fsSL https://ollama.com/install.sh | sh[/cyan]")
+                        console.print("  Start: [cyan]ollama serve[/cyan]")
+            except Exception:
+                console.print("[yellow]⚠ Ollama not detected[/yellow]")
+                console.print("  Install: [cyan]curl -fsSL https://ollama.com/install.sh | sh[/cyan]")
+                console.print("  Pull model: [cyan]ollama pull mistral:7b-instruct[/cyan]")
+                console.print("  Start: [cyan]ollama serve[/cyan]")
+            
+            console.print("\n[green]✓ Local provider configured[/green]\n")
+            
+        elif provider_choice == "2":
+            # Cloud provider
+            console.print("\n[cyan]Cloud Provider Configuration[/cyan]")
+            cloud_provider = Prompt.ask(
+                "Select cloud provider",
+                choices=["openai", "anthropic"],
+                default="openai"
+            )
+            
+            llm_config["provider"] = cloud_provider
+            
+            if cloud_provider == "openai":
+                console.print("\nGet your API key from: [link]https://platform.openai.com/api-keys[/link]")
+                api_key = Prompt.ask("Enter your OpenAI API key", password=True)
+                llm_config["cloud_api_key"] = api_key
+                llm_config["cloud_model"] = Prompt.ask(
+                    "Model name",
+                    default="gpt-4-turbo-preview"
+                )
+            else:  # anthropic
+                console.print("\nGet your API key from: [link]https://console.anthropic.com/[/link]")
+                api_key = Prompt.ask("Enter your Anthropic API key", password=True)
+                llm_config["cloud_api_key"] = api_key
+                llm_config["cloud_model"] = Prompt.ask(
+                    "Model name",
+                    default="claude-3-sonnet-20240229"
+                )
+            
+            # Validate API key format
+            if len(api_key) < 20:
+                console.print("[red]✗ Invalid API key format[/red]")
+                return {}
+            
+            console.print("[green]✓ Cloud provider configured[/green]\n")
+            
+        else:  # Mock
+            llm_config["provider"] = "mock"
+            llm_config["mock_mode"] = True
+            console.print("\n[yellow]⚠ Mock mode enabled - no real AI will be used[/yellow]")
+            console.print("[green]✓ Mock provider configured[/green]\n")
+        
+        config["llm"] = llm_config
 
         # Step 2: Target Environment
         console.print("[bold yellow][2/4][/bold yellow] [cyan]Target Environment[/cyan]")
         console.print("Do you want to test against:")
-        console.print("  1. Local Docker environment (recommended for learning)")
-        console.print("  2. Your own infrastructure")
+        console.print("  [cyan]1[/cyan]. Local Docker environment (recommended for learning)")
+        console.print("  [cyan]2[/cyan]. Your own infrastructure")
+        console.print()
 
-        choice = Prompt.ask("Choice", choices=["1", "2"], default="1")
+        choice = Prompt.ask(
+            "Select option",
+            choices=["1", "2"],
+            default="1",
+            show_choices=True
+        )
+        
         target_type = "docker" if choice == "1" else "custom"
         console.print(f"[green]✓ {target_type.title()} environment selected[/green]\n")
 
         if target_type == "docker":
             config["target"] = {"type": "docker", "url": "http://localhost:3001"}
         else:
-            target_url = Prompt.ask("Enter target URL", default="http://localhost:3001")
+            console.print("[cyan]Enter your target URL[/cyan]")
+            target_url = Prompt.ask("Target URL", default="http://localhost:3001")
+            if not target_url.startswith(("http://", "https://")):
+                console.print("[yellow]⚠ Warning: URL should start with http:// or https://[/yellow]")
+                console.print("[yellow]Adding http:// prefix...[/yellow]")
+                target_url = f"http://{target_url}"
             config["target"] = {"type": "custom", "url": target_url}
+            console.print(f"[green]✓ Target URL configured: {target_url}[/green]\n")
 
         # Step 3: Risk Tolerance
         console.print("[bold yellow][3/4][/bold yellow] [cyan]Risk Tolerance[/cyan]")

@@ -69,14 +69,14 @@ async def test_mock_llm():
     console.print("\n[bold green]✓ All Mock LLM tests passed![/bold green]")
 
 
-async def test_real_llm(api_key: str):
-    """Test the real LLM client"""
-    console.print("\n[bold cyan]Testing Real LLM Client (Gemini)[/bold cyan]\n")
+async def test_real_llm(provider: str = "local", api_key: str = None):
+    """Test the real LLM client with configured provider"""
+    console.print(f"\n[bold cyan]Testing Real LLM Client ({provider.upper()})[/bold cyan]\n")
     
     try:
         config = LLMConfig(
-            api_key=api_key,
-            model="gemini-pro",
+            provider=provider,
+            cloud_api_key=api_key,
             temperature=0.7,
             mock_mode=False
         )

@@ -20,8 +20,15 @@ from rich.tree import Tree
 from rich.live import Live
 from rich.layout import Layout
 from rich.text import Text
+from rich.style import Style
 
-console = Console()
+# Force color output for MEDUSA banner and UI
+# Use 256 color system for better color support, fallback to standard
+import os
+# Ensure colors are enabled
+os.environ.pop("NO_COLOR", None)  # Remove NO_COLOR if set
+color_system = "256" if os.getenv("TERM") else "standard"
+console = Console(force_terminal=True, color_system=color_system, legacy_windows=False, no_color=False)
 
 
 class MedusaDisplay:
@@ -32,18 +39,39 @@ class MedusaDisplay:
 
     def show_banner(self):
         """Display MEDUSA banner"""
-        banner = """
-[bold red]███╗   ███╗███████╗██████╗ ██╗   ██╗███████╗ █████╗ [/bold red]
-[bold red]████╗ ████║██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗[/bold red]
-[bold red]██╔████╔██║█████╗  ██║  ██║██║   ██║███████╗███████║[/bold red]
-[bold red]██║╚██╔╝██║██╔══╝  ██║  ██║██║   ██║╚════██║██╔══██║[/bold red]
-[bold red]██║ ╚═╝ ██║███████╗██████╔╝╚██████╔╝███████║██║  ██║[/bold red]
-[bold red]╚═╝     ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝[/bold red]
-
-[cyan]AI-Powered Autonomous Penetration Testing[/cyan]
-[dim]For authorized security testing purposes only[/dim]
-"""
-        self.console.print(banner)
+        # Use explicit red style to ensure color is applied
+        # Try bright_red for better visibility, fallback to red
+        try:
+            red_style = Style(color="bright_red", bold=True)
+        except:
+            red_style = Style(color="red", bold=True)
+        cyan_style = Style(color="cyan")
+        dim_style = Style(dim=True)
+        
+        banner_lines = [
+            "███╗   ███╗███████╗██████╗ ██╗   ██╗███████╗ █████╗ ",
+            "████╗ ████║██╔════╝██╔══██╗██║   ██║██╔════╝██╔══██╗",
+            "██╔████╔██║█████╗  ██║  ██║██║   ██║███████╗███████║",
+            "██║╚██╔╝██║██╔══╝  ██║  ██║██║   ██║╚════██║██╔══██║",
+            "██║ ╚═╝ ██║███████╗██████╔╝╚██████╔╝███████║██║  ██║",
+            "╚═╝     ╚═╝╚══════╝╚═════╝  ╚═════╝ ╚══════╝╚═╝  ╚═╝",
+            "",
+            "AI-Powered Autonomous Penetration Testing",
+        ]
+        
+        for line in banner_lines:
+            if line.startswith("██") or line.startswith("╚═"):
+                # MEDUSA letters - bold red
+                self.console.print(line, style=red_style)
+            elif "AI-Powered" in line:
+                # Subtitle - cyan
+                self.console.print(line, style=cyan_style)
+            elif "authorized" in line:
+                # Disclaimer - dim
+                self.console.print(line, style=dim_style)
+            else:
+                # Empty line
+                self.console.print()
 
     def create_progress_bar(self, description: str = "Running...") -> Progress:
         """Create a progress bar for operations"""

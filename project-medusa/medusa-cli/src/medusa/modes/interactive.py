@@ -62,7 +62,6 @@ class InteractiveMode:
 
     async def run(self):
         """Start interactive shell"""
-        display.show_banner()
         console.print()
         console.print(
             Panel(

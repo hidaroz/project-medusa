@@ -161,9 +161,10 @@ async def test_httpx_is_available():
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.skipif(not httpx_available(), reason="httpx not installed")
-async def test_httpx_validation_with_known_hosts():
+async def test_httpx_validation_with_known_hosts(test_thread_count):
     """Test httpx validation with known live hosts"""
-    scanner = HttpxScanner(timeout=30)
+    # Use lower thread count to avoid system lag
+    scanner = HttpxScanner(timeout=30, threads=test_thread_count)
     
     targets = [
         "https://example.com",
@@ -171,7 +172,7 @@ async def test_httpx_validation_with_known_hosts():
         "https://github.com"
     ]
     
-    result = await scanner.quick_validate(targets)
+    result = await scanner.quick_validate(targets, threads=test_thread_count)
     
     # Check result structure
     assert "success" in result
@@ -546,9 +547,10 @@ async def test_amass_real_execution_example_com():
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.skipif(not httpx_available(), reason="httpx not installed")
-async def test_httpx_real_execution_known_hosts():
+async def test_httpx_real_execution_known_hosts(test_thread_count):
     """Test httpx against known live hosts"""
-    scanner = HttpxScanner(timeout=30)
+    # Use lower thread count to avoid system lag
+    scanner = HttpxScanner(timeout=30, threads=test_thread_count)
     
     targets = [
         "https://example.com",
@@ -636,6 +638,7 @@ async def test_sqlmap_against_test_target():
 
 @pytest.mark.integration
 @pytest.mark.asyncio
+@pytest.mark.resource_intensive  # Can be skipped with -m "not resource_intensive"
 @pytest.mark.skipif(not amass_available() or not httpx_available(), reason="amass or httpx not installed")
 async def test_amass_to_httpx_real_workflow():
     """Test real Amass → httpx workflow"""
@@ -652,9 +655,12 @@ async def test_amass_to_httpx_real_workflow():
     print(f"\nFound {len(subdomains)} subdomains")
     
     # Step 3: Validate with httpx (test first 10 to avoid timeout)
+    # Use lower thread count to avoid system lag on macOS
     if subdomains:
-        httpx = HttpxScanner(timeout=60)
-        httpx_result = await httpx.quick_validate(subdomains[:10])
+        import platform
+        max_threads = 5 if platform.system().lower() == "darwin" else 10
+        httpx = HttpxScanner(timeout=60, threads=max_threads)
+        httpx_result = await httpx.quick_validate(subdomains[:10], threads=max_threads)
         
         assert httpx_result["success"]
         print(f"Live servers: {httpx_result.get('metadata', {}).get('live_servers', len(httpx_result['findings']))}")
@@ -724,9 +730,10 @@ async def test_tool_timeout_handling():
 @pytest.mark.integration
 @pytest.mark.asyncio
 @pytest.mark.skipif(not httpx_available(), reason="httpx not installed")
-async def test_error_handling_unreachable_targets():
+async def test_error_handling_unreachable_targets(test_thread_count):
     """Test tools handle unreachable targets gracefully"""
-    httpx = HttpxScanner(timeout=10)
+    # Use lower thread count to avoid system lag
+    httpx = HttpxScanner(timeout=10, threads=test_thread_count)
     
     # Test with invalid/unreachable targets
     result = await httpx.validate_servers([

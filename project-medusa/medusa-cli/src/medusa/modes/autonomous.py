@@ -60,7 +60,6 @@ class AutonomousMode:
 
     async def run(self):
         """Execute autonomous penetration test with checkpointing"""
-        display.show_banner()
         display.console.print()
 
         # Initialize or load checkpoint

@@ -145,6 +145,41 @@ Performs reconnaissance and generates attack plan **without** exploitation.
 | `medusa generate-report` | Generate reports from logs |
 | `medusa version` | Show version |
 
+### LLM Connectivity Check
+
+Check that your configured LLM is reachable and active before running assessments:
+
+```bash
+medusa llm verify
+```
+
+Output on success:
+```
+╭─────────────────── LLM Connected ───────────────────╮
+│  Provider   local                                    │
+│  Model      mistral:7b-instruct                      │
+╰────────────────────────────────────────────────────╯
+```
+
+Output on failure:
+```
+╭─────────────────── LLM Not Connected ─────────────────────╮
+│  Ensure Ollama is running at http://localhost:11434       │
+│  and model 'mistral:7b-instruct' is available.            │
+│                                                           │
+│  Quick fix:                                               │
+│  1. Install Ollama: curl -fsSL https://ollama.com/...    │
+│  2. Pull model: ollama pull mistral:7b-instruct          │
+│  3. Start Ollama: ollama serve                           │
+╰───────────────────────────────────────────────────────────╯
+```
+
+**Supported Providers:**
+- **Local** (Ollama) - Requires Ollama running at `http://localhost:11434`
+- **OpenAI** - Requires API key and `pip install openai`
+- **Anthropic** - Requires API key and `pip install anthropic`
+- **Mock** - For testing, no external dependency required
+
 ### Autonomous Mode Options
 
 ```bash
@@ -540,6 +575,108 @@ MEDUSA> show findings
 MEDUSA> exploit sql-injection --target /api/users
 MEDUSA> exfiltrate data
 MEDUSA> exit
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### LLM Connection Issues
+
+**Problem: `medusa llm verify` fails to connect**
+
+Check what's configured:
+```bash
+medusa status
+```
+
+**For Local (Ollama) Provider:**
+
+1. Verify Ollama is running:
+   ```bash
+   # Should return a version number
+   curl http://localhost:11434/api/version
+   ```
+
+2. Check if model is pulled:
+   ```bash
+   ollama list
+   # Should show: mistral:7b-instruct
+   ```
+
+3. If not pulled, download it:
+   ```bash
+   ollama pull mistral:7b-instruct
+   ```
+
+4. Start Ollama if stopped:
+   ```bash
+   # macOS/Linux
+   ollama serve
+   
+   # Or if installed as service
+   systemctl start ollama
+   ```
+
+**For Cloud Providers (OpenAI/Anthropic):**
+
+1. Verify API key is set:
+   ```bash
+   echo $CLOUD_API_KEY  # Should not be empty
+   ```
+
+2. Install required SDK:
+   ```bash
+   # For OpenAI
+   pip install openai
+   
+   # For Anthropic
+   pip install anthropic
+   ```
+
+3. Check network connectivity:
+   ```bash
+   # For OpenAI
+   curl https://api.openai.com/v1/models
+   
+   # For Anthropic
+   curl https://api.anthropic.com/
+   ```
+
+### Configuration Issues
+
+**Problem: Config file not found**
+
+Reset configuration:
+```bash
+medusa setup --force
+```
+
+**Problem: Wrong LLM provider configured**
+
+Edit configuration:
+```bash
+cat ~/.medusa/config.yaml  # View current config
+
+medusa setup --force       # Reconfigure
+```
+
+### Performance Issues
+
+**Problem: LLM responses are slow**
+
+- Check internet connection (for cloud providers)
+- Check local system resources (for Ollama): `top` or `Activity Monitor`
+- Try a smaller model: `ollama pull mistral:7b` instead of `mistral:7b-instruct`
+
+### Permission Issues
+
+**Problem: Permission denied when accessing config**
+
+```bash
+# Fix permissions
+chmod 600 ~/.medusa/config.yaml
+chmod 700 ~/.medusa/
 ```
 
 ---

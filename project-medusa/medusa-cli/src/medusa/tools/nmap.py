@@ -8,6 +8,7 @@ from typing import Dict, List, Any, Optional
 import time
 
 from .base import BaseTool, ToolExecutionError
+from .graph_integration import CypherTemplates, update_graph
 
 
 class NmapScanner(BaseTool):
@@ -198,7 +199,7 @@ class NmapScanner(BaseTool):
                     os_name = os_match.get("name")
                     os_accuracy = os_match.get("accuracy")
 
-                    findings.append({
+                    os_finding = {
                         "type": "os_detection",
                         "host": host_ip,
                         "hostname": hostname,
@@ -206,7 +207,12 @@ class NmapScanner(BaseTool):
                         "accuracy": os_accuracy,
                         "severity": "info",
                         "confidence": "medium" if int(os_accuracy or 0) < 90 else "high"
-                    })
+                    }
+
+                    # Update graph database with OS information
+                    self._update_graph_for_os(os_finding)
+
+                    findings.append(os_finding)
 
         except ET.ParseError as e:
             self.logger.error(f"Failed to parse nmap XML: {e}")
@@ -285,6 +291,9 @@ class NmapScanner(BaseTool):
             "confidence": "high" if state == "open" else "medium"
         }
 
+        # Update graph database with port information
+        self._update_graph_for_port(finding)
+
         return finding
 
     def _assess_port_severity(self, port: int, service: str, state: str) -> str:
@@ -357,3 +366,57 @@ class NmapScanner(BaseTool):
             scan_type="-sV -sC",  # Version + default scripts
             additional_args=["--version-intensity", "7"]
         )
+
+    def _update_graph_for_port(self, finding: Dict[str, Any]) -> None:
+        """
+        Update graph database with port information.
+
+        Args:
+            finding: Port finding dictionary
+        """
+        try:
+            parameters = {
+                "host_ip": finding.get("host", ""),
+                "hostname": finding.get("hostname"),
+                "port_number": finding.get("port", 0),
+                "protocol": finding.get("protocol", "tcp"),
+                "state": finding.get("state", "open"),
+                "service": finding.get("service", "unknown"),
+                "service_string": finding.get("service_string", ""),
+                "product": finding.get("product"),
+                "version": finding.get("version"),
+                "extrainfo": finding.get("extrainfo")
+            }
+
+            if parameters["host_ip"] and parameters["port_number"]:
+                update_graph(
+                    CypherTemplates.NMAP_PORT,
+                    parameters,
+                    tool_name=self.tool_name
+                )
+        except Exception as e:
+            self.logger.debug(f"Graph update failed for port: {e}")
+
+    def _update_graph_for_os(self, finding: Dict[str, Any]) -> None:
+        """
+        Update graph database with OS detection information.
+
+        Args:
+            finding: OS detection finding dictionary
+        """
+        try:
+            parameters = {
+                "host_ip": finding.get("host", ""),
+                "hostname": finding.get("hostname"),
+                "os_name": finding.get("os_name", ""),
+                "os_accuracy": finding.get("accuracy", "0")
+            }
+
+            if parameters["host_ip"] and parameters["os_name"]:
+                update_graph(
+                    CypherTemplates.NMAP_OS,
+                    parameters,
+                    tool_name=self.tool_name
+                )
+        except Exception as e:
+            self.logger.debug(f"Graph update failed for OS detection: {e}")

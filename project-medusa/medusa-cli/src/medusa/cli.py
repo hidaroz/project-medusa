@@ -21,10 +21,128 @@ from medusa.first_run import is_first_run, run_first_time_wizard
 app = typer.Typer(
     name="medusa",
     help="🔴 MEDUSA - AI-Powered Penetration Testing CLI",
-    add_completion=True,
+    add_completion=False,  # Disabled - using custom completion command instead
     rich_markup_mode="rich",
 )
 console = Console()
+
+# LLM command group
+llm_app = typer.Typer(help="LLM utilities and diagnostics")
+app.add_typer(llm_app, name="llm")
+
+
+@llm_app.command("verify")
+def llm_verify():
+    """
+    ✓ Check that the configured LLM is reachable and active.
+    
+    Verifies connectivity with the LLM provider (local Ollama, cloud API, etc.)
+    without running any prompts. Perfect for troubleshooting LLM setup issues.
+    
+    Exit codes:
+        0 - LLM is connected and healthy
+        1 - LLM is not available or unreachable
+    
+    Examples:
+        medusa llm verify
+    """
+    from medusa.core.llm import LLMConfig, create_llm_client
+    from rich.panel import Panel
+    from rich.table import Table
+    
+    config = get_config()
+    if not config.exists():
+        console.print("[red]Error: MEDUSA is not configured.[/red]\n"
+                      "Run [bold]medusa setup[/bold] first.")
+        raise typer.Exit(1)
+    
+    llm_cfg_dict = config.get_llm_config()
+    llm_cfg = LLMConfig(**llm_cfg_dict)
+    
+    async def _verify_llm():
+        """Run LLM health check"""
+        client = create_llm_client(llm_cfg)
+        try:
+            health = await client.health_check()
+            return health
+        finally:
+            await client.close()
+    
+    def _hint_for_provider(provider: str, cfg: dict) -> str:
+        """Generate provider-specific remediation hints"""
+        if provider == "local":
+            ollama_url = cfg.get('ollama_url', 'http://localhost:11434')
+            local_model = cfg.get('local_model', 'mistral:7b-instruct')
+            return (
+                f"Ensure Ollama is running at {ollama_url}\n"
+                f"and model '{local_model}' is available.\n\n"
+                f"[yellow]Quick fix:[/yellow]\n"
+                f"  1. Install Ollama: [cyan]curl -fsSL https://ollama.com/install.sh | sh[/cyan]\n"
+                f"  2. Pull model: [cyan]ollama pull {local_model}[/cyan]\n"
+                f"  3. Start Ollama: [cyan]ollama serve[/cyan]"
+            )
+        elif provider == "openai":
+            return (
+                "[yellow]Setup required:[/yellow]\n"
+                "  1. Install SDK: [cyan]pip install openai[/cyan]\n"
+                "  2. Export API key: [cyan]export CLOUD_API_KEY='sk-...'[/cyan]\n"
+                "  3. Verify network access to api.openai.com"
+            )
+        elif provider == "anthropic":
+            return (
+                "[yellow]Setup required:[/yellow]\n"
+                "  1. Install SDK: [cyan]pip install anthropic[/cyan]\n"
+                "  2. Export API key: [cyan]export CLOUD_API_KEY='sk-ant-...'[/cyan]\n"
+                "  3. Verify network access to api.anthropic.com"
+            )
+        elif provider == "mock":
+            return "Mock provider is in testing mode. No real LLM available."
+        return "Check provider configuration in ~/.medusa/config.yaml"
+    
+    try:
+        health = asyncio.run(_verify_llm())
+        
+        if health.get("healthy"):
+            # Success case
+            table = Table(show_header=False, box=None, padding=(0, 2))
+            table.add_row("[bold]Provider[/bold]", f"[green]{health.get('provider')}[/green]")
+            table.add_row("[bold]Model[/bold]", f"[green]{health.get('model')}[/green]")
+            
+            # Add model info if available
+            model_info = health.get("model_info", {})
+            if model_info:
+                if isinstance(model_info, dict):
+                    if "parameters" in model_info:
+                        params = model_info["parameters"]
+                        if isinstance(params, (int, float)):
+                            table.add_row("[bold]Parameters[/bold]", f"[cyan]{params:,}[/cyan]")
+            
+            console.print(Panel(
+                table,
+                title="[bold green]✓ LLM Connected[/bold green]",
+                border_style="green"
+            ))
+            raise typer.Exit(0)
+        else:
+            # Failure case
+            hint = _hint_for_provider(health.get("provider"), llm_cfg_dict)
+            console.print(Panel(
+                hint,
+                title="[bold red]✗ LLM Not Connected[/bold red]",
+                border_style="red"
+            ))
+            raise typer.Exit(1)
+    
+    except typer.Exit:
+        # Re-raise typer.Exit to allow proper exit code handling
+        raise
+    except Exception as e:
+        console.print(Panel(
+            f"[red]Unexpected error during LLM verification:[/red]\n{str(e)}",
+            title="[bold red]✗ Verification Failed[/bold red]",
+            border_style="red"
+        ))
+        raise typer.Exit(1)
 
 
 @app.callback(invoke_without_command=True)
@@ -38,8 +156,8 @@ def main_callback():
         config = get_config()
         run_first_time_wizard(config.exists())
     else:
-        # Show help if no command provided
-        console.print("🔴 MEDUSA - AI-Powered Penetration Testing CLI")
+        # Show banner and help if no command provided
+        display.show_banner()
         console.print("\nUse [bold cyan]medusa --help[/bold cyan] to see available commands.")
 
 
@@ -53,7 +171,7 @@ def setup(
     🔧 Run the setup wizard to configure MEDUSA.
 
     This will guide you through:
-    - Setting up your Gemini API key
+    - Configuring LLM provider (Local Ollama, Cloud, or Mock)
     - Configuring target environment
     - Setting risk tolerance levels
     - Initializing Docker environment (optional)
@@ -183,6 +301,10 @@ def run(
         # Default to autonomous mode
         selected_mode = "autonomous"
 
+    # Show banner before executing mode
+    display.show_banner()
+    console.print()
+
     # Execute selected mode
     if selected_mode == "autonomous":
         _run_autonomous_mode(target, api_key)
@@ -226,6 +348,10 @@ def shell(
     if not target:
         target = config_data.get("target", {}).get("url")
 
+    # Show banner before starting interactive mode
+    display.show_banner()
+    console.print()
+
     _run_interactive_mode(target, api_key)
 
 
@@ -263,6 +389,10 @@ def observe(
         if not target:
             console.print("[red]Error: No target specified.[/red]")
             raise typer.Exit(1)
+
+    # Show banner before starting observe mode
+    display.show_banner()
+    console.print()
 
     _run_observe_mode(target, api_key)
 

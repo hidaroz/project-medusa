@@ -13,33 +13,49 @@
 # - Hot-reload capabilities
 # ============================================================================
 
-version: '3.8'
-
 services:
   
   # ==========================================================================
-  # EHR Web Application - Development Overrides
+  # EHR Frontend (Next.js) - Development Overrides
   # ==========================================================================
-  ehr-webapp:
-    # Mount source code for live editing
-    volumes:
-      - ./services/ehr-webapp/src:/var/www/html:rw
-      # Keep logs accessible on host
-      - ./dev-logs/ehr-webapp:/var/log/apache2:rw
-    
+  ehr-frontend:
+    # Use production mode to ensure Tailwind CSS is properly compiled
     environment:
-      # Enable development mode
-      - PHP_DISPLAY_ERRORS=On
-      - PHP_ERROR_REPORTING=E_ALL
-      - XDEBUG_MODE=debug
-      - XDEBUG_CONFIG=client_host=host.docker.internal client_port=9003
-    
+      - NODE_ENV=production
+      - NEXT_PUBLIC_EHR_API_URL=http://ehr-api:3000
+      - NEXT_PUBLIC_EHR_BACKEND_URL=http://ehr-backend:3000
+
+    # Use production build (npm start) for proper CSS compilation
+    user: root
+    command: sh -c "chown -R nextjs:nodejs /app 2>/dev/null || true && chmod -R 755 /app && npm start"
+
     # Disable resource limits for development
     deploy:
       resources:
         limits:
           cpus: '2.0'
           memory: 2G
+  
+  # ==========================================================================
+  # LEGACY PHP WEBAPP (DISABLED - Replaced by Next.js Frontend)
+  # ==========================================================================
+  # ehr-webapp:
+  #   # Mount source code for live editing
+  #   volumes:
+  #     - ./services/ehr-webapp/src:/var/www/html:rw
+  #     - ./dev-logs/ehr-webapp:/var/log/apache2:rw
+  #   
+  #   environment:
+  #     - PHP_DISPLAY_ERRORS=On
+  #     - PHP_ERROR_REPORTING=E_ALL
+  #     - XDEBUG_MODE=debug
+  #     - XDEBUG_CONFIG=client_host=host.docker.internal client_port=9003
+  #   
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '2.0'
+  #         memory: 2G
   
   # ==========================================================================
   # EHR API - Development Overrides
