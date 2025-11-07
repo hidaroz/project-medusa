@@ -72,7 +72,8 @@ class ObserveMode:
 
     async def _passive_reconnaissance(self, client: MedusaClient):
         """Passive reconnaissance - minimal footprint"""
-        display.console.print("[bold blue]═══ Phase 1: Passive Reconnaissance ═══[/bold blue]\n")
+        display.console.print("[bold blue]═══ Phase 1: Passive Reconnaissance ═══[/bold blue]")
+        display.console.print("[green]✅ REAL DATA[/green]\n")
 
         display.show_agent_thinking(
             "Performing passive reconnaissance with minimal detection footprint. "
@@ -110,7 +111,8 @@ class ObserveMode:
 
     async def _active_enumeration(self, client: MedusaClient):
         """Active enumeration - direct interaction with target"""
-        display.console.print("[bold blue]═══ Phase 2: Active Enumeration ═══[/bold blue]\n")
+        display.console.print("[bold blue]═══ Phase 2: Active Enumeration ═══[/bold blue]")
+        display.console.print("[green]✅ REAL DATA[/green]\n")
 
         display.show_agent_thinking(
             "Actively probing the target to identify API endpoints, "
@@ -170,7 +172,7 @@ class ObserveMode:
         display.console.print(
             f"[cyan]Identified {len(vulnerabilities)} potential vulnerabilities:[/cyan]\n"
         )
-        display.show_findings(findings[:6])
+        display.show_findings(findings[:6], phase="enumeration")
 
         # Categorize by severity
         severity_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}

@@ -342,6 +342,48 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "requires_docker: Tests that require Docker environment"
     )
+    config.addinivalue_line(
+        "markers", "manual: Tests that require manual setup or specific environment"
+    )
+
+
+# ============================================================================
+# Tool Execution Logging Fixtures
+# ============================================================================
+
+@pytest.fixture
+def capture_tool_logs(temp_dir):
+    """
+    Capture tool execution logs to a file
+    
+    Usage:
+        def test_something(capture_tool_logs):
+            # Tool logs will be captured to test_tool_execution.log
+            ...
+    """
+    import logging
+    
+    # Create log file handler
+    log_file = temp_dir / "test_tool_execution.log"
+    handler = logging.FileHandler(str(log_file))
+    handler.setLevel(logging.DEBUG)
+    
+    # Configure logger for medusa.tools
+    logger = logging.getLogger("medusa.tools")
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(handler)
+    
+    # Also capture root logger for broader coverage
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(handler)
+    
+    yield log_file
+    
+    # Cleanup
+    logger.removeHandler(handler)
+    root_logger.removeHandler(handler)
+    handler.close()
 
 
 # ============================================================================

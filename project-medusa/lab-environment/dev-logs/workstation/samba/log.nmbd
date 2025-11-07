@@ -1,0 +1,9 @@
+[2025/11/07 01:27:41.765654,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/07 01:28:04.936513,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.6
+  
+  *****

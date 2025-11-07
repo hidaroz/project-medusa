@@ -190,7 +190,8 @@ class AutonomousMode:
 
     async def _phase_reconnaissance(self, client: MedusaClient):
         """Phase 1: Reconnaissance"""
-        display.console.print("[bold blue]═══ Phase 1: Reconnaissance ═══[/bold blue]\n")
+        display.console.print("[bold blue]═══ Phase 1: Reconnaissance ═══[/bold blue]")
+        display.console.print("[green]✅ REAL DATA[/green]\n")
 
         # Request approval for reconnaissance
         action = Action(
@@ -256,7 +257,8 @@ class AutonomousMode:
 
     async def _phase_enumeration(self, client: MedusaClient):
         """Phase 2: Enumeration"""
-        display.console.print("[bold blue]═══ Phase 2: Enumeration ═══[/bold blue]\n")
+        display.console.print("[bold blue]═══ Phase 2: Enumeration ═══[/bold blue]")
+        display.console.print("[green]✅ REAL DATA[/green]\n")
 
         # Request approval
         action = Action(
@@ -314,7 +316,7 @@ class AutonomousMode:
         high_severity = [f for f in result["findings"] if f["severity"] in ["high", "critical"]]
         if high_severity:
             display.console.print()
-            display.show_findings(high_severity[:3])  # Show top 3
+            display.show_findings(high_severity[:3], phase="enumeration")  # Show top 3
 
         # Store results
         self.operation_data["phases"].append(
@@ -327,7 +329,8 @@ class AutonomousMode:
 
     async def _phase_exploitation(self, client: MedusaClient):
         """Phase 3: Exploitation"""
-        display.console.print("[bold blue]═══ Phase 3: Exploitation ═══[/bold blue]\n")
+        display.console.print("[bold blue]═══ Phase 3: Exploitation ═══[/bold blue]")
+        display.console.print("[yellow]⚠️  MOCK DATA: Results are simulated for demonstration[/yellow]\n")
 
         # Get vulnerabilities from enumeration phase
         enum_phase = next(
@@ -430,7 +433,8 @@ class AutonomousMode:
 
     async def _phase_post_exploitation(self, client: MedusaClient):
         """Phase 4: Post-Exploitation"""
-        display.console.print("[bold blue]═══ Phase 4: Post-Exploitation ═══[/bold blue]\n")
+        display.console.print("[bold blue]═══ Phase 4: Post-Exploitation ═══[/bold blue]")
+        display.console.print("[yellow]⚠️  MOCK DATA: Results are simulated for demonstration[/yellow]\n")
 
         # Check if exploitation was successful
         exploit_phase = next(
@@ -499,6 +503,53 @@ class AutonomousMode:
 
         display.console.print()
 
+    def _show_scan_summary(self):
+        """Display scan summary showing real vs mock data breakdown"""
+        # Count findings by phase
+        real_phases = ["reconnaissance", "enumeration"]
+        mock_phases = ["exploitation", "post_exploitation"]
+        
+        real_findings = []
+        mock_findings = []
+        
+        for phase_data in self.operation_data.get("phases", []):
+            phase_name = phase_data.get("name", "")
+            phase_result = phase_data.get("result", {})
+            phase_findings = phase_result.get("findings", [])
+            
+            if phase_name in real_phases:
+                real_findings.extend(phase_findings)
+            elif phase_name in mock_phases:
+                mock_findings.extend(phase_findings)
+        
+        # Count by phase names for display
+        real_phase_names = []
+        mock_phase_names = []
+        
+        for phase_data in self.operation_data.get("phases", []):
+            phase_name = phase_data.get("name", "")
+            if phase_name in real_phases and phase_data.get("status") == "complete":
+                real_phase_names.append(phase_name.title())
+            elif phase_name in mock_phases and phase_data.get("status") == "complete":
+                mock_phase_names.append(phase_name.replace("_", "-").title())
+        
+        display.console.print("[bold cyan]📊 Scan Summary[/bold cyan]\n")
+        
+        if real_phase_names:
+            display.console.print(
+                f"[green]✅ Real Data:[/green] {', '.join(real_phase_names)} "
+                f"({len(real_findings)} findings)"
+            )
+        
+        if mock_phase_names:
+            display.console.print(
+                f"[yellow]⚠️  Mock Data:[/yellow] {', '.join(mock_phase_names)} "
+                f"({len(mock_findings)} findings)"
+            )
+        
+        display.console.print()
+        display.console.print("[dim]Note: Mock data is for demonstration purposes[/dim]")
+
     async def _generate_reports(self, client: MedusaClient):
         """Generate final reports"""
         display.console.print("[bold blue]═══ Generating Reports ═══[/bold blue]\n")
@@ -545,7 +596,10 @@ class AutonomousMode:
             f"\n[dim]Reports location: {self.reporter.config.reports_dir}[/dim]"
         )
 
-        # Display summary
+        # Display scan summary with real vs mock breakdown
+        display.console.print()
+        self._show_scan_summary()
+
         display.console.print()
         display.show_technique_coverage(report_data.get("mitre_coverage", []))
 

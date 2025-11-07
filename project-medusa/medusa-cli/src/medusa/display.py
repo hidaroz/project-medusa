@@ -120,11 +120,20 @@ class MedusaDisplay:
 
         self.console.print(table)
 
-    def show_findings(self, findings: List[Dict[str, Any]]):
-        """Display security findings"""
+    def show_findings(self, findings: List[Dict[str, Any]], phase: Optional[str] = None):
+        """Display security findings
+        
+        Args:
+            findings: List of finding dictionaries
+            phase: Optional phase name (exploitation, post_exploitation) to mark as MOCK
+        """
         if not findings:
             self.console.print("[dim]No findings to display[/dim]")
             return
+
+        # Determine if findings are mock based on phase
+        is_mock = phase in ["exploitation", "post_exploitation"]
+        mock_prefix = "[yellow][MOCK][/yellow] " if is_mock else ""
 
         for finding in findings:
             severity = finding.get("severity", "info").upper()
@@ -149,7 +158,7 @@ class MedusaDisplay:
 
             panel = Panel(
                 f"[{color}]{description}[/{color}]",
-                title=f"{icon} [{color}]{severity}[/{color}] - {title}",
+                title=f"{mock_prefix}{icon} [{color}]{severity}[/{color}] - {title}",
                 border_style=color,
             )
             self.console.print(panel)

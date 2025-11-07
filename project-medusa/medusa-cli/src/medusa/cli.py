@@ -15,14 +15,32 @@ from medusa import __version__
 from medusa.config import get_config
 from medusa.display import display
 from medusa.modes import AutonomousMode, InteractiveMode, ObserveMode
+from medusa.error_handler import error_handler_decorator, handle_error
+from medusa.first_run import is_first_run, run_first_time_wizard
 
 app = typer.Typer(
     name="medusa",
     help="🔴 MEDUSA - AI-Powered Penetration Testing CLI",
-    add_completion=False,
+    add_completion=True,
     rich_markup_mode="rich",
 )
 console = Console()
+
+
+@app.callback(invoke_without_command=True)
+def main_callback():
+    """
+    Main callback - runs when no command is provided.
+    Handles first-run experience and shows help.
+    """
+    # Check if this is first run (only when running `medusa` with no command)
+    if is_first_run():
+        config = get_config()
+        run_first_time_wizard(config.exists())
+    else:
+        # Show help if no command provided
+        console.print("🔴 MEDUSA - AI-Powered Penetration Testing CLI")
+        console.print("\nUse [bold cyan]medusa --help[/bold cyan] to see available commands.")
 
 
 @app.command()
@@ -40,6 +58,14 @@ def setup(
     - Setting risk tolerance levels
     - Initializing Docker environment (optional)
     """
+    # Show first-run wizard if this is first run
+    if is_first_run():
+        config = get_config()
+        run_first_time_wizard(config.exists())
+        # If wizard was shown, mark as complete and continue with setup
+        if not config.exists():
+            console.print("\n[cyan]Starting setup wizard...[/cyan]\n")
+    
     config = get_config()
 
     # Check if already configured
@@ -65,7 +91,7 @@ def run(
         None, "--target", "-t", help="Target URL (e.g., http://localhost:3001)"
     ),
     autonomous: bool = typer.Option(
-        False, "--autonomous", "-a", help="Run in autonomous mode with approval gates"
+        False, "--autonomous", "-a", help="Run in autonomous mode with approval gates (equivalent to --mode autonomous)"
     ),
     mode: Optional[str] = typer.Option(
         None, "--mode", "-m", help="Operating mode: autonomous, interactive, observe"
@@ -74,10 +100,26 @@ def run(
     """
     🚀 Run a penetration test.
 
+    Command Variants:
+        medusa run                                    # Uses default target, autonomous mode
+        medusa run --autonomous                       # Autonomous mode with default target
+        medusa run --mode autonomous                  # Same as --autonomous
+        medusa run --mode interactive                 # Interactive shell mode
+        medusa run --mode observe                     # Observe/reconnaissance mode only
+        medusa run --target <url>                    # Specify target, autonomous mode
+        medusa run --target <url> --autonomous        # Explicit autonomous mode
+        medusa run --target <url> --mode autonomous    # Same as above
+        medusa run --target <url> --mode interactive  # Interactive mode with target
+        medusa run --target <url> --mode observe      # Observe mode with target
+
     Examples:
-        medusa run --target localhost --autonomous
+        medusa run --target http://localhost:3001 --autonomous
         medusa run --target http://example.com --mode observe
+        medusa run --mode interactive
     """
+    # Valid mode values
+    VALID_MODES = {"autonomous", "interactive", "observe"}
+
     # Ensure configuration exists
     config = get_config()
     if not config.exists():
@@ -94,11 +136,36 @@ def run(
         console.print(f"[red]Error loading configuration: {e}[/red]")
         raise typer.Exit(1)
 
+    # Validate mode if provided
+    if mode is not None:
+        mode_lower = mode.lower()
+        if mode_lower not in VALID_MODES:
+            console.print(
+                f"[red]Error: Invalid mode '{mode}'.[/red]\n"
+                f"Valid modes are: [bold]{', '.join(sorted(VALID_MODES))}[/bold]"
+            )
+            raise typer.Exit(1)
+        mode = mode_lower  # Normalize to lowercase
+
+    # Detect conflicting flags
+    if autonomous and mode is not None:
+        if mode != "autonomous":
+            console.print(
+                "[red]Error: Cannot use --autonomous and --mode together.[/red]\n"
+                "Use either [bold]--autonomous[/bold] or [bold]--mode <mode>[/bold], not both.\n"
+                "Note: [bold]--autonomous[/bold] is equivalent to [bold]--mode autonomous[/bold]"
+            )
+            raise typer.Exit(1)
+        # Both specify autonomous, which is fine - just use autonomous mode
+
     # Determine target
     if not target:
         target = config_data.get("target", {}).get("url")
         if not target:
-            console.print("[red]Error: No target specified and no default configured.[/red]")
+            console.print(
+                "[red]Error: No target specified and no default configured.[/red]\n"
+                "Use [bold]--target <url>[/bold] or run [bold]medusa setup[/bold] to configure a default target."
+            )
             raise typer.Exit(1)
 
     # Get API key
@@ -107,16 +174,26 @@ def run(
         console.print("[red]Error: No API key found in configuration.[/red]")
         raise typer.Exit(1)
 
-    # Determine mode
-    if autonomous or mode == "autonomous":
+    # Determine mode (priority: --autonomous flag > --mode flag > default)
+    if autonomous:
+        selected_mode = "autonomous"
+    elif mode is not None:
+        selected_mode = mode
+    else:
+        # Default to autonomous mode
+        selected_mode = "autonomous"
+
+    # Execute selected mode
+    if selected_mode == "autonomous":
         _run_autonomous_mode(target, api_key)
-    elif mode == "interactive":
+    elif selected_mode == "interactive":
         _run_interactive_mode(target, api_key)
-    elif mode == "observe":
+    elif selected_mode == "observe":
         _run_observe_mode(target, api_key)
     else:
-        # Default to autonomous
-        _run_autonomous_mode(target, api_key)
+        # This should never happen due to validation above, but safety check
+        console.print(f"[red]Error: Unknown mode '{selected_mode}'.[/red]")
+        raise typer.Exit(1)
 
 
 @app.command()
@@ -235,6 +312,112 @@ def status():
 
 
 @app.command()
+def completion(
+    shell: str = typer.Argument(..., help="Shell type: bash, zsh, or fish"),
+    install: bool = typer.Option(
+        False, "--install", "-i", help="Install completion script to shell config"
+    ),
+):
+    """
+    🎯 Generate shell completion scripts.
+    
+    Typer provides built-in completion support. This command helps you install it.
+    
+    Examples:
+        medusa completion bash --install
+        medusa completion zsh
+        medusa completion fish --install
+    
+    After installation, restart your shell or run:
+        source ~/.bashrc    # for bash
+        source ~/.zshrc     # for zsh
+        # fish completion is automatic
+    """
+    shell_map = {
+        "bash": "bash",
+        "zsh": "zsh",
+        "fish": "fish",
+    }
+    
+    if shell not in shell_map:
+        console.print(f"[red]Error: Unsupported shell '{shell}'[/red]")
+        console.print("Supported shells: bash, zsh, fish")
+        raise typer.Exit(1)
+    
+    # Use typer's built-in completion
+    try:
+        from typer.main import get_completion_install_instructions
+        
+        if install:
+            # Determine config file location
+            home = Path.home()
+            if shell == "bash":
+                config_file = home / ".bashrc"
+                # Check for .bash_profile on macOS
+                if not config_file.exists():
+                    config_file = home / ".bash_profile"
+            elif shell == "zsh":
+                config_file = home / ".zshrc"
+            elif shell == "fish":
+                config_dir = home / ".config" / "fish"
+                config_dir.mkdir(parents=True, exist_ok=True)
+                config_file = config_dir / "completions" / "medusa.fish"
+                config_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Check if already installed
+            if config_file.exists():
+                with open(config_file) as f:
+                    content = f.read()
+                    if "medusa" in content.lower() and ("complete" in content.lower() or "completion" in content.lower()):
+                        console.print(f"[yellow]Completion may already be installed in {config_file}[/yellow]")
+                        console.print("Check the file or use a different method to install.")
+            
+            # Get installation instructions
+            instructions = get_completion_install_instructions(
+                shell=shell,
+                prog_name="medusa",
+            )
+            
+            console.print(f"[green]Installation instructions for {shell}:[/green]\n")
+            console.print(instructions)
+            console.print(f"\n[cyan]Or manually add to {config_file}:[/cyan]")
+            
+            if shell == "bash":
+                completion_line = 'eval "$(_MEDUSA_COMPLETE=bash_source medusa)"'
+            elif shell == "zsh":
+                completion_line = 'eval "$(_MEDUSA_COMPLETE=zsh_source medusa)"'
+            else:  # fish
+                completion_line = 'medusa --install-completion fish | source'
+            
+            console.print(f"  {completion_line}")
+        else:
+            # Show how to get completion
+            console.print(f"[cyan]To enable {shell} completion, run:[/cyan]")
+            console.print(f"  medusa completion {shell} --install\n")
+            console.print(f"[dim]Or manually add to your shell config:[/dim]")
+            if shell == "bash":
+                console.print('  eval "$(_MEDUSA_COMPLETE=bash_source medusa)"')
+            elif shell == "zsh":
+                console.print('  eval "$(_MEDUSA_COMPLETE=zsh_source medusa)"')
+            else:  # fish
+                console.print('  medusa --install-completion fish | source')
+    except ImportError:
+        # Fallback: provide manual instructions
+        console.print(f"[yellow]Using manual completion setup for {shell}[/yellow]\n")
+        console.print(f"Add the following to your {shell} configuration file:\n")
+        
+        if shell == "bash":
+            console.print('eval "$(_MEDUSA_COMPLETE=bash_source medusa)"')
+            console.print("\nThen run: source ~/.bashrc")
+        elif shell == "zsh":
+            console.print('eval "$(_MEDUSA_COMPLETE=zsh_source medusa)"')
+            console.print("\nThen run: source ~/.zshrc")
+        else:  # fish
+            console.print("medusa --install-completion fish | source")
+            console.print("\nOr add to ~/.config/fish/completions/medusa.fish")
+
+
+@app.command()
 def version():
     """
     📌 Show MEDUSA version.
@@ -245,13 +428,38 @@ def version():
 @app.command()
 def logs(
     latest: bool = typer.Option(False, "--latest", "-l", help="Show only latest log"),
-    tail: int = typer.Option(
-        20, "--tail", "-n", help="Number of lines to show from each log"
+    log_type: Optional[str] = typer.Option(
+        None, "--type", "-t", help="Filter by operation type (auto, observe, interactive)"
+    ),
+    date: Optional[str] = typer.Option(
+        None, "--date", "-d", help="Filter by date (YYYY-MM-DD format)"
+    ),
+    min_findings: Optional[int] = typer.Option(
+        None, "--findings", "-f", help="Show only logs with at least N findings"
+    ),
+    summary: bool = typer.Option(
+        False, "--summary", "-s", help="Show summary statistics only"
+    ),
+    json_output: bool = typer.Option(
+        False, "--json", "-j", help="Output in JSON format for scripting"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show verbose output with more details"
     ),
 ):
     """
     📝 View operation logs.
+    
+    Examples:
+        medusa logs --latest
+        medusa logs --type observe --summary
+        medusa logs --date 2025-11-05 --json
+        medusa logs --findings 5
     """
+    import json
+    from datetime import datetime
+    from rich.table import Table
+    
     config = get_config()
 
     if not config.logs_dir.exists():
@@ -265,34 +473,154 @@ def logs(
         console.print("[yellow]No log files found.[/yellow]")
         raise typer.Exit()
 
-    if latest:
-        log_files = [log_files[-1]]
-
+    # Filter logs
+    filtered_logs = []
     for log_file in log_files:
-        console.print(f"\n[bold cyan]Log:[/bold cyan] {log_file.name}")
-        console.print(f"[dim]Path: {log_file}[/dim]\n")
-
-        # Read and display (simplified - would normally parse JSON nicely)
         try:
-            import json
-
             with open(log_file) as f:
                 data = json.load(f)
-
-            # Show summary
+            
             metadata = data.get("metadata", {})
             operation = data.get("operation", {})
-
-            console.print(f"Operation ID: {metadata.get('operation_id', 'Unknown')}")
-            console.print(f"Timestamp: {metadata.get('timestamp', 'Unknown')}")
-            console.print(
-                f"Duration: {operation.get('duration_seconds', 0):.1f}s"
-            )
-            console.print(
-                f"Total Findings: {operation.get('summary', {}).get('total_findings', 0)}"
-            )
+            operation_id = metadata.get("operation_id", "")
+            
+            # Apply filters
+            if log_type and log_type.lower() not in operation_id.lower():
+                continue
+            
+            if date:
+                timestamp = metadata.get("timestamp", "")
+                if isinstance(timestamp, str):
+                    try:
+                        log_date = datetime.fromisoformat(timestamp.replace("Z", "+00:00")).date()
+                        filter_date = datetime.strptime(date, "%Y-%m-%d").date()
+                        if log_date != filter_date:
+                            continue
+                    except (ValueError, AttributeError):
+                        if date not in timestamp:
+                            continue
+            
+            if min_findings is not None:
+                findings_count = operation.get("summary", {}).get("total_findings", 0)
+                if findings_count < min_findings:
+                    continue
+            
+            filtered_logs.append((log_file, data))
+        except Exception:
+            continue  # Skip corrupted logs
+    
+    if not filtered_logs:
+        console.print("[yellow]No logs match the specified filters.[/yellow]")
+        raise typer.Exit()
+    
+    if latest:
+        filtered_logs = [filtered_logs[-1]]
+    
+    # JSON output mode
+    if json_output:
+        import sys
+        output = []
+        for log_file, data in filtered_logs:
+            metadata = data.get("metadata", {})
+            operation = data.get("operation", {})
+            output.append({
+                "file": str(log_file.name),
+                "path": str(log_file),
+                "operation_id": metadata.get("operation_id", "Unknown"),
+                "timestamp": metadata.get("timestamp", "Unknown"),
+                "duration_seconds": operation.get("duration_seconds", 0),
+                "total_findings": operation.get("summary", {}).get("total_findings", 0),
+            })
+        json.dump(output if len(output) > 1 else output[0], sys.stdout, indent=2)
+        return
+    
+    # Summary statistics mode
+    if summary:
+        total_ops = len(filtered_logs)
+        total_findings = 0
+        total_duration = 0.0
+        operation_types = {}
+        
+        for log_file, data in filtered_logs:
+            operation = data.get("operation", {})
+            metadata = data.get("metadata", {})
+            operation_id = metadata.get("operation_id", "")
+            
+            findings = operation.get("summary", {}).get("total_findings", 0)
+            duration = operation.get("duration_seconds", 0)
+            
+            total_findings += findings
+            total_duration += duration
+            
+            # Determine operation type
+            op_type = "unknown"
+            if "observe" in operation_id.lower():
+                op_type = "observe"
+            elif "auto" in operation_id.lower():
+                op_type = "autonomous"
+            elif "interactive" in operation_id.lower():
+                op_type = "interactive"
+            
+            operation_types[op_type] = operation_types.get(op_type, 0) + 1
+        
+        avg_duration = total_duration / total_ops if total_ops > 0 else 0
+        
+        table = Table(title="Log Summary Statistics", show_header=True, header_style="bold cyan")
+        table.add_column("Metric", style="cyan")
+        table.add_column("Value", style="green")
+        
+        table.add_row("Total Operations", str(total_ops))
+        table.add_row("Total Findings", str(total_findings))
+        table.add_row("Average Duration", f"{avg_duration:.1f}s")
+        table.add_row("Total Duration", f"{total_duration:.1f}s")
+        
+        console.print()
+        console.print(table)
+        
+        if operation_types:
+            console.print("\n[bold cyan]Operations by Type:[/bold cyan]")
+            for op_type, count in sorted(operation_types.items()):
+                console.print(f"  • {op_type.capitalize()}: {count}")
+        
+        return
+    
+    # Normal display mode
+    for log_file, data in filtered_logs:
+        console.print(f"\n[bold cyan]Log:[/bold cyan] {log_file.name}")
+        if verbose:
+            console.print(f"[dim]Path: {log_file}[/dim]")
+        console.print()
+        
+        try:
+            metadata = data.get("metadata", {})
+            operation = data.get("operation", {})
+            summary_data = operation.get("summary", {})
+            
+            # Create a table for better formatting
+            table = Table(show_header=False, box=None, padding=(0, 1))
+            table.add_column(style="cyan", width=20)
+            table.add_column(style="white")
+            
+            table.add_row("Operation ID:", metadata.get("operation_id", "Unknown"))
+            table.add_row("Timestamp:", metadata.get("timestamp", "Unknown"))
+            table.add_row("Duration:", f"{operation.get('duration_seconds', 0):.1f}s")
+            table.add_row("Total Findings:", str(summary_data.get("total_findings", 0)))
+            
+            if verbose:
+                findings_by_severity = summary_data.get("findings_by_severity", {})
+                if findings_by_severity:
+                    table.add_row("", "")  # Empty row
+                    table.add_row("Findings by Severity:", "")
+                    for severity, count in sorted(findings_by_severity.items()):
+                        table.add_row(f"  {severity.capitalize()}:", str(count))
+            
+            console.print(table)
+            
         except Exception as e:
             console.print(f"[red]Error reading log: {e}[/red]")
+            if verbose:
+                import traceback
+                console.print(traceback.format_exc())
 
 
 @app.command()
@@ -417,6 +745,15 @@ def reports(
     report_type: Optional[str] = typer.Option(
         None, "--type", "-t", help="Filter by report type: html, md, pdf, exec"
     ),
+    latest: bool = typer.Option(
+        False, "--latest", "-l", help="Show only latest report of each type"
+    ),
+    summary: bool = typer.Option(
+        False, "--summary", "-s", help="Show summary statistics only"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show verbose output with full paths"
+    ),
 ):
     """
     📄 View generated reports.
@@ -426,7 +763,15 @@ def reports(
     - Executive summaries (*executive*.html)
     - Markdown reports (*.md)
     - PDF reports (*.pdf)
+    
+    Examples:
+        medusa reports --latest
+        medusa reports --type html --summary
+        medusa reports --open
     """
+    from datetime import datetime
+    from rich.table import Table
+    
     config = get_config()
 
     if not config.reports_dir.exists():
@@ -454,6 +799,19 @@ def reports(
         console.print(f"[yellow]No {report_type or 'reports'} found.[/yellow]")
         raise typer.Exit()
 
+    # Helper function to format file size
+    def format_size(size_bytes: int) -> str:
+        for unit in ['B', 'KB', 'MB', 'GB']:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.1f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.1f} TB"
+
+    # Helper function to format timestamp
+    def format_timestamp(timestamp: float) -> str:
+        dt = datetime.fromtimestamp(timestamp)
+        return dt.strftime("%Y-%m-%d %H:%M:%S")
+
     if open_latest:
         import webbrowser
 
@@ -466,38 +824,87 @@ def reports(
             console.print("\n[dim]Tip: Open with your preferred markdown viewer[/dim]")
         else:
             webbrowser.open(f"file://{latest_report.absolute()}")
-    else:
-        console.print(f"\n[bold cyan]Available Reports:[/bold cyan]\n")
-
-        # Group by type
+        return
+    
+    # Summary statistics mode
+    if summary:
         html_reports = [r for r in report_files if r.suffix == ".html" and "executive" not in r.name]
         exec_reports = [r for r in report_files if "executive" in r.name]
         md_reports = [r for r in report_files if r.suffix == ".md"]
         pdf_reports = [r for r in report_files if r.suffix == ".pdf"]
-
+        
+        total_size = sum(f.stat().st_size for f in report_files)
+        
+        table = Table(title="Report Summary Statistics", show_header=True, header_style="bold cyan")
+        table.add_column("Report Type", style="cyan")
+        table.add_column("Count", style="green", justify="right")
+        table.add_column("Total Size", style="yellow", justify="right")
+        
         if html_reports:
-            console.print("[bold]Technical Reports (HTML):[/bold]")
-            for report in html_reports[-5:]:
-                console.print(f"  • {report.name}")
-
+            html_size = sum(f.stat().st_size for f in html_reports)
+            table.add_row("Technical Reports (HTML)", str(len(html_reports)), format_size(html_size))
         if exec_reports:
-            console.print("\n[bold]Executive Summaries:[/bold]")
-            for report in exec_reports[-5:]:
-                console.print(f"  • {report.name}")
-
+            exec_size = sum(f.stat().st_size for f in exec_reports)
+            table.add_row("Executive Summaries", str(len(exec_reports)), format_size(exec_size))
         if md_reports:
-            console.print("\n[bold]Markdown Reports:[/bold]")
-            for report in md_reports[-5:]:
-                console.print(f"  • {report.name}")
-
+            md_size = sum(f.stat().st_size for f in md_reports)
+            table.add_row("Markdown Reports", str(len(md_reports)), format_size(md_size))
         if pdf_reports:
-            console.print("\n[bold]PDF Reports:[/bold]")
-            for report in pdf_reports[-5:]:
-                console.print(f"  • {report.name}")
-
+            pdf_size = sum(f.stat().st_size for f in pdf_reports)
+            table.add_row("PDF Reports", str(len(pdf_reports)), format_size(pdf_size))
+        
+        table.add_row("", "", "")  # Separator
+        table.add_row("[bold]Total[/bold]", f"[bold]{len(report_files)}[/bold]", f"[bold]{format_size(total_size)}[/bold]")
+        
+        console.print()
+        console.print(table)
         console.print(f"\n[dim]Location: {config.reports_dir}[/dim]")
-        console.print("\n[cyan]Tip:[/cyan] Use [bold]--open[/bold] to view latest report")
-        console.print("[cyan]Tip:[/cyan] Use [bold]--type[/bold] to filter by type (html, md, pdf, exec)")
+        return
+
+    # Normal display mode
+    console.print(f"\n[bold cyan]Available Reports:[/bold cyan]\n")
+
+    # Group by type
+    html_reports = [r for r in report_files if r.suffix == ".html" and "executive" not in r.name]
+    exec_reports = [r for r in report_files if "executive" in r.name]
+    md_reports = [r for r in report_files if r.suffix == ".md"]
+    pdf_reports = [r for r in report_files if r.suffix == ".pdf"]
+
+    # Apply latest filter if requested
+    if latest:
+        html_reports = [html_reports[-1]] if html_reports else []
+        exec_reports = [exec_reports[-1]] if exec_reports else []
+        md_reports = [md_reports[-1]] if md_reports else []
+        pdf_reports = [pdf_reports[-1]] if pdf_reports else []
+
+    def display_report_group(reports: list, title: str):
+        if not reports:
+            return
+        
+        console.print(f"[bold]{title}:[/bold]")
+        for report in reports:
+            stat = report.stat()
+            size = format_size(stat.st_size)
+            timestamp = format_timestamp(stat.st_mtime)
+            
+            if verbose:
+                console.print(f"  • {report.name}")
+                console.print(f"    [dim]Size: {size} | Created: {timestamp}[/dim]")
+                console.print(f"    [dim]Path: {report}[/dim]")
+            else:
+                console.print(f"  • {report.name} [dim]({size}, {timestamp})[/dim]")
+        console.print()
+
+    display_report_group(html_reports[-10:], "Technical Reports (HTML)")
+    display_report_group(exec_reports[-10:], "Executive Summaries")
+    display_report_group(md_reports[-10:], "Markdown Reports")
+    display_report_group(pdf_reports[-10:], "PDF Reports")
+
+    console.print(f"[dim]Location: {config.reports_dir}[/dim]")
+    console.print("\n[cyan]Tip:[/cyan] Use [bold]--open[/bold] to view latest report")
+    console.print("[cyan]Tip:[/cyan] Use [bold]--type[/bold] to filter by type (html, md, pdf, exec)")
+    console.print("[cyan]Tip:[/cyan] Use [bold]--latest[/bold] to show only latest of each type")
+    console.print("[cyan]Tip:[/cyan] Use [bold]--summary[/bold] for statistics")
 
 
 def _run_autonomous_mode(target: str, api_key: str):
@@ -506,10 +913,10 @@ def _run_autonomous_mode(target: str, api_key: str):
         mode = AutonomousMode(target, api_key)
         asyncio.run(mode.run())
     except KeyboardInterrupt:
-        console.print("\n[yellow]Operation interrupted by user[/yellow]")
-        sys.exit(1)
+        console.print("\n[yellow]⏸️  Operation interrupted by user[/yellow]")
+        sys.exit(0)
     except Exception as e:
-        console.print(f"\n[red]Error: {e}[/red]")
+        handle_error(e)
         sys.exit(1)
 
 
@@ -519,10 +926,10 @@ def _run_interactive_mode(target: Optional[str], api_key: str):
         mode = InteractiveMode(target, api_key)
         asyncio.run(mode.run())
     except KeyboardInterrupt:
-        console.print("\n[yellow]Session terminated[/yellow]")
+        console.print("\n[yellow]⏸️  Session terminated[/yellow]")
         sys.exit(0)
     except Exception as e:
-        console.print(f"\n[red]Error: {e}[/red]")
+        handle_error(e)
         sys.exit(1)
 
 
@@ -532,19 +939,22 @@ def _run_observe_mode(target: str, api_key: str):
         mode = ObserveMode(target, api_key)
         asyncio.run(mode.run())
     except KeyboardInterrupt:
-        console.print("\n[yellow]Observation interrupted by user[/yellow]")
-        sys.exit(1)
+        console.print("\n[yellow]⏸️  Observation interrupted by user[/yellow]")
+        sys.exit(0)
     except Exception as e:
-        console.print(f"\n[red]Error: {e}[/red]")
+        handle_error(e)
         sys.exit(1)
 
 
 def main():
-    """Main entry point"""
+    """Main entry point with enhanced error handling"""
     try:
         app()
+    except KeyboardInterrupt:
+        console.print("\n\n[yellow]⏸️  Operation cancelled by user[/yellow]")
+        sys.exit(0)
     except Exception as e:
-        console.print(f"[red]Fatal error: {e}[/red]")
+        handle_error(e)
         sys.exit(1)
 
 

@@ -43,12 +43,18 @@ Install just the MEDUSA AI agent:
 
 ```bash
 cd medusa-cli
-pip install -e .
-export GOOGLE_API_KEY="your_key_here"
-medusa observe --target localhost
+bash ../scripts/install.sh  # Automated setup with PATH configuration
 ```
 
-See [CLI Quick Start](docs/getting-started/QUICK_START.md) for detailed instructions.
+After installation:
+
+```bash
+medusa setup      # Run setup wizard
+medusa --help     # View help
+medusa shell      # Start interactive mode
+```
+
+**📚 See [QUICKSTART.md](docs/QUICKSTART.md)** for a complete 5-minute setup guide with examples.
 
 ## 🧠 AI Brain Setup
 
