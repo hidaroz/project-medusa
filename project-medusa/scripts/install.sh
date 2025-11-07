@@ -5,6 +5,14 @@
 
 set -e
 
+# Get script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CLI_DIR="$PROJECT_ROOT/medusa-cli"
+
+# Change to CLI directory for installation
+cd "$CLI_DIR"
+
 echo ""
 echo "🔴 MEDUSA Installation Script"
 echo "================================"
@@ -78,30 +86,91 @@ if [[ ":$PATH:" == *":$SCRIPTS_DIR:"* ]]; then
 else
     echo "⚠️  Python scripts directory not in PATH: $SCRIPTS_DIR"
     echo ""
-    echo "Add it to your PATH to use 'medusa' command directly:"
-    echo ""
     
-    if [[ "$SHELL" == *"zsh"* ]]; then
-        echo "  Step 1: Edit ~/.zshrc"
-        echo "    echo 'export PATH=\"$SCRIPTS_DIR:\$PATH\"' >> ~/.zshrc"
-        echo ""
-        echo "  Step 2: Reload shell"
-        echo "    source ~/.zshrc"
+    # Detect shell config file (check common locations)
+    SHELL_CONFIG=""
+    if [ -f ~/.zshrc ]; then
+        SHELL_CONFIG=~/.zshrc
+        SHELL_NAME="zsh"
+    elif [ -f ~/.bashrc ]; then
+        SHELL_CONFIG=~/.bashrc
+        SHELL_NAME="bash"
+    elif [ -f ~/.bash_profile ]; then
+        SHELL_CONFIG=~/.bash_profile
+        SHELL_NAME="bash"
+    elif [[ "$SHELL" == *"zsh"* ]]; then
+        SHELL_CONFIG=~/.zshrc
+        SHELL_NAME="zsh"
     elif [[ "$SHELL" == *"bash"* ]]; then
-        echo "  Step 1: Edit ~/.bashrc"
-        echo "    echo 'export PATH=\"$SCRIPTS_DIR:\$PATH\"' >> ~/.bashrc"
-        echo ""
-        echo "  Step 2: Reload shell"
-        echo "    source ~/.bashrc"
-    else
-        echo "  Add to your shell configuration:"
-        echo "    export PATH=\"$SCRIPTS_DIR:\$PATH\""
+        SHELL_CONFIG=~/.bashrc
+        SHELL_NAME="bash"
     fi
     
-    echo ""
-    echo "Or use MEDUSA without PATH modification:"
-    echo "  $PYTHON_CMD -m medusa.cli --help"
-    echo ""
+    # Check if PATH entry already exists in config file
+    PATH_ALREADY_ADDED=false
+    if [ -n "$SHELL_CONFIG" ] && [ -f "$SHELL_CONFIG" ]; then
+        if grep -q "Library/Python.*bin" "$SHELL_CONFIG" 2>/dev/null; then
+            PATH_ALREADY_ADDED=true
+        fi
+    fi
+    
+    if [ "$PATH_ALREADY_ADDED" = true ]; then
+        echo "✓ PATH entry found in $SHELL_CONFIG"
+        echo "  You may need to restart your terminal or run: source $SHELL_CONFIG"
+        echo ""
+    else
+        # Offer to add PATH automatically
+        echo "Would you like to add it to your PATH automatically? (recommended)"
+        echo ""
+        read -p "Add to PATH? [Y/n]: " -n 1 -r
+        echo ""
+        
+        if [[ ! $REPLY =~ ^[Nn]$ ]]; then
+            if [ -n "$SHELL_CONFIG" ]; then
+                # Add PATH to config file
+                PATH_LINE="export PATH=\"$SCRIPTS_DIR:\$PATH\""
+                
+                # Check if line already exists
+                if ! grep -Fxq "$PATH_LINE" "$SHELL_CONFIG" 2>/dev/null; then
+                    echo "" >> "$SHELL_CONFIG"
+                    echo "# Added by MEDUSA installation script" >> "$SHELL_CONFIG"
+                    echo "$PATH_LINE" >> "$SHELL_CONFIG"
+                    echo "✓ Added to $SHELL_CONFIG"
+                else
+                    echo "✓ PATH already in $SHELL_CONFIG"
+                fi
+                
+                echo ""
+                echo "🎉 MEDUSA is ready to use!"
+                echo ""
+                echo "To use 'medusa' command immediately, run:"
+                echo "  source $SHELL_CONFIG"
+                echo ""
+                echo "Or restart your terminal."
+                echo ""
+            else
+                echo "⚠️  Could not detect shell config file."
+                echo "  Please add manually to your shell configuration:"
+                echo "    export PATH=\"$SCRIPTS_DIR:\$PATH\""
+                echo ""
+            fi
+        else
+            echo ""
+            echo "Skipping PATH configuration."
+            echo ""
+            echo "To use 'medusa' command, add to your shell config:"
+            if [ -n "$SHELL_CONFIG" ]; then
+                echo "  echo 'export PATH=\"$SCRIPTS_DIR:\$PATH\"' >> $SHELL_CONFIG"
+                echo "  source $SHELL_CONFIG"
+            else
+                echo "  export PATH=\"$SCRIPTS_DIR:\$PATH\""
+            fi
+            echo ""
+            echo "Or use MEDUSA without PATH modification:"
+            echo "  $PYTHON_CMD -m medusa.cli --help"
+            echo ""
+        fi
+    fi
 fi
 
 echo "📚 Next steps:"

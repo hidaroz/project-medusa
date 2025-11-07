@@ -255,8 +255,15 @@ services:
       - healthcare-internal
       - healthcare-dmz
     depends_on:
-      - ehr-database
+      ehr-database:
+        condition: service_started
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
@@ -518,17 +525,17 @@ volumes:
 #   docker-compose logs -f medusa-backend
 #
 # Access services:
-#   MEDUSA Frontend:  http://localhost:3000
+#   MEDUSA Frontend:  http://localhost:8080
 #   MEDUSA Backend:   http://localhost:8000
-#   EHR Web Portal:   http://localhost:8080
-#   EHR API:          http://localhost:3001
+#   EHR API:          http://localhost:3001 (external) / ehr-api:3000 (internal)
+#   Log Viewer:       http://localhost:8081
 #   SSH:              ssh admin@localhost -p 2222
 #   MySQL:            mysql -h localhost -P 3306 -u ehrapp -pWelcome123!
-#   Log Viewer:       http://localhost:8081
 #
 # Health checks:
 #   curl http://localhost:8000/health
-#   curl http://localhost:3000/api/health
+#   curl http://localhost:8080/api/health
+#   curl http://localhost:3001/api/health
 #
 # Stop services:
 #   docker-compose down

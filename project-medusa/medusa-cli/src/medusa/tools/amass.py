@@ -11,6 +11,7 @@ from typing import Dict, List, Any, Optional
 from pathlib import Path
 
 from .base import BaseTool, ToolExecutionError
+from .graph_integration import CypherTemplates, update_graph
 
 
 class AmassScanner(BaseTool):
@@ -319,7 +320,37 @@ class AmassScanner(BaseTool):
             "severity": "low"  # Subdomains are informational findings
         }
 
+        # Update graph database with subdomain information
+        self._update_graph_for_subdomain(finding)
+
         return finding
+
+    def _update_graph_for_subdomain(self, finding: Dict[str, Any]) -> None:
+        """
+        Update graph database with subdomain information.
+
+        Args:
+            finding: Subdomain finding dictionary
+        """
+        try:
+            # Prepare parameters for Cypher query
+            parameters = {
+                "domain": finding.get("domain", ""),
+                "subdomain": finding.get("subdomain", ""),
+                "confidence": finding.get("confidence", "low"),
+                "sources": finding.get("sources", []),
+                "ip_addresses": finding.get("ip_addresses", [])
+            }
+
+            # Only update if we have valid data
+            if parameters["domain"] and parameters["subdomain"]:
+                update_graph(
+                    CypherTemplates.AMASS_SUBDOMAIN,
+                    parameters,
+                    tool_name=self.tool_name
+                )
+        except Exception as e:
+            self.logger.debug(f"Graph update failed for subdomain: {e}")
 
     async def quick_enum(self, domain: str) -> Dict[str, Any]:
         """

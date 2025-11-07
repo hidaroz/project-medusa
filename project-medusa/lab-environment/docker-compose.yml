@@ -1,5 +1,3 @@
-version: '3.8'
-
 # ============================================================================
 # MEDUSA Healthcare Network Simulation Lab
 # ============================================================================
@@ -10,44 +8,79 @@ version: '3.8'
 services:
   
   # ==========================================================================
-  # 1. VULNERABLE EHR WEB APPLICATION
+  # 1. EHR FRONTEND (Next.js Application)
   # ==========================================================================
-  # Simulates a healthcare web portal with common web vulnerabilities
+  # Modern React/Next.js frontend for MedCare EHR system
+  # This is the PRIMARY user interface for the EHR system
+  # Connects to: EHR Backend, EHR API, EHR Redis (via backend)
   # Intentional Vulnerabilities:
-  # - SQL Injection in patient search
-  # - XSS in patient notes
-  # - Insecure Direct Object Reference (IDOR)
-  # - Session management issues
-  # - Weak authentication
+  # - Client-side data exposure
+  # - Weak authentication (mock login)
+  # - XSS vectors in user input
+  # - Insecure API calls
   # ==========================================================================
-  ehr-webapp:
-    build: ./services/ehr-webapp
-    container_name: medusa_ehr_web
-    hostname: ehr-portal
+  ehr-frontend:
+    build: ./services/ehr-frontend
+    container_name: medusa_ehr_frontend
+    hostname: ehr-frontend
     ports:
-      - "8080:80"      # HTTP access to EHR portal
+      - "8080:3000"     # HTTP access to EHR frontend
     environment:
-      - DB_HOST=ehr-database
-      - DB_USER=ehrapp
-      - DB_PASS=Welcome123!
-      - DB_NAME=healthcare_db
-      - APACHE_RUN_USER=www-data
-      - APACHE_RUN_GROUP=www-data
-    volumes:
-      - ehr-logs:/var/log/apache2
-      - ehr-uploads:/var/www/html/uploads
+      - NODE_ENV=production
+      - NEXT_PUBLIC_EHR_API_URL=http://ehr-api:3000
+      - NEXT_PUBLIC_EHR_BACKEND_URL=http://ehr-backend:3000
+      - PORT=3000
     networks:
       - healthcare-dmz
       - healthcare-internal
     depends_on:
-      - ehr-database
+      ehr-api:
+        condition: service_healthy
+      ehr-backend:
+        condition: service_healthy
+      ehr-redis:
+        condition: service_healthy
     restart: unless-stopped
-    # Resource limits for laptop use
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
+
+  # ==========================================================================
+  # 1B. LEGACY PHP WEBAPP (DISABLED - Replaced by Next.js Frontend)
+  # ==========================================================================
+  # The PHP webapp is kept for reference but disabled
+  # Uncomment below if you need to re-enable it for testing
+  # ==========================================================================
+  # ehr-webapp:
+  #   build: ./services/ehr-webapp
+  #   container_name: medusa_ehr_web
+  #   hostname: ehr-portal-legacy
+  #   ports:
+  #     - "8081:80"      # Changed port to avoid conflict
+  #   environment:
+  #     - DB_HOST=ehr-database
+  #     - DB_USER=ehrapp
+  #     - DB_PASS=Welcome123!
+  #     - DB_NAME=healthcare_db
+  #   networks:
+  #     - healthcare-dmz
+  #     - healthcare-internal
+  #   depends_on:
+  #     - ehr-database
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '0.5'
+  #         memory: 512M
 
   # ==========================================================================
   # 2. EHR DATABASE (MySQL)
@@ -161,7 +194,7 @@ services:
           memory: 256M
 
   # ==========================================================================
-  # 5. EHR API SERVER
+  # 5. EHR API SERVER (REST API)
   # ==========================================================================
   # REST API backend for EHR system
   # Intentional Vulnerabilities:
@@ -185,6 +218,8 @@ services:
       - JWT_SECRET=supersecret123
       - NODE_ENV=production
       - LOG_LEVEL=debug
+      - REDIS_HOST=ehr-redis
+      - REDIS_PORT=6379
     volumes:
       - api-logs:/var/log/api
     networks:
@@ -192,12 +227,91 @@ services:
       - healthcare-dmz
     depends_on:
       - ehr-database
+      - ehr-redis
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 512M
+
+  # ==========================================================================
+  # 5B. EHR BACKEND (Business Logic Layer)
+  # ==========================================================================
+  # Backend service for business logic, authentication, and orchestration
+  # Connects EHR frontend with API, database, and cache
+  # ==========================================================================
+  ehr-backend:
+    build: ./services/ehr-api  # Reusing API for now
+    container_name: medusa_ehr_backend
+    hostname: ehr-backend
+    ports:
+      - "3002:3000"
+    environment:
+      - DB_HOST=ehr-database
+      - DB_USER=ehrapp
+      - DB_PASS=Welcome123!
+      - DB_NAME=healthcare_db
+      - JWT_SECRET=supersecret123
+      - NODE_ENV=production
+      - REDIS_HOST=ehr-redis
+      - REDIS_PORT=6379
+      - API_URL=http://ehr-api:3000
+    networks:
+      - healthcare-internal
+      - healthcare-dmz
+    depends_on:
+      - ehr-database
+      - ehr-redis
+      - ehr-api
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+
+  # ==========================================================================
+  # 5C. EHR REDIS CACHE
+  # ==========================================================================
+  # Redis cache for session management, caching, and temporary data storage
+  # Part of the complete EHR application stack
+  # ==========================================================================
+  ehr-redis:
+    image: redis:7-alpine
+    container_name: medusa_ehr_redis
+    hostname: ehr-redis
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass Welcome123!
+    ports:
+      - "6380:6379"  # External access for testing (not 6379 to avoid conflict)
+    volumes:
+      - ehr-redis-data:/data
+    networks:
+      - healthcare-internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.2'
+          memory: 256M
 
   # ==========================================================================
   # 6. LDAP DIRECTORY SERVER
@@ -377,6 +491,10 @@ volumes:
   # Centralized logging
   centralized-logs:
     driver: local
+  
+  # EHR Redis cache
+  ehr-redis-data:
+    driver: local
 
 # ============================================================================
 # USAGE INSTRUCTIONS
@@ -395,12 +513,14 @@ volumes:
 #   docker-compose up -d --build
 #
 # Access services:
-#   EHR Web Portal: http://localhost:8080
-#   EHR API: http://localhost:3000
-#   SSH Server: ssh admin@localhost -p 2222 (password: admin2024)
-#   MySQL: mysql -h localhost -P 3306 -u ehrapp -pWelcome123!
-#   FTP: ftp localhost 21 (user: fileadmin, pass: Files2024!)
-#   Log Viewer: http://localhost:8081
+#   EHR Frontend (Next.js):    http://localhost:8080
+#   EHR API (REST):            http://localhost:3001
+#   EHR Backend:               http://localhost:3002
+#   EHR Redis Cache:           redis-cli -h localhost -p 6380 -a Welcome123!
+#   SSH Server:                ssh admin@localhost -p 2222 (password: admin2024)
+#   MySQL Database:            mysql -h localhost -P 3306 -u ehrapp -pWelcome123!
+#   FTP File Server:           ftp localhost 21 (user: fileadmin, pass: Files2024!)
+#   Log Viewer:                http://localhost:8081
 #
 # Network inspection:
 #   docker network inspect medusa-dmz

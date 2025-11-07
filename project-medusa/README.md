@@ -8,15 +8,16 @@
 
 ## 🎯 Overview
 
-MEDUSA (Multi-Environment Detection and Understanding System for Autonomous testing) is an AI-powered penetration testing framework that combines Google Gemini's large language model capabilities with traditional security testing tools. It provides autonomous security assessment through intelligent decision-making in controlled, authorized test environments.
+MEDUSA (Multi-Environment Detection and Understanding System for Autonomous testing) is an AI-powered penetration testing framework that combines local and cloud language models with traditional security testing tools. It provides autonomous security assessment through intelligent decision-making in controlled, authorized test environments.
 
 **Key Features:**
-- 🤖 **AI-Powered Decision Making** - Google Gemini analyzes targets and recommends actions
+- 🤖 **AI-Powered Decision Making** - Local Mistral-7B or cloud providers (OpenAI, Anthropic) analyze targets
 - 🛡️ **Approval Gates** - Risk-based approval system prevents unintended actions
 - 🎮 **Three Modes** - Observe (read-only), Autonomous (AI-driven), Shell (interactive)
 - 🐳 **Comprehensive Lab** - 8 vulnerable Docker services for safe testing
 - 📊 **Rich Terminal UI** - Beautiful progress indicators and real-time feedback
 - 📝 **Detailed Reporting** - JSON logs and HTML reports with MITRE ATT&CK mapping
+- 🔄 **Multi-Provider Support** - Local Ollama, OpenAI, Anthropic, or mock (testing)
 
 ## ⚡ Quick Start
 
@@ -87,21 +88,28 @@ medusa observe scanme.nmap.org
 
 📚 **[Full Ollama Setup Guide](docs/OLLAMA_SETUP.md)**
 
-### Option 2: Google Gemini API
+### Option 2: Cloud Providers (Optional)
 
-**Fastest inference, but rate-limited on free tier.**
+**For production deployments with advanced models.**
 
 ```bash
-# Set API key
-export GEMINI_API_KEY="your-api-key-here"
+# OpenAI (GPT-4)
+export CLOUD_API_KEY="sk-..."
+export LLM_PROVIDER="openai"
+medusa observe scanme.nmap.org
 
-# Use Gemini
-medusa observe scanme.nmap.org --provider gemini
+# Or Anthropic (Claude-3)
+export CLOUD_API_KEY="sk-ant-..."
+export LLM_PROVIDER="anthropic"
+medusa observe scanme.nmap.org
 ```
 
-⚠️ **Note:** Free tier limited to ~3 scans/day (15 req/min). Local LLM has no limits.
+**Cloud Options:**
+- **OpenAI GPT-4**: Best reasoning, but most expensive
+- **Anthropic Claude**: Good balance of quality and cost
+- **Local Ollama** (default): Free, fast, private
 
-**Get API key:** [https://ai.google.dev/gemini-api/docs/quickstart](https://ai.google.dev/gemini-api/docs/quickstart)
+⚠️ **Note:** Cloud providers have rate limits and costs. Local Ollama has unlimited usage.
 
 ### Configuration
 

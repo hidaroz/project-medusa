@@ -11,6 +11,7 @@ from typing import Dict, List, Any, Optional
 from urllib.parse import urlparse
 
 from .base import BaseTool, ToolExecutionError
+from .graph_integration import CypherTemplates, update_graph
 
 
 class HttpxScanner(BaseTool):
@@ -290,6 +291,9 @@ class HttpxScanner(BaseTool):
             "confidence": "high"
         }
 
+        # Update graph database with web server information
+        self._update_graph_for_webserver(finding)
+
         return finding
 
     def _ensure_url_scheme(self, target: str, use_https: bool = True) -> str:
@@ -356,19 +360,23 @@ class HttpxScanner(BaseTool):
 
         return "low"
 
-    async def quick_validate(self, targets: List[str]) -> Dict[str, Any]:
+    async def quick_validate(self, targets: List[str], threads: Optional[int] = None) -> Dict[str, Any]:
         """
         Perform quick validation of targets
 
         Args:
             targets: List of targets to validate
+            threads: Optional thread count (defaults to self.threads, or 10 if not set)
 
         Returns:
             Validation results
         """
+        # Use provided threads, or self.threads, or a safe default (10)
+        actual_threads = threads if threads is not None else (self.threads if self.threads <= 20 else 10)
+        
         return await self.validate_servers(
             targets=targets,
-            threads=50,
+            threads=actual_threads,
             timeout_per_request=5
         )
 
@@ -388,4 +396,35 @@ class HttpxScanner(BaseTool):
             follow_redirects=True,
             timeout_per_request=10
         )
+
+    def _update_graph_for_webserver(self, finding: Dict[str, Any]) -> None:
+        """
+        Update graph database with web server information.
+
+        Args:
+            finding: Web server finding dictionary
+        """
+        try:
+            # Prepare parameters for Cypher query
+            parameters = {
+                "url": finding.get("url", ""),
+                "status_code": finding.get("status_code", 0),
+                "status_text": finding.get("status_text", ""),
+                "title": finding.get("title", ""),
+                "web_server": finding.get("web_server", "unknown"),
+                "content_type": finding.get("content_type", "unknown"),
+                "content_length": finding.get("content_length", 0),
+                "technologies": finding.get("technologies", []),
+                "ssl": finding.get("ssl", False)
+            }
+
+            # Only update if we have a valid URL
+            if parameters["url"]:
+                update_graph(
+                    CypherTemplates.HTTPX_WEBSERVER,
+                    parameters,
+                    tool_name=self.tool_name
+                )
+        except Exception as e:
+            self.logger.debug(f"Graph update failed for web server: {e}")
 

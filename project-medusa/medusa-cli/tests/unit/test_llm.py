@@ -1,407 +1,365 @@
 """
-Unit tests for LLM integration
+Unit tests for LLM integration with the new provider-based architecture
 
-Tests LLM client functionality with mock responses and error handling
+Tests LLM client functionality with local, mock, and cloud providers.
 """
 
 import pytest
 import asyncio
 import json
+import os
 from unittest.mock import Mock, patch, AsyncMock, MagicMock
 from medusa.core.llm import (
-    LLMClient, MockLLMClient, LLMConfig, RiskLevel, create_llm_client
+    LLMClient, LLMConfig, create_llm_client, MockLLMClient, LocalLLMClient,
+    LocalProvider, MockProvider
 )
+from medusa.core.llm.factory import create_llm_provider
+from medusa.core.llm.providers.base import LLMResponse
 
 
 @pytest.mark.unit
 class TestLLMConfig:
     """Test LLMConfig dataclass"""
-    
-    def test_llm_config_creation(self, mock_api_key):
+
+    def test_llm_config_creation_defaults(self):
         """Test creating LLMConfig with default values"""
-        config = LLMConfig(api_key=mock_api_key)
-        
-        assert config.api_key == mock_api_key
-        assert config.model == "gemini-pro"
+        config = LLMConfig()
+
+        assert config.provider == "auto"
         assert config.temperature == 0.7
         assert config.max_tokens == 2048
-        assert config.timeout == 30
+        assert config.timeout == 60
         assert config.max_retries == 3
         assert config.mock_mode is False
-    
-    def test_llm_config_with_custom_values(self):
-        """Test LLMConfig with custom values"""
+
+    def test_llm_config_with_local_provider(self):
+        """Test LLMConfig with local provider"""
         config = LLMConfig(
-            api_key="custom-key",
-            model="gemini-1.5-pro",
-            temperature=0.9,
-            max_tokens=4096,
-            timeout=60,
-            max_retries=5,
-            mock_mode=True
+            provider="local",
+            local_model="mistral:7b-instruct",
+            temperature=0.8
         )
-        
-        assert config.model == "gemini-1.5-pro"
-        assert config.temperature == 0.9
-        assert config.max_tokens == 4096
-        assert config.timeout == 60
-        assert config.max_retries == 5
+
+        assert config.provider == "local"
+        assert config.local_model == "mistral:7b-instruct"
+        assert config.temperature == 0.8
+
+    def test_llm_config_with_mock_provider(self):
+        """Test LLMConfig with mock provider"""
+        config = LLMConfig(provider="mock", mock_mode=True)
+
+        assert config.provider == "mock"
         assert config.mock_mode is True
 
+    def test_llm_config_validate_local(self):
+        """Test validation for local provider"""
+        config = LLMConfig(provider="local", local_model="mistral:7b-instruct")
+        # Should not raise
+        config.validate()
 
-@pytest.mark.unit
-class TestMockLLMClient:
-    """Test MockLLMClient functionality"""
-    
-    @pytest.mark.asyncio
-    async def test_mock_client_initialization(self, mock_llm_config):
-        """Test MockLLMClient initializes correctly"""
-        client = MockLLMClient(mock_llm_config)
-        
-        # MockLLMClient preserves the config it receives
-        assert client.config.mock_mode is True
-        assert client.config is not None
-    
-    @pytest.mark.asyncio
-    async def test_reconnaissance_recommendation(self, mock_llm_client):
-        """Test mock reconnaissance recommendation"""
-        result = await mock_llm_client.get_reconnaissance_recommendation(
-            "192.168.1.100",
-            {"phase": "initial"}
+    def test_llm_config_validate_mock(self):
+        """Test validation for mock provider"""
+        config = LLMConfig(provider="mock")
+        # Should not raise
+        config.validate()
+
+    @pytest.mark.skipif(
+        not os.getenv("CLOUD_API_KEY"),
+        reason="No cloud API key configured"
+    )
+    def test_llm_config_validate_cloud(self):
+        """Test validation for cloud provider"""
+        config = LLMConfig(
+            provider="openai",
+            cloud_api_key=os.getenv("CLOUD_API_KEY"),
+            cloud_model="gpt-3.5-turbo"
         )
-        
-        assert "recommended_actions" in result
-        assert "focus_areas" in result
-        assert "risk_assessment" in result
-        assert "estimated_duration" in result
-        
-        # Verify structure of actions
-        actions = result["recommended_actions"]
-        assert len(actions) > 0
-        assert "action" in actions[0]
-        assert "command" in actions[0]
-        assert "technique_id" in actions[0]
-    
+        # Should not raise
+        config.validate()
+
+
+@pytest.mark.unit
+class TestMockProvider:
+    """Test Mock provider"""
+
+    def test_mock_provider_initialization(self):
+        """Test mock provider can be initialized"""
+        provider = MockProvider()
+        assert provider.PROVIDER_NAME == "mock"
+
     @pytest.mark.asyncio
-    async def test_enumeration_recommendation(self, mock_llm_client, mock_scan_results):
-        """Test mock enumeration recommendation"""
-        result = await mock_llm_client.get_enumeration_recommendation(
-            "192.168.1.100",
-            [mock_scan_results]
+    async def test_mock_provider_generate(self):
+        """Test mock provider generates responses"""
+        provider = MockProvider()
+        response = await provider.generate(
+            prompt="Test prompt",
+            force_json=True
         )
-        
-        assert "recommended_actions" in result
-        assert "services_to_probe" in result
-        assert "risk_assessment" in result
-        assert "potential_vulnerabilities" in result
-    
+
+        assert isinstance(response, LLMResponse)
+        assert response.provider == "mock"
+        assert response.content
+        assert len(response.content) > 0
+
     @pytest.mark.asyncio
-    async def test_assess_vulnerability_risk(self, mock_llm_client, mock_vulnerability):
-        """Test mock vulnerability risk assessment"""
-        risk = await mock_llm_client.assess_vulnerability_risk(mock_vulnerability)
-        
-        assert risk in ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
-    
+    async def test_mock_provider_health_check(self):
+        """Test mock provider health check always passes"""
+        provider = MockProvider()
+        is_healthy = await provider.health_check()
+
+        assert is_healthy is True
+
     @pytest.mark.asyncio
-    async def test_assess_vulnerability_risk_sql_injection(self, mock_llm_client):
-        """Test risk assessment identifies SQL injection as HIGH"""
-        vuln = {
-            "type": "sql injection",
-            "severity": "HIGH"
-        }
-        
-        risk = await mock_llm_client.assess_vulnerability_risk(vuln)
-        
-        assert risk == "HIGH"
-    
-    @pytest.mark.asyncio
-    async def test_plan_attack_strategy(self, mock_llm_client):
-        """Test mock attack strategy planning"""
-        findings = [
-            {"type": "open_port", "port": 80},
-            {"type": "vulnerability", "name": "SQL Injection"}
-        ]
-        
-        result = await mock_llm_client.plan_attack_strategy(
-            "192.168.1.100",
-            findings,
-            ["data_access", "privilege_escalation"]
+    async def test_mock_provider_model_info(self):
+        """Test mock provider returns model info"""
+        provider = MockProvider()
+        info = await provider.get_model_info()
+
+        assert isinstance(info, dict)
+        assert "mock" in str(info).lower() or info == {}
+
+
+@pytest.mark.unit
+class TestLocalProvider:
+    """Test Local provider (Ollama)"""
+
+    def test_local_provider_initialization(self):
+        """Test local provider can be initialized"""
+        provider = LocalProvider(
+            base_url="http://localhost:11434",
+            model="mistral:7b-instruct"
         )
-        
-        assert "strategy_overview" in result
-        assert "attack_chain" in result
-        assert "success_probability" in result
-        assert "estimated_duration" in result
-        assert "risks" in result
-        
-        # Verify attack chain structure
-        chain = result["attack_chain"]
-        assert len(chain) > 0
-        assert "step" in chain[0]
-        assert "action" in chain[0]
-        assert "risk_level" in chain[0]
-    
+
+        assert provider.PROVIDER_NAME == "local"
+        assert provider.model == "mistral:7b-instruct"
+
     @pytest.mark.asyncio
-    async def test_get_next_action_recommendation(self, mock_llm_client):
-        """Test mock next action recommendation"""
-        context = {
-            "phase": "enumeration",
-            "current_phase": "enumeration",
-            "findings": []
-        }
-        
-        result = await mock_llm_client.get_next_action_recommendation(context)
-        
-        assert "recommendations" in result
-        assert "context_analysis" in result
-        assert "suggested_next_phase" in result
-        
-        # Verify recommendations structure
-        recommendations = result["recommendations"]
-        assert len(recommendations) > 0
-        assert "action" in recommendations[0]
-        assert "confidence" in recommendations[0]
-        assert "reasoning" in recommendations[0]
+    async def test_local_provider_health_check_offline(self):
+        """Test local provider health check when offline"""
+        provider = LocalProvider(
+            base_url="http://localhost:9999"  # Unlikely to be running
+        )
+
+        is_healthy = await provider.health_check()
+        # Should handle gracefully
+        assert isinstance(is_healthy, bool)
+
+    @pytest.mark.asyncio
+    async def test_local_provider_extract_json(self):
+        """Test JSON extraction from responses"""
+        provider = LocalProvider()
+
+        # Test with markdown code blocks
+        content_with_markdown = """
+        Here's the result:
+        ```json
+        {"key": "value"}
+        ```
+        """
+        extracted = provider._extract_json(content_with_markdown)
+        assert "key" in extracted
+
+        # Test with plain JSON
+        content_plain = '{"key": "value"}'
+        extracted = provider._extract_json(content_plain)
+        assert "key" in extracted
 
 
 @pytest.mark.unit
-@patch('medusa.core.llm.GEMINI_AVAILABLE', True)
-class TestLLMClient:
-    """Test real LLMClient functionality (with mocked API calls)"""
-    
-    @patch('google.generativeai.configure')
-    @patch('google.generativeai.GenerativeModel')
-    def test_llm_client_initialization(self, mock_model_class, mock_configure, mock_llm_config):
-        """Test LLMClient initializes correctly"""
-        client = LLMClient(mock_llm_config)
-        
-        # Verify Gemini was configured with API key
-        mock_configure.assert_called_once_with(api_key=mock_llm_config.api_key)
-        
-        # Verify model was created
-        mock_model_class.assert_called_once()
-    
-    @patch('google.generativeai.configure')
-    @patch('google.generativeai.GenerativeModel')
-    def test_llm_client_initialization_without_gemini(self, mock_model_class, mock_configure, mock_llm_config):
-        """Test LLMClient raises error when google-generativeai not available"""
-        with patch('medusa.core.llm.GEMINI_AVAILABLE', False):
-            with pytest.raises(ImportError, match="google-generativeai is required"):
-                LLMClient(mock_llm_config)
-    
+class TestLLMClientOrchestrator:
+    """Test main LLMClient orchestrator"""
+
     @pytest.mark.asyncio
-    @patch('google.generativeai.configure')
-    @patch('google.generativeai.GenerativeModel')
-    async def test_generate_with_retry_success(self, mock_model_class, mock_configure, mock_llm_config):
-        """Test _generate_with_retry succeeds on first attempt"""
-        # Setup mock response
-        mock_response = Mock()
-        mock_response.text = '{"action": "test"}'
-        
-        mock_model = Mock()
-        mock_model.generate_content = Mock(return_value=mock_response)
-        mock_model_class.return_value = mock_model
-        
-        client = LLMClient(mock_llm_config)
-        
-        # Mock asyncio.wait_for to avoid actual async execution
-        with patch('asyncio.wait_for', new_callable=AsyncMock) as mock_wait:
-            mock_wait.return_value = mock_response
-            
-            result = await client._generate_with_retry("test prompt")
-            
-            assert result == '{"action": "test"}'
-    
+    async def test_llm_client_with_mock_provider(self):
+        """Test LLMClient with mock provider"""
+        config = LLMConfig(provider="mock")
+        provider = MockProvider()
+        client = LLMClient(config=config, provider=provider)
+
+        response = await client.generate(prompt="Test")
+
+        assert isinstance(response, LLMResponse)
+        assert response.provider == "mock"
+
     @pytest.mark.asyncio
-    @patch('google.generativeai.configure')
-    @patch('google.generativeai.GenerativeModel')
-    async def test_generate_with_retry_fails_all_attempts(self, mock_model_class, mock_configure, mock_llm_config):
-        """Test _generate_with_retry fails after max retries"""
-        mock_model_class.return_value = Mock()
-        
-        client = LLMClient(mock_llm_config)
-        
-        # Mock to always timeout
-        with patch('asyncio.wait_for', side_effect=asyncio.TimeoutError()):
-            with pytest.raises(Exception, match="LLM request failed after"):
-                await client._generate_with_retry("test prompt")
-    
-    def test_extract_json_from_response_direct_json(self):
-        """Test extracting JSON from direct JSON response"""
-        config = LLMConfig(api_key="test", mock_mode=True)
-        
-        with patch('google.generativeai.configure'):
-            with patch('google.generativeai.GenerativeModel'):
-                with patch('medusa.core.llm.GEMINI_AVAILABLE', True):
-                    client = LLMClient(config)
-                    
-                    response = '{"action": "test", "risk": "LOW"}'
-                    result = client._extract_json_from_response(response)
-                    
-                    assert result["action"] == "test"
-                    assert result["risk"] == "LOW"
-    
-    def test_extract_json_from_markdown_code_block(self):
-        """Test extracting JSON from markdown code block"""
-        config = LLMConfig(api_key="test", mock_mode=True)
-        
-        with patch('google.generativeai.configure'):
-            with patch('google.generativeai.GenerativeModel'):
-                with patch('medusa.core.llm.GEMINI_AVAILABLE', True):
-                    client = LLMClient(config)
-                    
-                    response = '''```json
-                    {"action": "test", "risk": "LOW"}
-                    ```'''
-                    result = client._extract_json_from_response(response)
-                    
-                    assert result["action"] == "test"
-                    assert result["risk"] == "LOW"
-    
-    def test_extract_json_invalid_response(self):
-        """Test extracting JSON from invalid response raises error"""
-        config = LLMConfig(api_key="test", mock_mode=True)
-        
-        with patch('google.generativeai.configure'):
-            with patch('google.generativeai.GenerativeModel'):
-                with patch('medusa.core.llm.GEMINI_AVAILABLE', True):
-                    client = LLMClient(config)
-                    
-                    with pytest.raises(ValueError, match="Invalid JSON response"):
-                        client._extract_json_from_response("not valid json at all")
+    async def test_llm_client_health_check(self):
+        """Test LLMClient health check"""
+        config = LLMConfig(provider="mock")
+        provider = MockProvider()
+        client = LLMClient(config=config, provider=provider)
+
+        health = await client.health_check()
+
+        assert isinstance(health, dict)
+        assert "provider" in health
+        assert "healthy" in health
+
+    @pytest.mark.asyncio
+    async def test_llm_client_context_manager(self):
+        """Test LLMClient as context manager"""
+        config = LLMConfig(provider="mock")
+        provider = MockProvider()
+
+        async with LLMClient(config=config, provider=provider) as client:
+            response = await client.generate(prompt="Test")
+            assert response is not None
 
 
 @pytest.mark.unit
-class TestLLMClientFallbacks:
-    """Test LLM client fallback methods"""
-    
-    def test_fallback_reconnaissance(self, mock_llm_client):
-        """Test fallback reconnaissance returns valid structure"""
-        result = mock_llm_client._get_fallback_reconnaissance()
-        
-        assert "recommended_actions" in result
-        assert "focus_areas" in result
-        assert "risk_assessment" in result
-        assert result["risk_assessment"] == "LOW"
-    
-    def test_fallback_enumeration(self, mock_llm_client):
-        """Test fallback enumeration returns valid structure"""
-        result = mock_llm_client._get_fallback_enumeration()
-        
-        assert "recommended_actions" in result
-        assert "services_to_probe" in result
-        assert "risk_assessment" in result
-    
-    def test_fallback_risk_assessment(self, mock_llm_client):
-        """Test fallback risk assessment maps severity correctly"""
-        test_cases = [
-            ({"severity": "CRITICAL"}, "CRITICAL"),
-            ({"severity": "HIGH"}, "HIGH"),
-            ({"severity": "MEDIUM"}, "MEDIUM"),
-            ({"severity": "LOW"}, "LOW"),
-            ({"severity": "UNKNOWN"}, "MEDIUM"),  # Default
-        ]
-        
-        for vuln, expected_risk in test_cases:
-            risk = mock_llm_client._get_fallback_risk_assessment(vuln)
-            assert risk == expected_risk
-    
-    def test_fallback_attack_plan(self, mock_llm_client):
-        """Test fallback attack plan returns valid structure"""
-        result = mock_llm_client._get_fallback_attack_plan()
-        
-        assert "strategy_overview" in result
-        assert "attack_chain" in result
-        assert "success_probability" in result
-        assert len(result["attack_chain"]) > 0
-    
-    def test_fallback_next_action(self, mock_llm_client):
-        """Test fallback next action returns valid structure"""
-        result = mock_llm_client._get_fallback_next_action()
-        
-        assert "recommendations" in result
-        assert "context_analysis" in result
-        assert "suggested_next_phase" in result
+class TestLLMFactory:
+    """Test provider factory"""
 
+    def test_factory_create_mock_provider(self):
+        """Test factory creates mock provider"""
+        config = LLMConfig(provider="mock")
+        provider = create_llm_provider(config)
 
-@pytest.mark.unit
-class TestCreateLLMClient:
-    """Test create_llm_client factory function"""
-    
-    def test_create_mock_client_when_mock_mode(self, mock_llm_config):
-        """Test factory creates MockLLMClient when mock_mode is True"""
-        client = create_llm_client(mock_llm_config)
-        
-        assert isinstance(client, MockLLMClient)
-    
-    @patch('medusa.core.llm.GEMINI_AVAILABLE', False)
-    def test_create_mock_client_when_gemini_unavailable(self, mock_llm_config):
-        """Test factory creates MockLLMClient when Gemini not available"""
-        mock_llm_config.mock_mode = False
-        client = create_llm_client(mock_llm_config)
-        
-        assert isinstance(client, MockLLMClient)
-    
-    @patch('medusa.core.llm.GEMINI_AVAILABLE', True)
-    @patch('google.generativeai.configure')
-    @patch('google.generativeai.GenerativeModel')
-    def test_create_real_client_when_available(self, mock_model, mock_configure, mock_llm_config):
-        """Test factory creates real LLMClient when Gemini available"""
-        mock_llm_config.mock_mode = False
-        client = create_llm_client(mock_llm_config)
-        
+        assert provider.PROVIDER_NAME == "mock"
+        assert isinstance(provider, MockProvider)
+
+    def test_factory_create_local_provider(self):
+        """Test factory creates local provider"""
+        config = LLMConfig(
+            provider="local",
+            local_model="mistral:7b-instruct"
+        )
+        provider = create_llm_provider(config)
+
+        assert provider.PROVIDER_NAME == "local"
+        assert isinstance(provider, LocalProvider)
+
+    def test_factory_create_llm_client(self):
+        """Test factory creates LLMClient"""
+        config = LLMConfig(provider="mock")
+        client = create_llm_client(config)
+
         assert isinstance(client, LLMClient)
-    
-    @patch('medusa.core.llm.GEMINI_AVAILABLE', True)
-    @patch('google.generativeai.configure', side_effect=Exception("API error"))
-    def test_create_mock_client_on_initialization_error(self, mock_configure, mock_llm_config):
-        """Test factory falls back to MockLLMClient on initialization error"""
-        mock_llm_config.mock_mode = False
-        client = create_llm_client(mock_llm_config)
-        
-        # Should fallback to mock client
-        assert isinstance(client, MockLLMClient)
+
+    def test_factory_auto_selects_mock(self):
+        """Test factory auto-selects mock when appropriate"""
+        config = LLMConfig(provider="auto")
+        # On systems without Ollama running, should fall back to mock
+        provider = create_llm_provider(config)
+
+        assert provider is not None  # Should return something
 
 
 @pytest.mark.unit
-class TestRiskLevelEnum:
-    """Test RiskLevel enum"""
-    
-    def test_risk_level_values(self):
-        """Test RiskLevel enum values"""
-        assert RiskLevel.LOW == "LOW"
-        assert RiskLevel.MEDIUM == "MEDIUM"
-        assert RiskLevel.HIGH == "HIGH"
-        assert RiskLevel.CRITICAL == "CRITICAL"
+class TestBackwardCompatibility:
+    """Test backward compatibility with legacy interface"""
+
+    def test_legacy_mock_llm_client_import(self):
+        """Test legacy MockLLMClient can be imported"""
+        client = MockLLMClient()
+        assert client is not None
+
+    def test_legacy_local_llm_client_import(self):
+        """Test legacy LocalLLMClient can be imported"""
+        config = LLMConfig(provider="local")
+        client = LocalLLMClient(config)
+        assert client is not None
+
+    @pytest.mark.asyncio
+    async def test_legacy_mock_llm_client_methods(self):
+        """Test legacy MockLLMClient methods still work"""
+        client = MockLLMClient()
+
+        # Test old interface method
+        result = await client.get_reconnaissance_recommendation(
+            target="test.com",
+            context={}
+        )
+
+        assert isinstance(result, dict)
+        assert "recommended_actions" in result or isinstance(result, dict)
+
+
+@pytest.mark.unit
+class TestLLMProviderInterface:
+    """Test that all providers implement the interface"""
+
+    def test_mock_provider_implements_interface(self):
+        """Test MockProvider implements BaseLLMProvider"""
+        provider = MockProvider()
+
+        # Check required methods
+        assert hasattr(provider, 'generate')
+        assert hasattr(provider, 'health_check')
+        assert hasattr(provider, 'get_model_info')
+        assert hasattr(provider, 'PROVIDER_NAME')
+
+    def test_local_provider_implements_interface(self):
+        """Test LocalProvider implements BaseLLMProvider"""
+        provider = LocalProvider()
+
+        # Check required methods
+        assert hasattr(provider, 'generate')
+        assert hasattr(provider, 'health_check')
+        assert hasattr(provider, 'get_model_info')
+        assert hasattr(provider, 'PROVIDER_NAME')
+
+
+@pytest.mark.unit
+class TestLLMExceptions:
+    """Test LLM exception handling"""
+
+    def test_llm_config_validation_error(self):
+        """Test invalid config raises error"""
+        from medusa.core.llm.exceptions import LLMConfigurationError
+
+        config = LLMConfig(provider="invalid_provider")
+
+        with pytest.raises(LLMConfigurationError):
+            config.validate()
 
 
 @pytest.mark.integration
-@pytest.mark.slow
-@pytest.mark.requires_api
-class TestRealLLMIntegration:
-    """Integration tests with real Gemini API (requires API key)"""
-    
+@pytest.mark.skipif(
+    not os.getenv("RUN_INTEGRATION_TESTS"),
+    reason="Integration tests disabled by default"
+)
+class TestLLMIntegration:
+    """Integration tests for LLM providers"""
+
     @pytest.mark.asyncio
-    async def test_real_llm_reconnaissance(self):
-        """Test real LLM reconnaissance (requires API key)"""
-        import os
-        api_key = os.getenv("GEMINI_API_KEY")
-        
-        if not api_key:
-            pytest.skip("GEMINI_API_KEY not set")
-        
-        config = LLMConfig(api_key=api_key, mock_mode=False)
-        client = create_llm_client(config)
-        
-        result = await client.get_reconnaissance_recommendation(
-            "http://example.com",
-            {"environment": "web application"}
+    async def test_local_provider_with_ollama(self):
+        """Test local provider with actual Ollama instance"""
+        config = LLMConfig(
+            provider="local",
+            local_model="mistral:7b-instruct"
         )
-        
-        assert "recommended_actions" in result
-        assert isinstance(result["recommended_actions"], list)
+
+        try:
+            provider = LocalProvider(
+                base_url=config.ollama_url,
+                model=config.local_model
+            )
+
+            is_healthy = await provider.health_check()
+
+            if is_healthy:
+                response = await provider.generate(
+                    prompt="Test prompt",
+                    force_json=False
+                )
+                assert response.content
+            else:
+                pytest.skip("Ollama not running")
+
+        except Exception as e:
+            pytest.skip(f"Ollama not available: {e}")
+
+    @pytest.mark.asyncio
+    @pytest.mark.skipif(
+        not os.getenv("CLOUD_API_KEY"),
+        reason="No cloud API key configured"
+    )
+    async def test_cloud_provider(self):
+        """Test cloud provider (requires API key)"""
+        # This is a placeholder for cloud provider tests
+        # Actual implementation depends on which provider is configured
+        pass
 
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

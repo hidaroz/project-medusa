@@ -35,7 +35,6 @@ class ObserveMode:
 
     async def run(self):
         """Execute observation and intelligence gathering"""
-        display.show_banner()
         display.console.print()
         display.console.print(
             f"[bold cyan]Starting Observation Mode[/bold cyan] against [yellow]{self.target}[/yellow]"

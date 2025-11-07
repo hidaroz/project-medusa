@@ -14,6 +14,7 @@ import json
 import yaml
 import tempfile
 import shutil
+import platform
 from pathlib import Path
 from typing import Dict, Any
 from unittest.mock import Mock, AsyncMock
@@ -345,6 +346,67 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "manual: Tests that require manual setup or specific environment"
     )
+    config.addinivalue_line(
+        "markers", "resource_intensive: Tests that use significant CPU/memory resources"
+    )
+
+
+# ============================================================================
+# Platform-Aware Resource Configuration
+# ============================================================================
+
+def get_optimal_thread_count(default: int, max_threads: int = None) -> int:
+    """
+    Get optimal thread count based on platform to avoid system lag
+    
+    Args:
+        default: Default thread count for production
+        max_threads: Maximum threads to use (defaults to lower values on macOS)
+        
+    Returns:
+        Optimal thread count for current platform
+    """
+    system = platform.system().lower()
+    
+    # macOS tends to lag with high thread counts, use lower values
+    if system == "darwin":  # macOS
+        if max_threads is None:
+            max_threads = 10  # Conservative limit for macOS
+        return min(default, max_threads)
+    
+    # Linux can handle more threads
+    elif system == "linux":
+        if max_threads is None:
+            max_threads = 20  # Moderate limit for testing
+        return min(default, max_threads)
+    
+    # Windows - conservative
+    else:
+        if max_threads is None:
+            max_threads = 10
+        return min(default, max_threads)
+
+
+@pytest.fixture
+def test_thread_count():
+    """
+    Provide optimal thread count for testing based on platform
+    
+    Returns:
+        int: Thread count safe for testing (lower on macOS)
+    """
+    return get_optimal_thread_count(default=5, max_threads=5)
+
+
+@pytest.fixture
+def test_timeout():
+    """
+    Provide shorter timeout for testing to avoid long waits
+    
+    Returns:
+        int: Timeout in seconds
+    """
+    return 60  # 1 minute for tests
 
 
 # ============================================================================

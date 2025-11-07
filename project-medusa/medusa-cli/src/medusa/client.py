@@ -33,21 +33,32 @@ class MedusaClient:
 
         # Initialize LLM client
         if llm_config:
+            # Create LLMConfig from dict, supporting both new and legacy formats
             llm_cfg = LLMConfig(
-                api_key=llm_config.get("api_key", api_key),
-                model=llm_config.get("model", "gemini-pro"),
+                # New provider-based fields
+                provider=llm_config.get("provider", "auto"),
+                local_model=llm_config.get("local_model", "mistral:7b-instruct"),
+                ollama_url=llm_config.get("ollama_url", "http://localhost:11434"),
+                cloud_api_key=llm_config.get("cloud_api_key"),
+                cloud_model=llm_config.get("cloud_model"),
+                cloud_base_url=llm_config.get("cloud_base_url"),
+                # Generation parameters
                 temperature=llm_config.get("temperature", 0.7),
                 max_tokens=llm_config.get("max_tokens", 2048),
-                timeout=llm_config.get("timeout", 30),
+                timeout=llm_config.get("timeout", 60),
                 max_retries=llm_config.get("max_retries", 3),
-                mock_mode=llm_config.get("mock_mode", False)
+                mock_mode=llm_config.get("mock_mode", False),
+                # Legacy compatibility fields
+                api_key=llm_config.get("api_key") or api_key,  # Fallback to api_key param
+                model=llm_config.get("model")  # Legacy model field
             )
             self.llm_client = create_llm_client(llm_cfg)
-            logger.info(f"LLM client initialized: {type(self.llm_client).__name__}")
+            logger.info(f"LLM client initialized: provider={llm_cfg.provider}, model={llm_cfg.local_model or llm_cfg.cloud_model or 'default'}")
         else:
             # Fallback to mock mode if no config provided
-            self.llm_client = MockLLMClient()
-            logger.info("No LLM config provided, using MockLLMClient")
+            llm_cfg = LLMConfig(provider="mock", mock_mode=True)
+            self.llm_client = create_llm_client(llm_cfg)
+            logger.info("No LLM config provided, using MockProvider")
 
         # Initialize real pentesting tools
         self.nmap = NmapScanner(timeout=600)
