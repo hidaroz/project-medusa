@@ -1,0 +1,108 @@
+# ============================================================================
+# MEDUSA Neo4j Configuration
+# ============================================================================
+# Configuration file for connecting to the Neo4j World Model database
+# ============================================================================
+
+# Connection Settings
+neo4j:
+  # Connection URI (Bolt protocol)
+  uri: "bolt://localhost:7687"
+
+  # Alternative: Use Neo4j+s for secure connection
+  # uri: "neo4j+s://localhost:7687"
+
+  # HTTP Browser Interface
+  browser_url: "http://localhost:7474"
+
+  # Authentication
+  auth:
+    username: "neo4j"
+    password: "medusa_graph_pass"  # Change this in production!
+    # Override with environment variable: NEO4J_PASSWORD
+
+  # Connection Pool Settings
+  connection:
+    max_connection_lifetime: 3600  # seconds
+    max_connection_pool_size: 50
+    connection_acquisition_timeout: 60  # seconds
+
+  # Database Settings
+  database: "neo4j"  # Default database name
+
+  # Performance Settings
+  performance:
+    fetch_size: 1000
+    encrypted: false
+    trust: "TRUST_ALL_CERTIFICATES"
+
+  # Timeout Settings
+  timeouts:
+    connection_timeout: 30  # seconds
+    max_transaction_retry_time: 30  # seconds
+
+# Docker Settings (when running via Docker Compose)
+docker:
+  service_name: "medusa-neo4j"
+  container_name: "medusa_neo4j"
+  network: "medusa-dmz"
+
+  # Internal URI (from other Docker containers)
+  internal_uri: "bolt://medusa-neo4j:7687"
+
+  # Volumes
+  volumes:
+    data: "medusa-neo4j-data"
+    logs: "medusa-neo4j-logs"
+    import: "medusa-neo4j-import"
+
+# Neo4j AuraDB Settings (Alternative cloud setup)
+auradb:
+  enabled: false
+  uri: "neo4j+s://<instance-id>.databases.neo4j.io"
+  username: "neo4j"
+  password: "<auradb-password>"
+  database: "neo4j"
+
+# Schema Settings
+schema:
+  init_script: "./neo4j-schema/init-schema.cypher"
+  sample_data: "./neo4j-schema/sample-data.cypher"
+
+  # Auto-initialize on first connection
+  auto_initialize: true
+
+  # Verify constraints and indexes on startup
+  verify_schema: true
+
+# Application Settings
+application:
+  # Enable/disable World Model features
+  enabled: true
+
+  # Logging
+  log_level: "INFO"  # DEBUG, INFO, WARNING, ERROR
+  log_queries: false  # Log all Cypher queries (for debugging)
+
+  # Caching
+  cache_results: true
+  cache_ttl: 300  # seconds
+
+# Query Settings
+queries:
+  # Default query limits
+  default_limit: 100
+  max_limit: 1000
+
+  # Enable query profiling
+  profile_queries: false
+
+  # Query timeout (milliseconds)
+  timeout: 30000
+
+# Backup Settings
+backup:
+  enabled: false
+  schedule: "0 2 * * *"  # Daily at 2 AM (cron format)
+  retention_days: 7
+  backup_path: "./backups/neo4j"
