@@ -1,0 +1,368 @@
+{
+  "version": "2.0",
+  "last_updated": "2025-11-06",
+  "description": "Component relationship map showing attacker-target architecture and data flow",
+
+  "architecture_overview": {
+    "attacker": "MEDUSA AI Agent",
+    "target": "MedCare EHR System",
+    "relationship": "MEDUSA (attacker) performs autonomous penetration testing against MedCare (target)"
+  },
+
+  "components": {
+    "medusa_cli": {
+      "name": "MEDUSA CLI",
+      "role": "attacker",
+      "type": "python_application",
+      "path": "/medusa-cli",
+      "description": "AI-powered autonomous penetration testing agent",
+      "depends_on": [
+        "ollama_llm",
+        "gemini_api",
+        "training_data"
+      ],
+      "attacks": [
+        "medcare_ehr_api",
+        "medcare_ehr_webapp",
+        "medcare_ldap",
+        "medcare_mysql",
+        "medcare_ssh",
+        "medcare_ftp"
+      ],
+      "outputs": [
+        "scan_reports",
+        "attack_logs",
+        "mitre_mappings"
+      ],
+      "key_features": [
+        "LLM-driven decision making",
+        "Approval gates system",
+        "MITRE ATT&CK mapping",
+        "Interactive shell mode",
+        "Checkpoint system"
+      ]
+    },
+
+    "medusa_webapp": {
+      "name": "MEDUSA Web Interface",
+      "role": "attacker",
+      "type": "react_application",
+      "path": "/medusa-webapp",
+      "description": "Control interface and dashboard for MEDUSA agent",
+      "depends_on": [
+        "medusa_cli"
+      ],
+      "provides": [
+        "Web-based control panel",
+        "Real-time monitoring",
+        "Attack configuration UI",
+        "Report visualization"
+      ]
+    },
+
+    "training_data": {
+      "name": "Training Data",
+      "role": "attacker",
+      "type": "data",
+      "path": "/training-data",
+      "description": "LLM training datasets based on MITRE ATT&CK framework",
+      "used_by": [
+        "medusa_cli"
+      ],
+      "format": "JSON datasets",
+      "categories": [
+        "reconnaissance",
+        "initial-access",
+        "execution",
+        "persistence",
+        "privilege-escalation",
+        "defense-evasion",
+        "credential-access",
+        "discovery",
+        "lateral-movement",
+        "collection",
+        "exfiltration"
+      ]
+    },
+
+    "medcare_ehr_api": {
+      "name": "MedCare EHR API",
+      "role": "target",
+      "type": "nodejs_api",
+      "path": "/lab-environment/services/ehr-api",
+      "description": "Intentionally vulnerable healthcare backend API",
+      "vulnerabilities": [
+        "SQL injection",
+        "Authentication bypass",
+        "Insecure direct object references",
+        "Missing authorization checks"
+      ],
+      "exposes": [
+        "Patient data endpoints",
+        "Employee data endpoints",
+        "Authentication endpoints",
+        "Health check endpoint"
+      ],
+      "depends_on": [
+        "medcare_mysql"
+      ],
+      "port": 3000
+    },
+
+    "medcare_ehr_webapp": {
+      "name": "MedCare EHR Web App",
+      "role": "target",
+      "type": "web_application",
+      "path": "/lab-environment/services/ehr-webapp",
+      "description": "Vulnerable healthcare web portal",
+      "vulnerabilities": [
+        "XSS vulnerabilities",
+        "CSRF",
+        "Insecure session management",
+        "Path traversal"
+      ],
+      "depends_on": [
+        "medcare_ehr_api",
+        "medcare_mysql"
+      ],
+      "port": 8080
+    },
+
+    "medcare_ehr_webapp_static": {
+      "name": "MedCare Static Web App",
+      "role": "target",
+      "type": "static_site",
+      "path": "/lab-environment/services/ehr-webapp-static",
+      "description": "Static vulnerable web application",
+      "vulnerabilities": [
+        "Client-side vulnerabilities",
+        "Exposed configuration",
+        "Insecure file handling"
+      ]
+    },
+
+    "medcare_mysql": {
+      "name": "MedCare MySQL Database",
+      "role": "target",
+      "type": "database",
+      "path": "/lab-environment/services/mysql",
+      "description": "Healthcare database with patient and employee data",
+      "vulnerabilities": [
+        "Weak credentials",
+        "Exposed ports",
+        "Missing encryption"
+      ],
+      "contains": [
+        "Patient records",
+        "Employee data",
+        "Medical records",
+        "Authentication data"
+      ],
+      "port": 3306
+    },
+
+    "medcare_ldap": {
+      "name": "MedCare LDAP Server",
+      "role": "target",
+      "type": "ldap_server",
+      "path": "/lab-environment/services/ldap",
+      "description": "Directory service for authentication",
+      "vulnerabilities": [
+        "LDAP injection",
+        "Anonymous bind",
+        "Weak access controls"
+      ],
+      "ports": [389, 636]
+    },
+
+    "medcare_ssh": {
+      "name": "MedCare SSH Server",
+      "role": "target",
+      "type": "ssh_server",
+      "path": "/lab-environment/services/ssh-server",
+      "description": "Vulnerable SSH service",
+      "vulnerabilities": [
+        "Weak credentials",
+        "Outdated SSH version",
+        "Misconfigured access"
+      ],
+      "port": 2222
+    },
+
+    "medcare_ftp": {
+      "name": "MedCare FTP Server",
+      "role": "target",
+      "type": "ftp_server",
+      "path": "/lab-environment/services/ftp-server",
+      "description": "Vulnerable FTP service",
+      "vulnerabilities": [
+        "Anonymous FTP access",
+        "Weak credentials",
+        "Unencrypted transmission"
+      ],
+      "port": 21
+    },
+
+    "medcare_log_collector": {
+      "name": "Log Collector",
+      "role": "target",
+      "type": "logging_service",
+      "path": "/lab-environment/services/log-collector",
+      "description": "Centralized logging service",
+      "collects_from": [
+        "medcare_ehr_api",
+        "medcare_ehr_webapp",
+        "medcare_mysql"
+      ],
+      "port": 8081
+    },
+
+    "medcare_workstation": {
+      "name": "Workstation",
+      "role": "target",
+      "type": "workstation",
+      "path": "/lab-environment/services/workstation",
+      "description": "Simulated user workstation",
+      "vulnerabilities": [
+        "Weak local security",
+        "Credential storage",
+        "Privilege escalation paths"
+      ]
+    }
+  },
+
+  "attack_flow": {
+    "description": "Typical attack flow from MEDUSA to MedCare",
+    "steps": [
+      {
+        "step": 1,
+        "phase": "Reconnaissance",
+        "actor": "medusa_cli",
+        "targets": ["medcare_ehr_webapp", "medcare_ehr_api"],
+        "actions": ["Port scanning", "Service enumeration", "Technology fingerprinting"]
+      },
+      {
+        "step": 2,
+        "phase": "Initial Access",
+        "actor": "medusa_cli",
+        "targets": ["medcare_ehr_api", "medcare_ssh", "medcare_ftp"],
+        "actions": ["Authentication testing", "Exploit vulnerable endpoints", "Credential attacks"]
+      },
+      {
+        "step": 3,
+        "phase": "Credential Access",
+        "actor": "medusa_cli",
+        "targets": ["medcare_ldap", "medcare_mysql"],
+        "actions": ["LDAP enumeration", "Database credential extraction", "Password cracking"]
+      },
+      {
+        "step": 4,
+        "phase": "Lateral Movement",
+        "actor": "medusa_cli",
+        "targets": ["medcare_workstation", "medcare_ssh"],
+        "actions": ["SSH lateral movement", "Credential reuse", "Service exploitation"]
+      },
+      {
+        "step": 5,
+        "phase": "Collection",
+        "actor": "medusa_cli",
+        "targets": ["medcare_mysql", "medcare_ehr_api"],
+        "actions": ["Patient data extraction", "Medical records access", "Employee data collection"]
+      },
+      {
+        "step": 6,
+        "phase": "Reporting",
+        "actor": "medusa_cli",
+        "outputs": ["MITRE ATT&CK mapped report", "Vulnerability summary", "Remediation recommendations"]
+      }
+    ]
+  },
+
+  "data_flow": {
+    "llm_integration": {
+      "from": ["ollama_llm", "gemini_api"],
+      "to": "medusa_cli",
+      "type": "AI decision making",
+      "data": ["Attack recommendations", "Risk assessments", "Natural language analysis"]
+    },
+    "training_data_flow": {
+      "from": "training_data",
+      "to": "medusa_cli",
+      "type": "LLM context",
+      "data": ["MITRE ATT&CK techniques", "Attack patterns", "Security knowledge"]
+    },
+    "attack_flow": {
+      "from": "medusa_cli",
+      "to": ["medcare_ehr_api", "medcare_ehr_webapp", "medcare_ldap", "medcare_mysql", "medcare_ssh", "medcare_ftp"],
+      "type": "Security testing",
+      "data": ["HTTP requests", "SQL queries", "Authentication attempts", "Network packets"]
+    },
+    "target_responses": {
+      "from": ["medcare_ehr_api", "medcare_ehr_webapp", "medcare_mysql"],
+      "to": "medusa_cli",
+      "type": "Response data",
+      "data": ["HTTP responses", "Database results", "Error messages", "Authentication tokens"]
+    },
+    "logging": {
+      "from": ["medcare_ehr_api", "medcare_ehr_webapp", "medcare_mysql"],
+      "to": "medcare_log_collector",
+      "type": "Audit logs",
+      "data": ["Access logs", "Error logs", "Security events"]
+    }
+  },
+
+  "external_dependencies": {
+    "ollama_llm": {
+      "name": "Ollama Local LLM",
+      "type": "external_service",
+      "description": "Local LLM server (Mistral 7B)",
+      "url": "http://localhost:11434",
+      "used_by": ["medusa_cli"],
+      "purpose": "AI decision making without external API"
+    },
+    "gemini_api": {
+      "name": "Google Gemini API",
+      "type": "external_api",
+      "description": "Cloud-based LLM service",
+      "url": "https://generativelanguage.googleapis.com",
+      "used_by": ["medusa_cli"],
+      "purpose": "Alternative AI decision making (requires API key)"
+    }
+  },
+
+  "network_topology": {
+    "networks": [
+      {
+        "name": "medusa-network",
+        "description": "MEDUSA agent network",
+        "components": ["medusa_cli", "medusa_webapp"]
+      },
+      {
+        "name": "medcare-dmz",
+        "description": "MedCare DMZ network",
+        "subnet": "172.20.0.0/24",
+        "components": ["medcare_ehr_webapp", "medcare_ehr_api"]
+      },
+      {
+        "name": "medcare-internal",
+        "description": "MedCare internal network",
+        "subnet": "172.21.0.0/24",
+        "components": ["medcare_mysql", "medcare_ldap", "medcare_ssh", "medcare_ftp", "medcare_workstation"]
+      }
+    ]
+  },
+
+  "security_model": {
+    "approval_gates": {
+      "description": "Two-tier approval system in MEDUSA CLI",
+      "levels": ["LOW", "MEDIUM", "HIGH", "CRITICAL"],
+      "enforced_by": "medusa_cli",
+      "prevents": "Unauthorized destructive actions"
+    },
+    "ethical_guidelines": {
+      "scope": "Educational and authorized testing only",
+      "requirements": ["Explicit authorization", "Isolated environment", "Audit logging"],
+      "documented_in": "/docs/06-security/"
+    }
+  }
+}
