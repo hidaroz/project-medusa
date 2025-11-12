@@ -5,6 +5,7 @@ LLM configuration for MEDUSA.
 import os
 from dataclasses import dataclass, field
 from typing import Optional
+from .exceptions import LLMConfigurationError
 
 
 @dataclass
@@ -118,17 +119,17 @@ class LLMConfig:
         """Validate configuration"""
         if self.provider == "local":
             if not self.local_model:
-                raise ValueError("local_model is required for local provider")
+                raise LLMConfigurationError("local_model is required for local provider")
 
         elif self.provider == "openai":
             if not self.cloud_api_key:
-                raise ValueError("cloud_api_key is required for OpenAI provider")
+                raise LLMConfigurationError("cloud_api_key is required for OpenAI provider")
             if not self.cloud_model:
                 self.cloud_model = "gpt-4-turbo-preview"
 
         elif self.provider == "anthropic":
             if not self.cloud_api_key:
-                raise ValueError("cloud_api_key is required for Anthropic provider")
+                raise LLMConfigurationError("cloud_api_key is required for Anthropic provider")
             if not self.cloud_model:
                 self.cloud_model = "claude-3-sonnet-20240229"
 
@@ -141,7 +142,7 @@ class LLMConfig:
                 self.aws_region = "us-west-2"
 
         elif self.provider not in ["auto", "mock"]:
-            raise ValueError(
+            raise LLMConfigurationError(
                 f"Unknown provider: {self.provider}. "
                 f"Valid: local, openai, anthropic, bedrock, mock, auto"
             )
