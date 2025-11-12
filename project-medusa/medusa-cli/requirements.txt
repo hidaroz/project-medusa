@@ -40,6 +40,10 @@ flask-limiter==3.5.0  # Rate limiting for API endpoints
 neo4j==5.14.1
 pydantic==2.5.3
 
+# Vector Database (for Context Fusion Engine)
+chromadb>=0.4.22
+sentence-transformers>=2.3.1
+
 # Testing
 pytest==7.4.3
 pytest-cov==4.1.0
