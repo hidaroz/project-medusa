@@ -39,6 +39,9 @@
 
 **Path**: `/docs/01-architecture/`
 
+- [**Multi-Agent Evolution Plan**](01-architecture/multi-agent-evolution-plan.md) - 🚀 **NEW: Comprehensive implementation plan for AWS Bedrock, Vector DB, and Multi-Agent System**
+- [Project Overview](01-architecture/project-overview.md) - High-level system overview
+- [CLI Architecture](01-architecture/cli-architecture.md) - CLI component design
 - System Overview - *To be created*
 - Component Design - *To be created*
 - Network Architecture - *To be created*

@@ -15,6 +15,7 @@ This section documents MEDUSA's architecture, including system design, component
 ### System Design
 - [Project Overview](project-overview.md) - High-level system overview and goals
 - [CLI Architecture](cli-architecture.md) - CLI component design and structure
+- [**Multi-Agent Evolution Plan**](multi-agent-evolution-plan.md) - 🚀 **Comprehensive implementation plan for AWS Bedrock, Vector DB, and Multi-Agent System**
 
 ### Technical Documentation
 - System Overview - *To be created* - Detailed system architecture
