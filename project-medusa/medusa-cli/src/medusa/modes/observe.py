@@ -72,7 +72,6 @@ class ObserveMode:
     async def _passive_reconnaissance(self, client: MedusaClient):
         """Passive reconnaissance - minimal footprint"""
         display.console.print("[bold blue]═══ Phase 1: Passive Reconnaissance ═══[/bold blue]")
-        display.console.print("[green]✅ REAL DATA[/green]\n")
 
         display.show_agent_thinking(
             "Performing passive reconnaissance with minimal detection footprint. "
@@ -111,7 +110,6 @@ class ObserveMode:
     async def _active_enumeration(self, client: MedusaClient):
         """Active enumeration - direct interaction with target"""
         display.console.print("[bold blue]═══ Phase 2: Active Enumeration ═══[/bold blue]")
-        display.console.print("[green]✅ REAL DATA[/green]\n")
 
         display.show_agent_thinking(
             "Actively probing the target to identify API endpoints, "

@@ -6,6 +6,8 @@ It handles provider selection, error handling, and metrics tracking.
 """
 
 import logging
+import json
+import re
 from typing import Optional, Dict, Any
 
 from .config import LLMConfig
@@ -156,6 +158,144 @@ class LLMClient:
                 "provider": self.provider.PROVIDER_NAME,
                 "healthy": False,
                 "error": str(e)
+            }
+
+    def _extract_json_from_response(self, response: str) -> Dict[str, Any]:
+        """
+        Extract JSON from LLM response.
+        
+        Handles various formats:
+        - Pure JSON
+        - JSON wrapped in markdown code blocks
+        - JSON with surrounding text
+        """
+        try:
+            return json.loads(response)
+        except json.JSONDecodeError:
+            # Try to extract JSON from markdown code blocks
+            json_match = re.search(
+                r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL
+            )
+            if json_match:
+                try:
+                    return json.loads(json_match.group(1))
+                except json.JSONDecodeError:
+                    pass
+            
+            # Try to find JSON object in the response
+            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            if json_match:
+                try:
+                    return json.loads(json_match.group(0))
+                except json.JSONDecodeError:
+                    pass
+            
+            raise ValueError("Invalid JSON response from LLM")
+
+    async def get_reconnaissance_recommendation(
+        self,
+        target: str,
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Get AI recommendation for reconnaissance phase.
+        
+        Args:
+            target: Target URL or IP address
+            context: Additional context for the reconnaissance
+            
+        Returns:
+            Dict with reconnaissance recommendations including:
+            - recommended_actions: List of actions to perform
+            - focus_areas: Areas to focus on
+            - risk_assessment: Risk level assessment
+        """
+        try:
+            from medusa.core.prompts import PromptTemplates
+            
+            prompt = PromptTemplates.reconnaissance_strategy(target, context)
+            self.logger.debug(f"Requesting reconnaissance recommendation for {target}")
+            
+            response = await self.generate(
+                prompt=prompt,
+                force_json=True
+            )
+            
+            result = self._extract_json_from_response(response.content)
+            self.logger.info(f"Reconnaissance recommendation generated for {target}")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get reconnaissance recommendation: {e}")
+            # Return fallback response
+            return {
+                "recommended_actions": [
+                    {
+                        "action": "port_scan",
+                        "ports": "1-1000",
+                        "technique_id": "T1046",
+                        "technique_name": "Network Service Discovery",
+                        "priority": "high",
+                        "reasoning": "Standard port scanning to discover open services"
+                    },
+                    {
+                        "action": "web_fingerprint",
+                        "technique_id": "T1595.002",
+                        "technique_name": "Active Scanning",
+                        "priority": "high",
+                        "reasoning": "Identify web technologies and versions"
+                    }
+                ],
+                "focus_areas": ["web_services", "network_services"],
+                "risk_assessment": "LOW"
+            }
+
+    async def get_next_action_recommendation(
+        self,
+        context: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        Get recommendation for the next action to take.
+        
+        Args:
+            context: Current operation context including phase, findings, history
+            
+        Returns:
+            Dict with recommendations including:
+            - recommendations: List of recommended actions
+            - context_analysis: Analysis of current context
+            - suggested_next_phase: Suggested next phase
+        """
+        try:
+            from medusa.core.prompts import PromptTemplates
+            
+            prompt = PromptTemplates.next_action_recommendation(context)
+            self.logger.debug("Requesting next action recommendation")
+            
+            response = await self.generate(
+                prompt=prompt,
+                force_json=True
+            )
+            
+            result = self._extract_json_from_response(response.content)
+            self.logger.info("Next action recommendation generated")
+            return result
+            
+        except Exception as e:
+            self.logger.error(f"Failed to get next action recommendation: {e}")
+            # Return fallback response
+            return {
+                "recommendations": [
+                    {
+                        "action": "continue_enumeration",
+                        "confidence": 0.7,
+                        "reasoning": "Continue systematic enumeration",
+                        "technique": "T1590",
+                        "risk_level": "LOW",
+                    }
+                ],
+                "context_analysis": "Continuing with safe reconnaissance activities",
+                "suggested_next_phase": context.get("phase", "enumeration"),
             }
 
     async def close(self):

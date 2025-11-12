@@ -146,7 +146,7 @@ def llm_verify():
 
 
 @app.callback(invoke_without_command=True)
-def main_callback():
+def main_callback(ctx: typer.Context):
     """
     Main callback - runs when no command is provided.
     Handles first-run experience and shows help.
@@ -157,8 +157,10 @@ def main_callback():
         run_first_time_wizard(config.exists())
     else:
         # Show banner and help if no command provided
-        display.show_banner()
-        console.print("\nUse [bold cyan]medusa --help[/bold cyan] to see available commands.")
+        # Only show if no command was actually invoked
+        if ctx.invoked_subcommand is None:
+            display.show_banner()
+            console.print("\nUse [bold cyan]medusa --help[/bold cyan] to see available commands.")
 
 
 @app.command()
@@ -286,11 +288,28 @@ def run(
             )
             raise typer.Exit(1)
 
-    # Get API key
-    api_key = config_data.get("api_key")
-    if not api_key:
-        console.print("[red]Error: No API key found in configuration.[/red]")
-        raise typer.Exit(1)
+    # Get LLM config to determine if API key is needed
+    llm_config = config.get_llm_config()
+    provider = llm_config.get("provider", "auto")
+    
+    # Check if API key is required (only for cloud providers)
+    api_key = config_data.get("api_key") or llm_config.get("cloud_api_key")
+    
+    # Only require API key for cloud providers
+    if provider in ["openai", "anthropic"]:
+        if not api_key:
+            console.print("[red]Error: API key required for cloud LLM provider.[/red]")
+            console.print(f"\n[yellow]Provider:[/yellow] {provider}")
+            console.print("[yellow]Solution:[/yellow]")
+            console.print("  1. Run [bold]medusa setup[/bold] to configure API key")
+            console.print("  2. Or set [bold]CLOUD_API_KEY[/bold] environment variable")
+            console.print("  3. Or use local provider: [bold]medusa setup[/bold] and choose 'Local (Ollama)'")
+            raise typer.Exit(1)
+    else:
+        # For local/mock/auto providers, API key is optional
+        # Use empty string if not provided (will be ignored)
+        if not api_key:
+            api_key = ""
 
     # Determine mode (priority: --autonomous flag > --mode flag > default)
     if autonomous:
@@ -342,7 +361,28 @@ def shell(
         raise typer.Exit(1)
 
     config_data = config.load()
-    api_key = config_data.get("api_key")
+    
+    # Get LLM config to determine if API key is needed
+    llm_config = config.get_llm_config()
+    provider = llm_config.get("provider", "auto")
+    
+    # Check if API key is required (only for cloud providers)
+    api_key = config_data.get("api_key") or llm_config.get("cloud_api_key")
+    
+    # Only require API key for cloud providers
+    if provider in ["openai", "anthropic"]:
+        if not api_key:
+            console.print("[red]Error: API key required for cloud LLM provider.[/red]")
+            console.print(f"\n[yellow]Provider:[/yellow] {provider}")
+            console.print("[yellow]Solution:[/yellow]")
+            console.print("  1. Run [bold]medusa setup[/bold] to configure API key")
+            console.print("  2. Or set [bold]CLOUD_API_KEY[/bold] environment variable")
+            console.print("  3. Or use local provider: [bold]medusa setup[/bold] and choose 'Local (Ollama)'")
+            raise typer.Exit(1)
+    else:
+        # For local/mock/auto providers, API key is optional
+        if not api_key:
+            api_key = ""
 
     # Use configured target if not provided
     if not target:
@@ -382,7 +422,28 @@ def observe(
         raise typer.Exit(1)
 
     config_data = config.load()
-    api_key = config_data.get("api_key")
+    
+    # Get LLM config to determine if API key is needed
+    llm_config = config.get_llm_config()
+    provider = llm_config.get("provider", "auto")
+    
+    # Check if API key is required (only for cloud providers)
+    api_key = config_data.get("api_key") or llm_config.get("cloud_api_key")
+    
+    # Only require API key for cloud providers
+    if provider in ["openai", "anthropic"]:
+        if not api_key:
+            console.print("[red]Error: API key required for cloud LLM provider.[/red]")
+            console.print(f"\n[yellow]Provider:[/yellow] {provider}")
+            console.print("[yellow]Solution:[/yellow]")
+            console.print("  1. Run [bold]medusa setup[/bold] to configure API key")
+            console.print("  2. Or set [bold]CLOUD_API_KEY[/bold] environment variable")
+            console.print("  3. Or use local provider: [bold]medusa setup[/bold] and choose 'Local (Ollama)'")
+            raise typer.Exit(1)
+    else:
+        # For local/mock/auto providers, API key is optional
+        if not api_key:
+            api_key = ""
 
     if not target:
         target = config_data.get("target", {}).get("url")

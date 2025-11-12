@@ -34,3 +34,48 @@
   Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.7
   
   *****
+[2025/11/07 16:51:37.764533,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/07 16:52:00.834032,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.6
+  
+  *****
+[2025/11/07 17:27:48.959509,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/07 17:28:11.059812,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.8
+  
+  *****
+[2025/11/07 18:44:16.922653,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/07 18:44:39.993880,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.5
+  
+  *****
+[2025/11/07 18:45:53.503552,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/07 18:46:16.616814,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.7
+  
+  *****
+[2025/11/07 21:47:47.157410,  0] ../../source3/nmbd/nmbd.c:901(main)
+  nmbd version 4.15.13-Ubuntu started.
+  Copyright Andrew Tridgell and the Samba Team 1992-2021
+[2025/11/07 21:48:10.227837,  0] ../../source3/nmbd/nmbd_become_lmb.c:398(become_local_master_stage2)
+  *****
+  
+  Samba name server WS-DOCTOR01 is now a local master browser for workgroup MEDCARE on subnet 172.21.0.4
+  
+  *****
