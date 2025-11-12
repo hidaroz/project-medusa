@@ -190,7 +190,6 @@ class AutonomousMode:
     async def _phase_reconnaissance(self, client: MedusaClient):
         """Phase 1: Reconnaissance"""
         display.console.print("[bold blue]═══ Phase 1: Reconnaissance ═══[/bold blue]")
-        display.console.print("[green]✅ REAL DATA[/green]\n")
 
         # Request approval for reconnaissance
         action = Action(
@@ -257,7 +256,6 @@ class AutonomousMode:
     async def _phase_enumeration(self, client: MedusaClient):
         """Phase 2: Enumeration"""
         display.console.print("[bold blue]═══ Phase 2: Enumeration ═══[/bold blue]")
-        display.console.print("[green]✅ REAL DATA[/green]\n")
 
         # Request approval
         action = Action(
@@ -536,18 +534,17 @@ class AutonomousMode:
         
         if real_phase_names:
             display.console.print(
-                f"[green]✅ Real Data:[/green] {', '.join(real_phase_names)} "
-                f"({len(real_findings)} findings)"
+                f"[green]{', '.join(real_phase_names)}[/green]: "
+                f"{len(real_findings)} findings"
             )
         
         if mock_phase_names:
             display.console.print(
-                f"[yellow]⚠️  Mock Data:[/yellow] {', '.join(mock_phase_names)} "
-                f"({len(mock_findings)} findings)"
+                f"[yellow]{', '.join(mock_phase_names)}[/yellow]: "
+                f"{len(mock_findings)} findings"
             )
         
         display.console.print()
-        display.console.print("[dim]Note: Mock data is for demonstration purposes[/dim]")
 
     async def _generate_reports(self, client: MedusaClient):
         """Generate final reports"""
