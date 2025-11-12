@@ -49,6 +49,25 @@ class LLMConfig:
         default_factory=lambda: os.getenv("CLOUD_BASE_URL")
     )
 
+    # AWS Bedrock configuration
+    aws_region: Optional[str] = field(
+        default_factory=lambda: os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION"))
+    )
+    aws_access_key_id: Optional[str] = field(
+        default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID")
+    )
+    aws_secret_access_key: Optional[str] = field(
+        default_factory=lambda: os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
+
+    # Model selection strategy
+    smart_model: str = field(
+        default_factory=lambda: os.getenv("SMART_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+    )
+    fast_model: str = field(
+        default_factory=lambda: os.getenv("FAST_MODEL", "anthropic.claude-3-5-haiku-20241022-v1:0")
+    )
+
     # Generation parameters
     temperature: float = field(
         default_factory=lambda: float(os.getenv("LLM_TEMPERATURE", "0.7"))
@@ -113,8 +132,16 @@ class LLMConfig:
             if not self.cloud_model:
                 self.cloud_model = "claude-3-sonnet-20240229"
 
+        elif self.provider == "bedrock":
+            # AWS credentials can come from env vars, ~/.aws/credentials, or IAM roles
+            # We don't enforce them here as boto3 handles credential chain
+            if not self.cloud_model:
+                self.cloud_model = "anthropic.claude-3-5-haiku-20241022-v1:0"
+            if not self.aws_region:
+                self.aws_region = "us-west-2"
+
         elif self.provider not in ["auto", "mock"]:
             raise ValueError(
                 f"Unknown provider: {self.provider}. "
-                f"Valid: local, openai, anthropic, mock, auto"
+                f"Valid: local, openai, anthropic, bedrock, mock, auto"
             )

@@ -11,6 +11,7 @@ from typing import Optional, Dict, Any
 from .config import LLMConfig
 from .providers.base import BaseLLMProvider, LLMResponse
 from .exceptions import LLMError
+from .router import ModelRouter
 
 
 logger = logging.getLogger(__name__)
@@ -61,7 +62,10 @@ class LLMClient:
         self.config = config
         self.provider = provider
         self.logger = logger
-        
+
+        # Initialize Model Router for smart model selection
+        self.router = ModelRouter(config)
+
         self.logger.info(
             f"LLMClient initialized with provider={provider.PROVIDER_NAME}, "
             f"model={getattr(provider, 'model', 'unknown')}"
@@ -122,6 +126,80 @@ class LLMClient:
         except Exception as e:
             self.logger.error(f"LLM generation failed: {e}")
             raise
+
+    async def generate_with_routing(
+        self,
+        prompt: str,
+        task_type: str,
+        system_prompt: Optional[str] = None,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        force_json: bool = False,
+        **kwargs
+    ) -> LLMResponse:
+        """
+        Generate with automatic model routing based on task complexity.
+
+        This method uses the ModelRouter to intelligently select between
+        fast (Haiku) and smart (Sonnet) models based on task complexity,
+        significantly reducing costs while maintaining quality.
+
+        Args:
+            prompt: User prompt
+            task_type: Task identifier for routing (e.g., "parse_nmap", "plan_attack")
+            system_prompt: System instructions
+            temperature: Override default temperature
+            max_tokens: Override default max tokens
+            force_json: Enforce JSON output format
+            **kwargs: Additional routing context
+
+        Returns:
+            LLMResponse with generated content
+
+        Example:
+            # Simple task - uses Haiku (fast, cheap)
+            response = await client.generate_with_routing(
+                prompt="Parse this Nmap output",
+                task_type="parse_nmap_output"
+            )
+
+            # Complex task - uses Sonnet (smart, expensive)
+            response = await client.generate_with_routing(
+                prompt="Generate comprehensive attack strategy",
+                task_type="plan_attack_strategy"
+            )
+        """
+        # Select appropriate model using router
+        selected_model = self.router.select_model(task_type, kwargs.get('context'))
+
+        # Update provider model if it supports dynamic model switching
+        original_model = None
+        if hasattr(self.provider, 'model') and selected_model != self.provider.model:
+            original_model = self.provider.model
+            self.provider.model = selected_model
+            self.logger.info(f"Routing to {selected_model} for task={task_type}")
+
+        try:
+            response = await self.generate(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                force_json=force_json
+            )
+
+            # Add routing metadata
+            if 'routing' not in response.metadata:
+                response.metadata['routing'] = {}
+            response.metadata['routing']['task_type'] = task_type
+            response.metadata['routing']['selected_model'] = selected_model
+
+            return response
+
+        finally:
+            # Restore original model
+            if original_model and hasattr(self.provider, 'model'):
+                self.provider.model = original_model
 
     async def health_check(self) -> Dict[str, Any]:
         """
