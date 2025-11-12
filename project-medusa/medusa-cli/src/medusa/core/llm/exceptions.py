@@ -26,3 +26,13 @@ class LLMConfigurationError(LLMError):
 class LLMModelNotFoundError(LLMError):
     """Raised when specified model is not available"""
     pass
+
+
+class LLMAuthenticationError(LLMError):
+    """Raised when LLM authentication fails"""
+    pass
+
+
+class LLMRateLimitError(LLMError):
+    """Raised when LLM rate limit is exceeded"""
+    pass
