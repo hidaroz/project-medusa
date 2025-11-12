@@ -92,6 +92,21 @@ def create_llm_provider(config: LLMConfig) -> BaseLLMProvider:
             logger.warning("Falling back to MockProvider")
             return MockProvider()
 
+    elif config.provider == "bedrock":
+        try:
+            from .providers.bedrock import BedrockProvider
+
+            logger.info(f"Using BedrockProvider with model: {config.cloud_model}")
+            return BedrockProvider(config=config)
+        except ImportError as e:
+            logger.error(f"Bedrock provider requires: pip install boto3 botocore ({e})")
+            logger.warning("Falling back to MockProvider")
+            return MockProvider()
+        except Exception as e:
+            logger.error(f"Failed to initialize Bedrock provider: {e}")
+            logger.warning("Falling back to MockProvider")
+            return MockProvider()
+
     # Auto-detect best available option
     elif config.provider == "auto":
         # Try local first (if Ollama is available)
@@ -121,6 +136,21 @@ def create_llm_provider(config: LLMConfig) -> BaseLLMProvider:
 
         except Exception as e:
             logger.debug(f"Local provider unavailable: {e}")
+
+        # Try Bedrock if configured (checks AWS credential chain)
+        if config.aws_region or config.aws_access_key_id:
+            try:
+                from .providers.bedrock import BedrockProvider
+                bedrock_provider = BedrockProvider(config=config)
+                try:
+                    is_healthy = loop.run_until_complete(bedrock_provider.health_check())
+                    if is_healthy:
+                        logger.info("Auto-detected: Using BedrockProvider")
+                        return bedrock_provider
+                except:
+                    logger.debug("Bedrock health check failed")
+            except Exception as e:
+                logger.debug(f"Bedrock provider unavailable: {e}")
 
         # Fall back to cloud if configured
         if config.cloud_api_key and config.cloud_model:
@@ -162,7 +192,7 @@ def create_llm_provider(config: LLMConfig) -> BaseLLMProvider:
         logger.error(f"Unknown provider: {config.provider}")
         raise LLMConfigurationError(
             f"Unknown provider: {config.provider}. "
-            f"Valid providers: 'local', 'openai', 'anthropic', 'mock', 'auto'"
+            f"Valid providers: 'local', 'openai', 'anthropic', 'bedrock', 'mock', 'auto'"
         )
 
 
