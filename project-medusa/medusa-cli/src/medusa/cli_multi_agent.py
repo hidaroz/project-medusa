@@ -32,6 +32,19 @@ from medusa.agents import (
 )
 from medusa.agents.data_models import TaskPriority
 
+# Import UX enhancements
+try:
+    from medusa.cli_ux_enhancements import (
+        show_cost_estimate_prompt,
+        show_post_operation_summary,
+        show_error_with_solution,
+        check_budget,
+        record_operation_cost
+    )
+    UX_ENHANCEMENTS_AVAILABLE = True
+except ImportError:
+    UX_ENHANCEMENTS_AVAILABLE = False
+
 # Create CLI app
 agent_app = typer.Typer(
     name="agent",
@@ -86,16 +99,28 @@ def multi_agent_run(
     config = get_config()
 
     if not config.exists():
-        console.print(
-            "[red]Error: MEDUSA is not configured.[/red]\n"
-            "Run [bold]medusa setup[/bold] first."
-        )
+        if UX_ENHANCEMENTS_AVAILABLE:
+            show_error_with_solution(
+                Exception("MEDUSA is not configured"),
+                "attempting to run multi-agent operation"
+            )
+        else:
+            console.print(
+                "[red]Error: MEDUSA is not configured.[/red]\n"
+                "Run [bold]medusa setup[/bold] first."
+            )
         raise typer.Exit(1)
 
     # Parse objectives
     objectives_list = []
     if objectives:
         objectives_list = [obj.strip() for obj in objectives.split(",")]
+
+    # Show cost estimate and get confirmation (unless auto-approved)
+    if UX_ENHANCEMENTS_AVAILABLE and not auto_approve:
+        if not show_cost_estimate_prompt(operation_type, target):
+            console.print("\n[yellow]Operation cancelled by user[/yellow]")
+            raise typer.Exit(0)
 
     # Run the multi-agent operation
     console.print(f"\n[bold cyan]🤖 Multi-Agent Operation[/bold cyan]")
@@ -117,8 +142,14 @@ def multi_agent_run(
             )
         )
 
-        # Display results
-        _display_operation_results(result)
+        # Display results with enhanced UX
+        if UX_ENHANCEMENTS_AVAILABLE:
+            show_post_operation_summary(result)
+            # Record cost for budget tracking
+            cost = result.get("cost_summary", {}).get("total_cost_usd", 0.0)
+            record_operation_cost(cost)
+        else:
+            _display_operation_results(result)
 
         # Save results if requested
         if save_results:
@@ -129,15 +160,92 @@ def multi_agent_run(
             with open(output_path, "w") as f:
                 json.dump(result, f, indent=2, default=str)
 
-            console.print(f"\n[green]✅ Results saved to:[/green] {output_path}")
+            if not UX_ENHANCEMENTS_AVAILABLE:  # Only show if not already shown in summary
+                console.print(f"\n[green]✅ Results saved to:[/green] {output_path}")
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]⏸️  Operation interrupted by user[/yellow]")
+        raise typer.Exit(0)
+    except Exception as e:
+        if UX_ENHANCEMENTS_AVAILABLE:
+            show_error_with_solution(e, f"running {operation_type} on {target}")
+        else:
+            console.print(f"\n[red]❌ Operation failed:[/red] {str(e)}")
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
+        raise typer.Exit(1)
+
+
+@agent_app.command("interactive")
+def interactive_mode():
+    """
+    💬 Interactive mode for beginners.
+
+    Guides you through the assessment process step-by-step with prompts
+    and recommendations. Perfect for first-time users!
+
+    Example:
+        medusa agent interactive
+    """
+    config = get_config()
+
+    if not config.exists():
+        console.print(
+            "[red]Error: MEDUSA is not configured.[/red]\n"
+            "Run [bold]medusa setup[/bold] first."
+        )
+        raise typer.Exit(1)
+
+    # Use interactive prompts if available
+    if UX_ENHANCEMENTS_AVAILABLE:
+        from medusa.cli_ux_enhancements import show_interactive_mode_prompt
+        target, operation_type, auto_approve = show_interactive_mode_prompt()
+    else:
+        # Fallback to basic prompts
+        from rich.prompt import Prompt, Confirm
+        console.print("\n[bold cyan]🤖 Multi-Agent Security Assessment[/bold cyan]\n")
+        target = Prompt.ask("[bold]What target would you like to assess?[/bold]")
+        operation_type = Prompt.ask(
+            "[bold]Assessment type[/bold]",
+            choices=["recon_only", "vuln_scan", "full_assessment"],
+            default="vuln_scan"
+        )
+        auto_approve = Confirm.ask("\n[bold]Auto-approve low-risk actions?[/bold]", default=True)
+
+    # Run the operation
+    console.print(f"\n[cyan]Starting {operation_type} on {target}...[/cyan]\n")
+
+    try:
+        result = asyncio.run(
+            _run_multi_agent_operation(
+                target=target,
+                operation_type=operation_type,
+                objectives=[],
+                auto_approve=auto_approve,
+                max_duration=3600,
+                config=config,
+            )
+        )
+
+        # Display results
+        if UX_ENHANCEMENTS_AVAILABLE:
+            show_post_operation_summary(result)
+        else:
+            _display_operation_results(result)
+
+        # Save results
+        operation_id = result.get("operation_id", "unknown")
+        output_path = config.logs_dir / f"multi-agent-{operation_id}.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(output_path, "w") as f:
+            json.dump(result, f, indent=2, default=str)
 
     except KeyboardInterrupt:
         console.print("\n[yellow]⏸️  Operation interrupted by user[/yellow]")
         raise typer.Exit(0)
     except Exception as e:
         console.print(f"\n[red]❌ Operation failed:[/red] {str(e)}")
-        import traceback
-        console.print(f"[dim]{traceback.format_exc()}[/dim]")
         raise typer.Exit(1)
 
 
