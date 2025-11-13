@@ -17,6 +17,7 @@ from medusa.display import display
 from medusa.modes import AutonomousMode, InteractiveMode, ObserveMode
 from medusa.error_handler import error_handler_decorator, handle_error
 from medusa.first_run import is_first_run, run_first_time_wizard
+from medusa.cli_multi_agent import agent_app
 
 app = typer.Typer(
     name="medusa",
@@ -29,6 +30,9 @@ console = Console()
 # LLM command group
 llm_app = typer.Typer(help="LLM utilities and diagnostics")
 app.add_typer(llm_app, name="llm")
+
+# Multi-agent command group
+app.add_typer(agent_app, name="agent")
 
 
 @llm_app.command("verify")

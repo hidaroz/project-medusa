@@ -251,6 +251,101 @@ class ContextFusionEngine:
 
         return context
 
+    def build_context_for_exploitation(
+        self,
+        vulnerabilities: List[Dict[str, Any]],
+        target: str
+    ) -> Dict[str, Any]:
+        """
+        Build context for exploitation phase
+
+        Args:
+            vulnerabilities: List of identified vulnerabilities
+            target: Target system
+
+        Returns:
+            Rich context with exploit knowledge and techniques
+        """
+        context = {
+            "phase": "exploitation",
+            "target": target,
+            "vulnerabilities": vulnerabilities
+        }
+
+        # 1. Vector: MITRE ATT&CK exploitation techniques
+        if self.vector_store:
+            try:
+                exploitation_techniques = self.vector_store.search_mitre_techniques(
+                    query="exploitation privilege escalation lateral movement",
+                    n_results=10
+                )
+                context["exploitation_techniques"] = exploitation_techniques
+            except Exception as e:
+                self.logger.warning(f"Failed to search MITRE techniques: {e}")
+                context["exploitation_techniques"] = []
+
+        # 2. Vector: Find known exploits for vulnerabilities
+        if self.vector_store:
+            try:
+                available_exploits = []
+                for vuln in vulnerabilities[:5]:  # Top 5 vulnerabilities
+                    vuln_name = vuln.get("vulnerability", vuln.get("name", ""))
+                    cve_id = vuln.get("cve_id", "")
+
+                    query = f"{vuln_name} {cve_id} exploit"
+                    cves = self.vector_store.search_cves(query=query, n_results=3)
+
+                    for cve in cves:
+                        available_exploits.append({
+                            "exploit_id": cve.get("cve_id", ""),
+                            "description": cve.get("description", ""),
+                            "severity": cve.get("severity", ""),
+                            "cvss": cve.get("cvss", 0),
+                            "related_vulnerability": vuln_name
+                        })
+
+                context["available_exploits"] = available_exploits[:10]
+            except Exception as e:
+                self.logger.warning(f"Failed to search exploits: {e}")
+                context["available_exploits"] = []
+
+        # 3. Graph: Known credentials and access paths
+        if self.world_model:
+            try:
+                # Query for credentials found
+                credentials = self.world_model.query(
+                    """
+                    MATCH (c:Credential)
+                    RETURN c
+                    LIMIT 10
+                    """
+                )
+                context["known_credentials"] = credentials if credentials else []
+            except Exception as e:
+                self.logger.warning(f"Failed to query credentials: {e}")
+                context["known_credentials"] = []
+
+        # 4. Vector: Tool documentation for exploitation tools
+        if self.vector_store:
+            try:
+                tool_docs = self.vector_store.search_tool_usage(
+                    query="exploitation post-exploitation privilege escalation",
+                    n_results=5
+                )
+                context["exploitation_tools"] = tool_docs
+            except Exception as e:
+                self.logger.warning(f"Failed to search tool docs: {e}")
+                context["exploitation_tools"] = []
+
+        # 5. Recent exploitation attempts from history
+        recent_exploits = [
+            action for action in self.operation_history
+            if action.get("action_type") in ["exploit", "privilege_escalation", "lateral_movement"]
+        ]
+        context["recent_exploitation_attempts"] = recent_exploits[-10:]
+
+        return context
+
     def record_action(self, action: Dict[str, Any]):
         """
         Record an action to short-term memory
