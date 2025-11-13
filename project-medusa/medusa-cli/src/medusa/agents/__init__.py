@@ -9,6 +9,8 @@ from .message_bus import MessageBus
 from .reconnaissance_agent import ReconnaissanceAgent
 from .vulnerability_analysis_agent import VulnerabilityAnalysisAgent
 from .planning_agent import PlanningAgent
+from .exploitation_agent import ExploitationAgent
+from .reporting_agent import ReportingAgent
 from .orchestrator_agent import OrchestratorAgent
 
 __all__ = [
@@ -22,5 +24,7 @@ __all__ = [
     'ReconnaissanceAgent',
     'VulnerabilityAnalysisAgent',
     'PlanningAgent',
+    'ExploitationAgent',
+    'ReportingAgent',
     'OrchestratorAgent'
 ]
