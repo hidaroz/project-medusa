@@ -62,6 +62,13 @@ echo ""
 echo "📦 Installing dependencies..."
 echo ""
 
+# Install pinned dependency set first to ensure native libs are present
+$PYTHON_CMD -m pip install --user -r requirements.txt
+
+echo ""
+echo "📦 Installing MEDUSA CLI (editable)..."
+echo ""
+
 # Install in editable mode with user flag
 $PYTHON_CMD -m pip install -e . --user 2>&1 | grep -E "Successfully|Requirement|ERROR" || true
 

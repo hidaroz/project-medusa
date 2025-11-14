@@ -15,7 +15,27 @@ This section documents MEDUSA's architecture, including system design, component
 ### System Design
 - [Project Overview](project-overview.md) - High-level system overview and goals
 - [CLI Architecture](cli-architecture.md) - CLI component design and structure
-- [**Multi-Agent Evolution Plan**](multi-agent-evolution-plan.md) - 🚀 **Comprehensive implementation plan for AWS Bedrock, Vector DB, and Multi-Agent System**
+
+### Multi-Agent Evolution (NEW!)
+
+> **🎯 First time here?** Start with the [📊 EXECUTIVE SUMMARY](EXECUTIVE-SUMMARY.md)
+>
+> **📚 Looking for specific docs?** Check the [DOCUMENTATION MAP](DOCUMENTATION-MAP.md)
+
+**Quick Links**:
+- [**📊 EXECUTIVE SUMMARY**](EXECUTIVE-SUMMARY.md) - **Start here!** Complete overview and metrics
+- [**📚 DOCUMENTATION MAP**](DOCUMENTATION-MAP.md) - Guide to all documentation
+
+**Status & Planning**:
+- [**🎉 Current Status Report**](CURRENT-STATUS.md) - **95% complete - 24,444 lines of code - 1-2 hours to production**
+- [**🧪 Testing Plan**](TESTING-PLAN.md) - **Comprehensive testing plan for final 5%**
+- [**🚀 Multi-Agent Evolution Plan**](multi-agent-evolution-plan.md) - Complete 12-week implementation plan
+- [Quick Reference Guide](multi-agent-quick-reference.md) - TL;DR summary and fast-start
+- [Implementation Checklist](implementation-checklist.md) - Week-by-week tracking
+
+**Historical Records**:
+- [Previous Status Report](FINAL-STATUS.md) - Historical status (85% - Nov 12)
+- [Implementation Status](implementation-status.md) - Detailed verification and metrics
 
 ### Technical Documentation
 - System Overview - *To be created* - Detailed system architecture
