@@ -162,34 +162,38 @@ graph TB
 project-medusa/
 ├── MEDUSA AI Agent (Attacker)
 │   ├── medusa-cli/          # 🤖 Python AI penetration testing agent
-│   ├── medusa-webapp/       # 🌐 Control interface for MEDUSA
 │   └── training-data/       # 📚 LLM training datasets (MITRE ATT&CK)
 │
 ├── MedCare EHR System (Target)
 │   └── lab-environment/     # 🐳 Vulnerable infrastructure
 │       ├── services/
-│       │   ├── ehr-api/     # Vulnerable backend API
-│       │   ├── ehr-webapp/  # Vulnerable web frontend
-│       │   ├── ldap/        # LDAP service
-│       │   ├── mysql/       # Database
-│       │   └── ...          # Other vulnerable services
+│       │   ├── ehr-webapp-medcare/  # Vulnerable Next.js web frontend
+│       │   ├── ehr-api/             # Vulnerable backend API
+│       │   ├── ehr-database/        # MySQL database
+│       │   ├── ldap-server/         # LDAP service
+│       │   ├── ssh-server/          # SSH server with weak credentials
+│       │   ├── ftp-server/          # FTP server
+│       │   ├── log-collector/       # Centralized logging
+│       │   └── workstation/         # Windows simulation
 │       └── docker-compose.yml
 │
 ├── docs/                    # 📖 Documentation
 ├── scripts/                 # 🛠️ Automation scripts
+├── neo4j-schema/            # 🕸️ Graph database schema
 └── archive/                 # 📦 Deprecated components
 ```
 
 ### Core Components
 
-| Component | Type | Description | Tech Stack |
-|-----------|------|-------------|------------|
-| **medusa-cli** | Attacker | AI-powered autonomous penetration testing agent | Python 3.9+, Click, Rich, LLM |
-| **medusa-webapp** | Attacker | Control interface and dashboard for MEDUSA | Next.js, React, TypeScript |
-| **ehr-api** | Target | Intentionally vulnerable EHR backend API | Node.js, Express, MySQL |
-| **ehr-webapp** | Target | Vulnerable healthcare portal frontend | HTML/JS/PHP |
-| **lab-environment** | Target | 8 vulnerable Docker services (MedCare system) | Docker, Docker Compose |
-| **training-data** | Attacker | MITRE ATT&CK training datasets for LLM | JSON datasets |
+| Component | Type | Description | Location | Tech Stack |
+|-----------|------|-------------|----------|------------|
+| **medusa-cli** | Attacker | AI-powered autonomous agent | `medusa-cli/` | Python 3.9+, Typer, Rich, LLM |
+| **training-data** | Attacker | MITRE ATT&CK training datasets | `training-data/` | JSON datasets |
+| **ehr-webapp-medcare** | Target | Vulnerable EHR frontend | `lab-environment/services/` | Next.js, React, TypeScript |
+| **ehr-api** | Target | Vulnerable backend API | `lab-environment/services/` | Node.js, Express, MySQL |
+| **ehr-database** | Target | MySQL with intentional vulnerabilities | `lab-environment/services/` | MySQL 8.0 |
+| **lab-environment** | Target | 8 Docker services + orchestration | `lab-environment/` | Docker Compose |
+| **neo4j-schema** | Supporting | Graph database for attack mapping | `neo4j-schema/` | Neo4j, Cypher |
 
 ## 🎮 Usage Modes
 
@@ -267,11 +271,11 @@ See [SECURITY.md](docs/SECURITY.md) for complete security policy and legal infor
 
 **MEDUSA AI Agent (Attacker)**:
 - [medusa-cli README](medusa-cli/README.md) - AI penetration testing agent
-- [medusa-webapp README](medusa-webapp/README.md) - Control interface
 - [training-data README](training-data/README.md) - LLM training datasets
 
 **MedCare EHR System (Target)**:
 - [lab-environment README](lab-environment/README.md) - Vulnerable infrastructure setup
+- [ehr-webapp-medcare README](lab-environment/services/ehr-webapp-medcare/README.md) - MedCare EHR web frontend
 - [MedCare EHR Backend Plan](docs/05-api-reference/medcare-ehr-backend-implementation-plan.md) - EHR API documentation
 
 ## 🛠️ Development
@@ -311,13 +315,10 @@ See [Development Guide](docs/DEVELOPMENT.md) for complete setup instructions.
 cd medusa-cli
 pytest --cov=medusa --cov-report=html
 
-# Backend tests
-cd medusa-backend
-pytest tests/ -v
-
-# Frontend tests
-cd medusa-webapp
-npm test
+# Lab environment tests
+cd lab-environment
+docker-compose up -d
+./verify.sh
 ```
 
 ## 🤝 Contributing

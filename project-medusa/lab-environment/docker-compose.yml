@@ -8,7 +8,7 @@
 services:
   
   # ==========================================================================
-  # 1. EHR FRONTEND (Next.js Application)
+  # 1. EHR FRONTEND (Next.js Application - MedCare EHR System)
   # ==========================================================================
   # Modern React/Next.js frontend for MedCare EHR system
   # This is the PRIMARY user interface for the EHR system
@@ -19,8 +19,8 @@ services:
   # - XSS vectors in user input
   # - Insecure API calls
   # ==========================================================================
-  ehr-frontend:
-    build: ./services/ehr-frontend
+  ehr-webapp-medcare:
+    build: ./services/ehr-webapp-medcare
     container_name: medusa_ehr_frontend
     hostname: ehr-frontend
     ports:
