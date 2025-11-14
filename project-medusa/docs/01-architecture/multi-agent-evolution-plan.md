@@ -46,7 +46,7 @@ This document outlines the comprehensive architectural evolution of MEDUSA from 
 │                                                                  │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │           Orchestrator Agent (Supervisor)                │  │
-│  │         Model: Claude 3.5 Sonnet (Bedrock)              │  │
+│  │         Model: Claude 4.5 Sonnet (Bedrock)              │  │
 │  └──────────────────┬───────────────────────────────────────┘  │
 │                     │                                           │
 │       ┌─────────────┼─────────────┬──────────────┐             │
@@ -81,7 +81,7 @@ This document outlines the comprehensive architectural evolution of MEDUSA from 
 │                    AWS BEDROCK INTEGRATION                      │
 │                                                                  │
 │  ┌──────────────┐  ┌──────────────┐  ┌─────────────────┐      │
-│  │ Claude 3.5   │  │ Claude 3.5   │  │ Titan           │      │
+│  │ Claude 4.5   │  │ Claude 4.5   │  │ Titan           │      │
 │  │ Sonnet       │  │ Haiku        │  │ Embeddings      │      │
 │  │              │  │              │  │                 │      │
 │  │ • Orchestr.  │  │ • Recon      │  │ • Vector DB     │      │
