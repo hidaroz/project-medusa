@@ -1,0 +1,188 @@
+# MEDUSA Default Configuration
+# This file serves as a template for the main configuration
+
+# LLM Provider Configuration
+llm:
+  # Provider: bedrock, anthropic, openai, ollama, mistral
+  provider: anthropic
+
+  # Model name (provider-specific)
+  model: claude-sonnet-4
+
+  # API key (not needed for Bedrock with AWS credentials)
+  api_key: ${ANTHROPIC_API_KEY}
+
+  # Temperature (0.0-1.0)
+  temperature: 0.3
+
+  # Maximum tokens per request
+  max_tokens: 4096
+
+  # AWS Region (for Bedrock)
+  # region: us-east-1
+
+# Database Configuration
+databases:
+  # Neo4j Graph Database
+  neo4j:
+    uri: bolt://localhost:7687
+    user: neo4j
+    password: ${NEO4J_PASSWORD}
+    database: neo4j
+
+  # ChromaDB Vector Database
+  chromadb:
+    path: ~/.medusa/chromadb
+    collection: medusa_knowledge
+
+# Safety and Authorization
+safety:
+  # Require authorization before high-risk actions
+  require_authorization: true
+
+  # Authorized scope (IP/CIDR ranges)
+  authorized_scope:
+    - 192.168.0.0/16
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+
+  # Automatic rollback on failures
+  auto_rollback: true
+
+  # Audit log path
+  audit_log: ~/.medusa/audit.log
+
+  # Emergency stop key
+  emergency_stop_key: ctrl+c
+
+# Tool Configuration
+tools:
+  # Auto-detect installed tools
+  auto_detect: true
+
+  # Enabled tools
+  enabled:
+    - nmap
+    - httpx
+    - nuclei
+    - amass
+    - ffuf
+    - sqlmap
+
+  # Disabled tools
+  disabled: []
+
+# Scanning Configuration
+scanning:
+  # Number of concurrent threads
+  threads: 10
+
+  # Timeout (seconds)
+  timeout: 300
+
+  # Rate limit (packets/sec)
+  rate_limit: 1000
+
+  # Timing template: paranoid, sneaky, polite, normal, aggressive, insane
+  timing: normal
+
+  # Randomize scan order
+  randomize: false
+
+# Exploitation Configuration
+exploitation:
+  # Mode: simulation or real
+  mode: simulation
+
+  # Maximum retries
+  max_retries: 2
+
+  # Require approval before exploitation
+  require_approval: true
+
+# Output Configuration
+output:
+  # Format: rich, json, plain, markdown
+  format: rich
+
+  # Verbosity: debug, info, warning, error
+  verbosity: info
+
+  # Output directory
+  output_dir: ~/.medusa/output
+
+  # Session directory
+  session_dir: ~/.medusa/sessions
+
+# Performance Configuration
+performance:
+  # Maximum concurrent threads
+  max_threads: 10
+
+  # Default timeout
+  timeout: 300
+
+  # Rate limit (requests/sec)
+  rate_limit: 1000
+
+  # Cache size (MB)
+  cache_size: 512
+
+# Reporting Configuration
+reporting:
+  # Default report format
+  format: markdown
+
+  # Include screenshots
+  screenshots: true
+
+  # Include MITRE ATT&CK mapping
+  mitre_attack: true
+
+  # Report template
+  template: default
+
+# Multi-Agent Configuration
+agents:
+  # Enable multi-agent mode
+  enabled: true
+
+  # Agent types
+  types:
+    - reconnaissance
+    - vulnerability_analysis
+    - exploitation
+    - reporting
+
+  # Agent communication
+  message_bus:
+    type: memory
+
+# RAG Configuration
+rag:
+  # Enable RAG
+  enabled: true
+
+  # Retrieval settings
+  retrieval:
+    # Top K results
+    top_k: 5
+
+    # Minimum similarity score
+    min_score: 0.7
+
+  # Context fusion
+  fusion:
+    # Vector DB weight
+    vector_weight: 0.6
+
+    # Graph DB weight
+    graph_weight: 0.4
+
+# World Model Configuration
+world_model:
+  # Neo4j connection (uses databases.neo4j config)
+  enabled: true
+
+  # Auto-update
+  auto_update: true
