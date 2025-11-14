@@ -22,11 +22,11 @@
 
 **Path**: `/docs/00-getting-started/`
 
-- Quick Start (CLI) - *To be created*
-- Quick Start (Docker) - *To be created*
-- Installation Guide - *To be created*
-- Troubleshooting - *To be created*
-- [Dashboard Setup](MEDUSA_DASHBOARD_SETUP.md) - Web UI installation
+- [CLI Quick Start](00-getting-started/cli-quickstart.md) - Get MEDUSA CLI running in 5 minutes
+- [AWS Bedrock Setup](00-getting-started/bedrock-setup.md) - Configure AWS Bedrock for enterprise-grade LLM
+- [Local LLM Setup](00-getting-started/llm-quickstart.md) - Use Ollama for offline AI (recommended)
+- [Docker Lab Setup](00-getting-started/dashboard-setup.md) - Deploy vulnerable test environment
+- [Troubleshooting](00-getting-started/troubleshooting.md) - Common issues and solutions
 
 **Current Location References**:
 - [Quick Start Dashboard](QUICK_START_MEDUSA_DASHBOARD.md)
@@ -163,12 +163,17 @@
 **Path**: `/docs/08-project-management/`
 
 **Subdirectories**:
+- `planning/` - Strategic planning and task division
 - `audits/` - Project audits and reports
 - `feedback/` - Stakeholder and class feedback
 - `qa/` - Quality assurance documentation
 - `timelines/` - Project schedules and milestones
 
 **Current Location References**:
+- **Planning Documents** (see [`planning/README.md`](08-project-management/planning/README.md)):
+  - [AI Agent Task Division](08-project-management/planning/AI_AGENT_TASK_DIVISION_CLI_FOCUSED.md)
+  - [CLI Priority Guide](08-project-management/planning/CLI_PRIORITY_GUIDE.md)
+  - [Priority Matrix](08-project-management/planning/QUICK_PRIORITY_MATRIX.md)
 - [Product Requirements Document](MEDUSA_PRD.md)
 - [Project Timeline](PROJECT_TIMELINE.md)
 - [Audit Report](project-management/AUDIT_REPORT.md)

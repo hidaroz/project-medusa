@@ -58,10 +58,73 @@ jspm_packages/
 .DS_Store
 Thumbs.db
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Generated Files and Directories (DO NOT COMMIT)
+lab-environment/dev-data/        # Generated database files
+lab-environment/dev-logs/        # Runtime logs
+medusa-cli/sessions/             # Session checkpoints
+reports/                         # Generated reports
+logs/                            # Log files
+*.log                            # All log files
+
+# ============================================================================
+# Generated Files (Never commit these to git)
+# ============================================================================
+
+# Lab environment generated data
+lab-environment/dev-data/
+lab-environment/dev-logs/
+
+# CLI session and checkpoint files
+medusa-cli/sessions/
+medusa-cli/logs/
+medusa-cli/reports/
+
 # Training datasets (contain fake API keys for LLM training)
 training-data/raw/*.json
 
+# Test artifacts and coverage
+htmlcov/
+.coverage
+.pytest_cache/
+
+# ============================================================================
 # GitHub Pages build artifacts (deployed to gh-pages branch, not main)
+# ============================================================================
+
 /404/
 /admin/
 /appointments/
@@ -80,3 +143,7 @@ training-data/raw/*.json
 /CNAME
 /discovery_results.json
 /data/
+
+# Cursor/IDE files
+.cursor/
+.cursorignore
