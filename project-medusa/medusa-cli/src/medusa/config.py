@@ -117,10 +117,11 @@ class Config:
         console.print("MEDUSA uses AI for intelligent penetration testing decisions.")
         console.print("\nChoose your LLM provider:")
         console.print("  1. [green]Local (Ollama)[/green] - Recommended (free, private, unlimited)")
-        console.print("  2. [yellow]Cloud (OpenAI/Anthropic)[/yellow] - Requires API key")
-        console.print("  3. [dim]Mock (Testing only)[/dim] - No real AI")
-        
-        provider_choice = Prompt.ask("Choice", choices=["1", "2", "3"], default="1")
+        console.print("  2. [blue]AWS Bedrock (Claude 3.5)[/blue] - Enterprise-grade, smart routing, ~$0.25/scan")
+        console.print("  3. [yellow]Cloud (OpenAI/Anthropic)[/yellow] - Requires API key")
+        console.print("  4. [dim]Mock (Testing only)[/dim] - No real AI")
+
+        provider_choice = Prompt.ask("Choice", choices=["1", "2", "3", "4"], default="1")
         
         llm_config = {
             "temperature": 0.7,
@@ -165,8 +166,130 @@ class Config:
                 console.print("  Start: [cyan]ollama serve[/cyan]")
             
             console.print("\n[green]✓ Local provider configured[/green]\n")
-            
+
         elif provider_choice == "2":
+            # AWS Bedrock provider
+            llm_config["provider"] = "bedrock"
+
+            console.print("\n[cyan]AWS Bedrock Configuration[/cyan]")
+            console.print("AWS Bedrock provides Claude 3.5 Sonnet and Haiku models")
+            console.print("Learn more: [link]https://docs.medusa.ai/bedrock-setup[/link]\n")
+
+            console.print("[bold]Step 1: AWS Region[/bold]")
+            console.print("Bedrock is available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1")
+            aws_region = Prompt.ask(
+                "Select AWS region",
+                default="us-west-2",
+                choices=["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]
+            )
+            llm_config["aws_region"] = aws_region
+
+            console.print("\n[bold]Step 2: AWS Credentials[/bold]")
+            console.print("Choose credential configuration method:")
+            console.print("  1. [green]AWS CLI (Recommended)[/green] - Use existing ~/.aws/credentials")
+            console.print("  2. [yellow]Environment Variables[/yellow] - Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY")
+            console.print("  3. [dim]Skip[/dim] - Configure manually later")
+
+            cred_choice = Prompt.ask("Choice", choices=["1", "2", "3"], default="1")
+
+            if cred_choice == "1":
+                # AWS CLI - check if configured
+                console.print("\nChecking AWS CLI configuration...")
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ["aws", "sts", "get-caller-identity", "--region", aws_region],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    if result.returncode == 0:
+                        console.print("[green]✓ AWS credentials found and valid[/green]")
+                        # Don't store credentials in config - use AWS credential chain
+                    else:
+                        console.print("[yellow]⚠ AWS CLI not configured[/yellow]")
+                        console.print("\nRun: [cyan]aws configure[/cyan]")
+                        console.print("You'll need:")
+                        console.print("  - AWS Access Key ID")
+                        console.print("  - AWS Secret Access Key")
+                        console.print("  - Region: [cyan]{aws_region}[/cyan]")
+                        console.print("\nContinuing with setup...")
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    console.print("[yellow]⚠ AWS CLI not found[/yellow]")
+                    console.print("Install: [cyan]pip install awscli && aws configure[/cyan]")
+
+            elif cred_choice == "2":
+                # Environment variables
+                console.print("\n[cyan]Set these environment variables:[/cyan]")
+                console.print("  export AWS_ACCESS_KEY_ID=your_access_key")
+                console.print("  export AWS_SECRET_ACCESS_KEY=your_secret_key")
+                console.print("  export AWS_REGION={aws_region}")
+                console.print("\n[yellow]⚠ Do not store credentials in config.yaml[/yellow]")
+
+            else:
+                console.print("\n[yellow]⚠ Credentials not configured[/yellow]")
+                console.print("See setup guide: [link]docs/00-getting-started/bedrock-setup.md[/link]")
+
+            console.print("\n[bold]Step 3: Model Access[/bold]")
+            console.print("You must enable model access in AWS Console:")
+            console.print("  1. Go to AWS Bedrock → Model access")
+            console.print("  2. Click 'Modify model access'")
+            console.print("  3. Enable: Anthropic Claude 3.5 Sonnet")
+            console.print("  4. Enable: Anthropic Claude 3.5 Haiku")
+            console.print("\nAccess is usually granted instantly.")
+
+            model_access = Confirm.ask("\nHave you enabled model access?", default=False)
+
+            if model_access:
+                console.print("[green]✓ Model access confirmed[/green]")
+            else:
+                console.print("[yellow]⚠ Enable model access before running MEDUSA[/yellow]")
+
+            # Configure smart routing models
+            llm_config["smart_model"] = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+            llm_config["fast_model"] = "anthropic.claude-3-5-haiku-20241022-v1:0"
+            llm_config["cloud_model"] = "anthropic.claude-3-5-haiku-20241022-v1:0"
+
+            console.print("\n[bold]Smart Model Routing Enabled:[/bold]")
+            console.print("  • Complex tasks → Claude 3.5 Sonnet ($3/$15 per 1M tokens)")
+            console.print("  • Simple tasks → Claude 3.5 Haiku ($0.80/$4 per 1M tokens)")
+            console.print("  • Est. cost savings: ~60%")
+            console.print("  • Typical scan: $0.20-0.30")
+
+            # Verify connection
+            console.print("\n[bold]Verifying connection...[/bold]")
+            try:
+                import boto3
+                from botocore.exceptions import ClientError, NoCredentialsError
+
+                bedrock = boto3.client('bedrock-runtime', region_name=aws_region)
+
+                # Try to invoke model (minimal test)
+                test_response = bedrock.invoke_model(
+                    modelId="anthropic.claude-3-5-haiku-20241022-v1:0",
+                    body='{"anthropic_version":"bedrock-2023-05-31","max_tokens":10,"messages":[{"role":"user","content":"test"}]}'
+                )
+
+                console.print("[green]✓ AWS Bedrock connection successful[/green]")
+                console.print("[green]✓ Model access verified[/green]")
+                console.print("[green]✓ Smart routing configured[/green]\n")
+
+            except NoCredentialsError:
+                console.print("[yellow]⚠ AWS credentials not found[/yellow]")
+                console.print("Configure credentials before using Bedrock\n")
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                if error_code == 'AccessDeniedException':
+                    console.print("[yellow]⚠ Model access not enabled[/yellow]")
+                    console.print("Enable Claude 3.5 models in AWS Console\n")
+                else:
+                    console.print(f"[yellow]⚠ Connection error: {error_code}[/yellow]\n")
+            except Exception as e:
+                console.print(f"[yellow]⚠ Could not verify connection: {str(e)}[/yellow]\n")
+
+            console.print("[green]✓ AWS Bedrock configured[/green]\n")
+
+        elif provider_choice == "3":
             # Cloud provider
             console.print("\n[cyan]Cloud Provider Configuration[/cyan]")
             cloud_provider = Prompt.ask(

@@ -37,12 +37,24 @@ Run the interactive setup wizard:
 medusa setup
 ```
 
-You'll be asked for:
+You'll be asked to choose your **LLM Provider**:
 
-1. **Gemini API Key** - Get free at [Google AI Studio](https://ai.google.dev/gemini-api/docs/quickstart)
-2. **Target Environment** - Choose "Local Docker" for learning
-3. **Risk Tolerance** - Recommended: LOW=yes, MEDIUM=no, HIGH=no
-4. **Docker Setup** - Auto-configures test environment
+1. **Local (Ollama)** - Free, private, unlimited (recommended for learning)
+   - No API key required
+   - Requires Ollama installation
+
+2. **AWS Bedrock (Claude 3.5)** - Enterprise-grade, smart routing (~$0.25/scan)
+   - Requires AWS account
+   - See [Bedrock Setup Guide](bedrock-setup.md) for detailed instructions
+
+3. **Cloud (OpenAI/Anthropic)** - Direct API access
+   - Get API key from [OpenAI](https://platform.openai.com/) or [Anthropic](https://console.anthropic.com/)
+
+Then configure:
+
+- **Target Environment** - Choose "Local Docker" for learning
+- **Risk Tolerance** - Recommended: LOW=yes, MEDIUM=no, HIGH=no
+- **Docker Setup** - Auto-configures test environment
 
 **That's it!** Configuration saved to `~/.medusa/config.yaml`
 
@@ -235,6 +247,27 @@ pip install -e .
 # Or check installation
 pip list | grep medusa
 ```
+
+### AWS Bedrock Issues
+
+**"AccessDeniedException"**
+- Enable model access in AWS Console → Bedrock → Model access
+- Enable: Anthropic Claude 3.5 Sonnet and Haiku
+
+**"Invalid AWS credentials"**
+```bash
+# Verify credentials
+aws sts get-caller-identity
+
+# Reconfigure if needed
+aws configure
+```
+
+**Need help with Bedrock setup?**
+- See detailed guide: [bedrock-setup.md](bedrock-setup.md)
+- Includes step-by-step AWS configuration
+- IAM policy setup
+- Cost optimization tips
 
 ---
 
