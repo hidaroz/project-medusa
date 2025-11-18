@@ -16,7 +16,7 @@ keywords = ["security", "penetration-testing", "ai", "red-team"]
 dependencies = [
     "typer[all]>=0.20.0",
     "click>=8.0.0",  # Required for typer 0.20.0+ compatibility
-    "rich>=14.0.0",
+    "rich>=12.0.0,<14.0.0",
     "prompt-toolkit>=3.0.0",
     "httpx>=0.26.0",
     "pyyaml>=6.0.1",
@@ -31,9 +31,9 @@ dependencies = [
 dev = [
     "pytest>=7.4.3",
     "pytest-cov>=4.1.0",
-    "black>=23.12.1",
-    "flake8>=6.1.0",
-    "mypy>=1.7.1",
+    "black>=24.1.1",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
 ]
 
 [project.scripts]
