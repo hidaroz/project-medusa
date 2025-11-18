@@ -10,6 +10,7 @@ from .amass import AmassScanner
 from .httpx_scanner import HttpxScanner
 from .kerbrute import KerbruteScanner
 from .sql_injection import SQLMapScanner
+from .metasploit import MetasploitClient
 
 __all__ = [
     "BaseTool",
@@ -20,4 +21,5 @@ __all__ = [
     "HttpxScanner",
     "KerbruteScanner",
     "SQLMapScanner",
+    "MetasploitClient",
 ]
