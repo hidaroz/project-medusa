@@ -4,98 +4,40 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "medusa-pentest"
-version = "1.0.1"
-description = "AI-powered autonomous penetration testing CLI for security professionals"
+version = "1.0.0"
+description = "AI-powered autonomous penetration testing CLI"
 readme = "README.md"
 requires-python = ">=3.9"
-license = "MIT"
+license = {text = "MIT"}
 authors = [
-    {name = "Project Medusa Team", email = "noreply@github.com"}
+    {name = "Project Medusa Team", email = "security@medusa.dev"}
 ]
-keywords = ["security", "penetration-testing", "ai", "llm", "red-team", "offensive-security"]
-classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Information Technology",
-    "Intended Audience :: System Administrators",
-    "Topic :: Security",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
-    "Environment :: Console",
-    "Operating System :: OS Independent",
-]
+keywords = ["security", "penetration-testing", "ai", "red-team"]
 dependencies = [
-    # CLI Framework
-    "typer>=0.20.0",
-    "click>=8.0.0",
-    "rich>=14.0.0,<15",
+    "typer[all]>=0.20.0",
+    "click>=8.0.0",  # Required for typer 0.20.0+ compatibility
+    "rich>=12.0.0,<14.0.0",
     "prompt-toolkit>=3.0.0",
-
-    # HTTP Client
-    "httpx>=0.27.0,<0.29.0",
-
-    # Configuration Management
-    "pyyaml==6.0.1",
-
-    # LLM Integration - AWS Bedrock support
-    "boto3>=1.34.0",
-    "botocore>=1.34.0",
-
-    # Report Generation
-    "jinja2==3.1.3",
-
-    # Web API Server
-    "flask==3.0.0",
-    "flask-cors==4.0.0",
-    "flask-limiter>=4.0.0,<5.0.0",
-
-    # Neo4j Graph Database (World Model)
-    "neo4j==5.14.1",
-    "pydantic==2.9.2",
-
-    # Vector Database (Context Fusion Engine)
-    "chromadb>=1.3.4,<1.4",
-    "numpy>=1.26.4,<2.0",
-    "sentence-transformers>=5.1.2,<5.2",
-    "torch>=2.3.0,<2.10",
-    "protobuf>=4.25.3,<5.0.0",
-
-    # Utilities
-    "python-dotenv==1.0.0",
+    "httpx>=0.26.0",
+    "pyyaml>=6.0.1",
+    "google-generativeai>=0.3.2",
+    "jinja2>=3.1.3",
+    "flask>=3.0.0",
+    "flask-cors>=4.0.0",
+    "python-dotenv>=1.0.0",
 ]
-
-[project.urls]
-Homepage = "https://github.com/hidaroz/project-medusa"
-Documentation = "https://github.com/hidaroz/project-medusa/tree/main/docs"
-Repository = "https://github.com/hidaroz/project-medusa"
-Issues = "https://github.com/hidaroz/project-medusa/issues"
-Changelog = "https://github.com/hidaroz/project-medusa/releases"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.2.0,<9.0.0",
+    "pytest>=7.4.3",
     "pytest-cov>=4.1.0",
-    "pytest-asyncio>=1.2.0",
-    "black>=23.12.1",
-    "flake8>=6.1.0",
-    "mypy>=1.7.1",
+    "black>=24.1.1",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
 ]
 
 [project.scripts]
 medusa = "medusa.cli:app"
-
-[tool.setuptools]
-zip-safe = false
-include-package-data = true
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-medusa = ["templates/*.html", "templates/*.css"]
 
 [tool.black]
 line-length = 100

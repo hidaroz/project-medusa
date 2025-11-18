@@ -20,6 +20,7 @@ from flask import Flask, request, jsonify, g
 from flask_cors import CORS
 from pydantic import BaseModel, Field, ValidationError
 from neo4j.exceptions import CypherSyntaxError, ServiceUnavailable
+from werkzeug.exceptions import UnsupportedMediaType
 
 from medusa.world_model.client import WorldModelClient, Neo4jClient
 from medusa.world_model.models import Host, Domain, User, Vulnerability
@@ -399,14 +400,16 @@ class QueryValidator:
     """Validates Cypher queries for safety before execution."""
 
     # Dangerous Cypher keywords that should be restricted
+    # Note: Order matters - check longer patterns first to avoid substring matches
     DANGEROUS_KEYWORDS = [
-        "DELETE", "DETACH DELETE",
+        "DETACH DELETE",
+        "DROP CONSTRAINT",
+        "CREATE CONSTRAINT",
+        "DROP INDEX",
+        "CREATE INDEX",
+        "DELETE",
         "REMOVE",
         "DROP",
-        "CREATE CONSTRAINT",
-        "DROP CONSTRAINT",
-        "CREATE INDEX",
-        "DROP INDEX",
     ]
 
     # Allowed write operations
@@ -700,14 +703,27 @@ def create_app(config: APIConfig = APIConfig) -> Flask:
 
         try:
             # Validate request body
-            data = request.get_json()
-            if not data:
+            try:
+                data = request.get_json()
+            except UnsupportedMediaType:
                 return jsonify({
                     "success": False,
                     "error": "Request body must be JSON"
                 }), 400
 
-            req = UpdateRequest(**data)
+            if data is None:
+                return jsonify({
+                    "success": False,
+                    "error": "Request body must be JSON"
+                }), 400
+
+            try:
+                req = UpdateRequest(**data)
+            except ValidationError as ve:
+                return jsonify({
+                    "success": False,
+                    "error": f"Invalid request: {ve.errors()[0]['msg']}"
+                }), 400
 
             # Validate query safety
             is_valid, error = QueryValidator.validate_write_query(req.query)
@@ -780,14 +796,27 @@ def create_app(config: APIConfig = APIConfig) -> Flask:
 
         try:
             # Validate request body
-            data = request.get_json()
-            if not data:
+            try:
+                data = request.get_json()
+            except UnsupportedMediaType:
                 return jsonify({
                     "success": False,
                     "error": "Request body must be JSON"
                 }), 400
 
-            req = QueryRequest(**data)
+            if data is None:
+                return jsonify({
+                    "success": False,
+                    "error": "Request body must be JSON"
+                }), 400
+
+            try:
+                req = QueryRequest(**data)
+            except ValidationError as ve:
+                return jsonify({
+                    "success": False,
+                    "error": f"Invalid request: {ve.errors()[0]['msg']}"
+                }), 400
 
             # Translate natural language to Cypher
             cypher, description = QueryTranslator.translate(req.question, req.limit)
@@ -835,6 +864,16 @@ def create_app(config: APIConfig = APIConfig) -> Flask:
                 "error": "Database service unavailable"
             }), 503
 
+        except (OSError, ValueError) as e:
+            # Catches socket.gaierror, address resolution, and connection errors
+            if "resolve address" in str(e).lower() or "connection" in str(e).lower():
+                logger.error(f"Database connection error: {e}")
+                return jsonify({
+                    "success": False,
+                    "error": "Database service unavailable"
+                }), 503
+            raise  # Re-raise if not a connection error
+
         except Exception as e:
             logger.error(f"Query failed: {e}", exc_info=True)
             return jsonify({
@@ -878,8 +917,15 @@ def create_app(config: APIConfig = APIConfig) -> Flask:
 
         try:
             # Validate request body
-            data = request.get_json()
-            if not data:
+            try:
+                data = request.get_json()
+            except UnsupportedMediaType:
+                return jsonify({
+                    "success": False,
+                    "error": "Request body must be JSON"
+                }), 400
+
+            if data is None:
                 return jsonify({
                     "success": False,
                     "error": "Request body must be JSON"

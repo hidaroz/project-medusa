@@ -3,18 +3,15 @@
 
 # CLI Framework
 # Note: typer 0.20.0+ requires click 8.0.0+ for compatibility
-typer>=0.20.0
+typer[all]>=0.20.0
 click>=8.0.0
 
 # Terminal UI
-rich>=14.0.0,<15
+rich>=12.0.0,<14.0.0
 prompt-toolkit>=3.0.0
 
 # HTTP Client (async)
-httpx>=0.27.0,<0.29.0
-
-# HTTP Client (sync) - used by graph_integration.py
-requests>=2.28.0
+httpx==0.26.0
 
 # Configuration Management
 pyyaml==6.0.1
@@ -24,9 +21,6 @@ pyyaml==6.0.1
 # Optional cloud packages can be installed separately:
 # - pip install openai  (for OpenAI/GPT support)
 # - pip install anthropic  (for Anthropic/Claude support)
-# - boto3 and botocore are included for AWS Bedrock support
-boto3>=1.34.0
-botocore>=1.34.0
 
 # Report Generation
 jinja2==3.1.3
@@ -34,31 +28,23 @@ jinja2==3.1.3
 # Web API Server
 flask==3.0.0
 flask-cors==4.0.0
-flask-limiter>=4.0.0,<5.0.0  # Rate limiting for API endpoints
+flask-limiter==3.5.0  # Rate limiting for API endpoints
 
 # Database (for operation logging)
 # sqlalchemy==2.0.23
 
 # Neo4j Graph Database (for World Model)
 neo4j==5.14.1
-pydantic==2.9.2
-
-# Vector Database (for Context Fusion Engine)
-chromadb>=1.3.4,<1.4
-numpy>=1.26.4,<2.0
-sentence-transformers>=5.1.2,<5.2
-torch>=2.3.0,<2.10
-protobuf>=4.25.3,<5.0.0  # capped for google-ai-generativelanguage compatibility
+pydantic==2.5.3
 
 # Testing
-pytest>=8.2.0,<9.0.0
+pytest==7.4.3
 pytest-cov==4.1.0
-pytest-asyncio>=1.2.0
 
 # Code quality
-black==23.12.1
-flake8==6.1.0
-mypy==1.7.1
+black==24.1.1
+flake8==7.0.0
+mypy==1.8.0
 
 # Utilities
 python-dotenv==1.0.0
