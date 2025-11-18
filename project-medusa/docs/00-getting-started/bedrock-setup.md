@@ -324,47 +324,107 @@ MEDUSA tracks costs in real-time and provides detailed breakdowns:
 
 ```bash
 # View last operation cost
-medusa agent report
+medusa agent status --verbose
 
 # View specific operation
-medusa agent report OP-20251114-001
+medusa agent status --operation OP-20251114-001
 
-# Export cost data
-medusa agent report --export costs.json
+# See all past operations
+ls -lh ~/.medusa/logs/multi-agent-*.json
 ```
 
 ### Cost Optimization Tips
 
-1. **Use Smart Routing** (Default)
-   - Automatically uses Haiku for 60% of tasks
-   - Saves ~60% compared to Sonnet-only
-   - No configuration needed
+1. **Use Smart Routing** (Default - 60% savings)
+   - Automatically uses Haiku ($0.80/$4 per 1M tokens) for 60-70% of tasks
+   - Uses Sonnet ($3/$15 per 1M tokens) only for complex reasoning
+   - No configuration needed - enabled by default
+   - Verify: `medusa llm verify` should show "Smart Routing: Enabled"
 
 2. **Choose Right Operation Type**
-   - `recon_only`: ~$0.05-0.10
-   - `vuln_scan`: ~$0.10-0.15
-   - `full_assessment`: ~$0.20-0.30
+   ```bash
+   # Reconnaissance only (cheapest)
+   medusa agent run target.com --type recon_only  # ~$0.05-0.10
+
+   # Vulnerability scan (moderate)
+   medusa agent run target.com --type vuln_scan   # ~$0.10-0.15
+
+   # Full assessment (comprehensive)
+   medusa agent run target.com                    # ~$0.20-0.30
+   ```
 
 3. **Set Cost Limits**
    ```bash
-   medusa agent run target.com \
-     --max-cost 0.50  # Stop if cost exceeds $0.50
+   # Stop operation if cost exceeds limit
+   medusa agent run target.com --max-cost 0.50
+
+   # Useful for CI/CD pipelines or budget control
    ```
 
-4. **Use Mock Mode for Testing**
+4. **Use Haiku-Only Mode for Simple Tasks**
    ```bash
+   # Force Haiku for everything (ultra-cheap)
+   export SMART_MODEL=anthropic.claude-3-5-haiku-20241022-v1:0
+   medusa agent run target.com --type recon_only  # ~$0.02-0.04
+   ```
+
+5. **Use Mock Mode for Testing**
+   ```bash
+   # No API calls, zero cost, for testing workflows
    export LLM_PROVIDER=mock
-   medusa agent run target.com  # No API calls, no cost
+   medusa agent run target.com
+   ```
+
+6. **Batch Operations Strategically**
+   ```bash
+   # Run recon on multiple targets in one session
+   # More efficient than individual operations
+   for target in app1.com app2.com app3.com; do
+     medusa agent run $target --type recon_only
+   done
    ```
 
 ### Monthly Cost Estimates
 
-| Usage | Operations/Month | Est. Monthly Cost |
-|-------|-----------------|-------------------|
-| Light | 10 assessments | $2-3 |
-| Medium | 50 assessments | $10-15 |
-| Heavy | 100 assessments | $20-30 |
-| Enterprise | 500+ assessments | $100-150 |
+| Usage Level | Operations/Month | Operation Type | Est. Monthly Cost |
+|------------|------------------|----------------|-------------------|
+| **Learning** | 10-20 | recon_only | $1-2 |
+| **Light Testing** | 20-50 | mixed | $5-10 |
+| **Active Development** | 50-100 | vuln_scan | $10-20 |
+| **Production Testing** | 100-200 | full_assessment | $25-50 |
+| **Enterprise** | 500-1000+ | full_assessment | $100-300 |
+
+### Cost Tracking & Reporting
+
+**Real-time during operation**:
+```bash
+# Watch costs accumulate
+medusa agent status --verbose --watch
+```
+
+**After operation**:
+```bash
+# Detailed breakdown
+medusa agent status --verbose
+
+# Expected output:
+# ┌─────────────────────────────────┐
+# │  Cost: $0.23                    │
+# │  - Orchestrator: $0.05 (Sonnet) │
+# │  - Recon: $0.03 (Haiku)         │
+# │  - Analysis: $0.04 (Haiku)      │
+# │  - Planning: $0.08 (Sonnet)     │
+# │  - Reporting: $0.03 (Haiku)     │
+# │  Savings: 62% vs Sonnet-only    │
+# └─────────────────────────────────┘
+```
+
+**Monthly summary**:
+```bash
+# Aggregate all operations this month
+grep -r "total_cost" ~/.medusa/logs/multi-agent-*.json | \
+  awk '{sum+=$NF} END {print "Monthly total: $"sum}'
+```
 
 ---
 
@@ -428,7 +488,7 @@ export AWS_REGION=us-west-2
 medusa llm verify
 
 # Review recent costs
-medusa agent report --detailed
+medusa agent status --verbose
 ```
 
 **Solution**:
@@ -439,6 +499,66 @@ export FAST_MODEL=anthropic.claude-3-5-haiku-20241022-v1:0
 
 # Verify configuration
 medusa llm verify
+```
+
+**Expected Cost Breakdown**:
+- If seeing 100% Sonnet usage → Smart routing is NOT working
+- If seeing 30-40% Sonnet, 60-70% Haiku → Smart routing is working correctly
+- Typical multi-agent operation should cost $0.20-0.30
+
+### IAM Permission Errors
+
+**Error**: "User is not authorized to perform: bedrock:InvokeModel"
+
+**Cause**: Missing IAM permissions
+
+**Solution**:
+```bash
+# Check current permissions
+aws iam list-attached-user-policies --user-name medusa-bedrock
+
+# Attach the correct policy (replace ACCOUNT_ID)
+aws iam attach-user-policy \
+  --user-name medusa-bedrock \
+  --policy-arn arn:aws:iam::ACCOUNT_ID:policy/MedusaBedrockAccess
+```
+
+### Model Not Found
+
+**Error**: "Could not resolve the foundation model from the model identifier"
+
+**Cause**: Model ID typo or region mismatch
+
+**Solution**:
+```bash
+# List available models in your region
+aws bedrock list-foundation-models \
+  --region us-west-2 \
+  --by-provider anthropic \
+  --query 'modelSummaries[*].[modelId,modelName]' \
+  --output table
+
+# Use exact model ID from the list
+export SMART_MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
+export FAST_MODEL=anthropic.claude-3-5-haiku-20241022-v1:0
+```
+
+### Vector Database Integration Issues
+
+**Error**: "Failed to retrieve context from vector store"
+
+**Cause**: Vector database not initialized for multi-agent mode
+
+**Solution**:
+```bash
+# Index knowledge bases
+cd medusa-cli
+python scripts/index_mitre_attack.py
+python scripts/index_tool_docs.py
+python scripts/index_cves.py
+
+# Verify indexing
+python -c "from medusa.context.vector_store import VectorStore; vs = VectorStore(); print(vs.get_stats())"
 ```
 
 ---
@@ -555,7 +675,8 @@ Once Bedrock is configured:
 
 ---
 
-**Last Updated**: 2025-11-14
+**Last Updated**: 2025-11-15
+**Version**: 2.1 (Multi-Agent + AWS Bedrock)
 **Status**: Production-ready setup guide
 **Tested With**: AWS Bedrock, Claude 3.5 Sonnet/Haiku
 

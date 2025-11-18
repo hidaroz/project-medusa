@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "medusa-pentest"
-version = "1.0.0"
+version = "1.0.1"
 description = "AI-powered autonomous penetration testing CLI for security professionals"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -29,7 +29,7 @@ classifiers = [
 ]
 dependencies = [
     # CLI Framework
-    "typer[all]>=0.20.0",
+    "typer>=0.20.0",
     "click>=8.0.0",
     "rich>=14.0.0,<15",
     "prompt-toolkit>=3.0.0",
@@ -76,8 +76,9 @@ Changelog = "https://github.com/hidaroz/project-medusa/releases"
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.3",
+    "pytest>=8.2.0,<9.0.0",
     "pytest-cov>=4.1.0",
+    "pytest-asyncio>=1.2.0",
     "black>=23.12.1",
     "flake8>=6.1.0",
     "mypy>=1.7.1",
