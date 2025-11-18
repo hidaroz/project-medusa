@@ -1,114 +1,115 @@
 """
 Context Fusion Engine
-Combines Neo4j graph data with vector DB semantic search
-to build rich, intelligent context for LLM prompts
+
+Main orchestrator for context-aware AI operations.
+Combines vector search, graph queries, and intelligent reranking
+to provide optimal context for each operation phase.
 """
 
-from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
-import logging
-import json
+from typing import List, Dict, Any, Optional
+import asyncio
+from datetime import datetime
+
+from .vector_store import VectorStore
+from .hybrid_retrieval import HybridRetrieval
+from .rag_optimizer import RAGOptimizer
+from .reranker import ContextReranker
 
 
 class ContextFusionEngine:
     """
-    Fuses multiple knowledge sources into unified LLM context
+    Main context fusion engine.
 
-    Sources:
-    1. Neo4j Graph - Current infrastructure state, relationships
-    2. Vector DB - Semantic knowledge (MITRE, CVEs, tool docs)
-    3. Operation History - Short-term memory of current session
+    Responsibilities:
+    - Orchestrate hybrid retrieval
+    - Build phase-specific context
+    - Record operation history
+    - Optimize context for LLM consumption
     """
 
     def __init__(
         self,
-        world_model: Optional['WorldModelClient'] = None,
-        vector_store: Optional['VectorStore'] = None
+        vector_store: VectorStore,
+        world_model: Any
     ):
         """
-        Initialize Context Fusion Engine
+        Initialize context fusion engine.
 
         Args:
-            world_model: Neo4j world model client
-            vector_store: ChromaDB vector store
+            vector_store: Vector database
+            world_model: World Model client
         """
-        self.world_model = world_model
         self.vector_store = vector_store
-        self.logger = logging.getLogger(__name__)
+        self.world_model = world_model
+        self.hybrid_retrieval = HybridRetrieval(vector_store, world_model)
+        self.rag_optimizer = RAGOptimizer(vector_store, world_model)
+        self.reranker = ContextReranker()
 
-        # Short-term memory: current operation history
-        self.operation_history: List[Dict[str, Any]] = []
+        # Operation state tracking
+        self.current_operation = None
+        self.action_history = []
 
     def build_context_for_reconnaissance(
         self,
         target: str,
-        existing_findings: Optional[List[Dict[str, Any]]] = None
+        existing_findings: List[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        Build context for reconnaissance phase
-
-        Args:
-            target: Target URL/IP
-            existing_findings: Already discovered findings
+        Build context for reconnaissance phase.
 
         Returns:
-            Rich context dict with graph state, MITRE techniques, tool suggestions
+        - Recommended MITRE techniques
+        - Tool suggestions
+        - Known infrastructure (from graph)
         """
         context = {
-            "phase": "reconnaissance",
-            "target": target
+            'target': target,
+            'phase': 'reconnaissance',
+            'recommended_techniques': [],
+            'tool_suggestions': [],
+            'known_infrastructure': {}
         }
 
-        # 1. Graph: Check what we already know about this target
-        if self.world_model:
-            try:
-                existing_hosts = self.world_model.get_all_hosts(limit=10)
-                context["known_infrastructure"] = {
-                    "host_count": len(existing_hosts),
-                    "hosts": existing_hosts[:5]  # Top 5
-                }
-            except Exception as e:
-                self.logger.warning(f"Failed to get graph data: {e}")
-                context["known_infrastructure"] = {"host_count": 0, "hosts": []}
-        else:
-            context["known_infrastructure"] = {"host_count": 0, "hosts": []}
-
-        # 2. Vector: Relevant MITRE techniques for reconnaissance
-        if self.vector_store:
-            try:
-                mitre_techniques = self.vector_store.search_mitre_techniques(
-                    query="network reconnaissance port scanning service discovery",
-                    n_results=5
-                )
-                context["recommended_techniques"] = mitre_techniques
-            except Exception as e:
-                self.logger.warning(f"Failed to search MITRE techniques: {e}")
-                context["recommended_techniques"] = []
-        else:
-            context["recommended_techniques"] = []
-
-        # 3. Vector: Tool usage examples
-        if self.vector_store:
-            try:
-                tool_suggestions = self.vector_store.search_tool_usage(
-                    query="network port scanning service enumeration",
-                    n_results=3
-                )
-                context["tool_suggestions"] = tool_suggestions
-            except Exception as e:
-                self.logger.warning(f"Failed to search tool usage: {e}")
-                context["tool_suggestions"] = []
-        else:
-            context["tool_suggestions"] = []
-
-        # 4. Operation history
-        context["recent_actions"] = self.operation_history[-5:] if self.operation_history else []
-
-        self.logger.info(
-            f"Context built for reconnaissance: "
-            f"{len(context.get('recommended_techniques', []))} MITRE techniques, "
-            f"{len(context.get('tool_suggestions', []))} tool suggestions"
+        # Get MITRE reconnaissance techniques
+        mitre_results = self.vector_store.search_mitre_techniques(
+            "reconnaissance enumeration discovery",
+            tactic="reconnaissance",
+            n_results=5
         )
+        context['recommended_techniques'] = [
+            {
+                'technique_id': r.get('technique_id', 'T????'),
+                'name': r.get('name', 'Unknown'),
+                'description': r.get('description', '')
+            }
+            for r in mitre_results
+        ]
+
+        # Get tool suggestions
+        tool_results = self.vector_store.search_tools(
+            "reconnaissance scanning enumeration",
+            tool_type="recon",
+            n_results=5
+        )
+        context['tool_suggestions'] = [
+            {
+                'tool': r.get('tool_name', 'Unknown'),
+                'usage': r.get('usage', ''),
+                'description': r.get('description', '')
+            }
+            for r in tool_results
+        ]
+
+        # Get known infrastructure from graph
+        try:
+            hosts = self.world_model.get_all_hosts(limit=10)
+            domains = self.world_model.get_all_domains(limit=5)
+            context['known_infrastructure'] = {
+                'hosts': len(hosts),
+                'domains': len(domains)
+            }
+        except Exception:
+            context['known_infrastructure'] = {'hosts': 0, 'domains': 0}
 
         return context
 
@@ -118,69 +119,66 @@ class ContextFusionEngine:
         target: str
     ) -> Dict[str, Any]:
         """
-        Build context for vulnerability analysis phase
-
-        Args:
-            findings: Discovered findings from reconnaissance
-            target: Target URL/IP
+        Build context for vulnerability analysis phase.
 
         Returns:
-            Context with known vulns, CVEs, and exploitation techniques
+        - Relevant CVEs
+        - Exploitation techniques
+        - Similar vulnerabilities
         """
         context = {
-            "phase": "vulnerability_analysis",
-            "target": target,
-            "findings_count": len(findings)
+            'target': target,
+            'phase': 'vulnerability_analysis',
+            'relevant_cves': [],
+            'exploitation_techniques': []
         }
 
-        # 1. Graph: Get current vulnerabilities and relationships
-        if self.world_model:
-            try:
-                known_vulns = self.world_model.get_vulnerabilities()
-                context["known_vulnerabilities"] = {
-                    "count": len(known_vulns),
-                    "high_severity": [v for v in known_vulns if v.get("severity") == "high"]
-                }
-            except Exception as e:
-                self.logger.warning(f"Failed to get vulnerabilities from graph: {e}")
-                context["known_vulnerabilities"] = {"count": 0, "high_severity": []}
-        else:
-            context["known_vulnerabilities"] = {"count": 0, "high_severity": []}
+        # Build search query from findings
+        services = [
+            f"{f.get('service', '')} {f.get('version', '')}"
+            for f in findings
+        ]
+        search_query = " ".join(services)
 
-        # 2. Extract unique services from findings
-        services = set()
-        for finding in findings:
-            if finding.get("type") == "open_port":
-                services.add(finding.get("service", "unknown"))
+        # Search for relevant CVEs
+        cve_results = self.vector_store.search_cve(
+            search_query,
+            n_results=10
+        )
 
-        # 3. Vector: Search for CVEs related to discovered services
-        cve_context = []
-        if self.vector_store and services:
-            for service in list(services)[:5]:  # Limit to top 5 services
-                try:
-                    cves = self.vector_store.search_cves(
-                        query=f"{service} vulnerability",
-                        n_results=3
-                    )
-                    cve_context.extend(cves)
-                except Exception as e:
-                    self.logger.warning(f"Failed to search CVEs for {service}: {e}")
+        # Rerank CVEs by severity and recency
+        reranked_cves = self.reranker.rerank(
+            cve_results,
+            operation_phase='vulnerability_analysis'
+        )
 
-        context["relevant_cves"] = cve_context
+        context['relevant_cves'] = [
+            {
+                'cve_id': r.get('cve_id', 'CVE-YYYY-XXXX'),
+                'severity': r.get('severity', 'unknown'),
+                'cvss': r.get('cvss', 0.0),
+                'description': r.get('description', ''),
+                'score': r.get('_final_score', 0.0)
+            }
+            for r in reranked_cves[:5]
+        ]
 
-        # 4. Vector: Exploitation techniques
-        if self.vector_store:
-            try:
-                exploit_techniques = self.vector_store.search_mitre_techniques(
-                    query="exploit vulnerability privilege escalation",
-                    n_results=5
-                )
-                context["exploitation_techniques"] = exploit_techniques
-            except Exception as e:
-                self.logger.warning(f"Failed to search exploitation techniques: {e}")
-                context["exploitation_techniques"] = []
-        else:
-            context["exploitation_techniques"] = []
+        # Get exploitation techniques
+        exploit_query = f"exploitation {search_query}"
+        exploit_results = self.vector_store.search_mitre_techniques(
+            exploit_query,
+            tactic="execution",
+            n_results=5
+        )
+
+        context['exploitation_techniques'] = [
+            {
+                'technique_id': r.get('technique_id', 'T????'),
+                'name': r.get('name', 'Unknown'),
+                'description': r.get('description', '')
+            }
+            for r in exploit_results
+        ]
 
         return context
 
@@ -190,243 +188,138 @@ class ContextFusionEngine:
         objectives: List[str]
     ) -> Dict[str, Any]:
         """
-        Build comprehensive context for strategic planning
-
-        This is for the Planning Agent - needs full picture
-
-        Args:
-            all_findings: All findings from recon and analysis
-            objectives: Operation objectives
+        Build context for planning phase.
 
         Returns:
-            Comprehensive context for planning
+        - Attack chain templates
+        - Similar past operations
+        - Strategic recommendations
         """
         context = {
-            "phase": "planning",
-            "objectives": objectives,
-            "total_findings": len(all_findings)
+            'phase': 'planning',
+            'attack_chain_templates': [],
+            'similar_past_operations': []
         }
 
-        # 1. Graph: Complete attack surface
-        if self.world_model:
-            try:
-                attack_surface = self.world_model.get_graph_statistics()
-                context["attack_surface"] = attack_surface
-            except Exception as e:
-                self.logger.warning(f"Failed to get graph statistics: {e}")
-                context["attack_surface"] = {}
-        else:
-            context["attack_surface"] = {}
+        # Search for similar past operations
+        objectives_str = " ".join(objectives)
+        past_ops = self.vector_store.search_operation_history(
+            objectives_str,
+            success_only=True,
+            n_results=5
+        )
 
-        # 2. Vector: Historical successful attack chains
-        if self.vector_store:
-            try:
-                similar_operations = self.vector_store.search_operation_history(
-                    query=f"Similar findings: {', '.join(objectives)}",
-                    n_results=3
-                )
-                context["similar_past_operations"] = similar_operations
-            except Exception as e:
-                self.logger.warning(f"Failed to search operation history: {e}")
-                context["similar_past_operations"] = []
-        else:
-            context["similar_past_operations"] = []
-
-        # 3. Vector: MITRE ATT&CK attack chain templates
-        if self.vector_store:
-            try:
-                attack_chain_templates = self.vector_store.search_mitre_techniques(
-                    query="complete attack chain initial access persistence exfiltration",
-                    n_results=10
-                )
-                context["attack_chain_templates"] = attack_chain_templates
-            except Exception as e:
-                self.logger.warning(f"Failed to search attack chains: {e}")
-                context["attack_chain_templates"] = []
-        else:
-            context["attack_chain_templates"] = []
-
-        # 4. Full operation history (for Planning Agent only)
-        context["full_operation_history"] = self.operation_history
-
-        return context
-
-    def build_context_for_exploitation(
-        self,
-        vulnerabilities: List[Dict[str, Any]],
-        target: str
-    ) -> Dict[str, Any]:
-        """
-        Build context for exploitation phase
-
-        Args:
-            vulnerabilities: List of identified vulnerabilities
-            target: Target system
-
-        Returns:
-            Rich context with exploit knowledge and techniques
-        """
-        context = {
-            "phase": "exploitation",
-            "target": target,
-            "vulnerabilities": vulnerabilities
-        }
-
-        # 1. Vector: MITRE ATT&CK exploitation techniques
-        if self.vector_store:
-            try:
-                exploitation_techniques = self.vector_store.search_mitre_techniques(
-                    query="exploitation privilege escalation lateral movement",
-                    n_results=10
-                )
-                context["exploitation_techniques"] = exploitation_techniques
-            except Exception as e:
-                self.logger.warning(f"Failed to search MITRE techniques: {e}")
-                context["exploitation_techniques"] = []
-
-        # 2. Vector: Find known exploits for vulnerabilities
-        if self.vector_store:
-            try:
-                available_exploits = []
-                for vuln in vulnerabilities[:5]:  # Top 5 vulnerabilities
-                    vuln_name = vuln.get("vulnerability", vuln.get("name", ""))
-                    cve_id = vuln.get("cve_id", "")
-
-                    query = f"{vuln_name} {cve_id} exploit"
-                    cves = self.vector_store.search_cves(query=query, n_results=3)
-
-                    for cve in cves:
-                        available_exploits.append({
-                            "exploit_id": cve.get("cve_id", ""),
-                            "description": cve.get("description", ""),
-                            "severity": cve.get("severity", ""),
-                            "cvss": cve.get("cvss", 0),
-                            "related_vulnerability": vuln_name
-                        })
-
-                context["available_exploits"] = available_exploits[:10]
-            except Exception as e:
-                self.logger.warning(f"Failed to search exploits: {e}")
-                context["available_exploits"] = []
-
-        # 3. Graph: Known credentials and access paths
-        if self.world_model:
-            try:
-                # Query for credentials found
-                credentials = self.world_model.query(
-                    """
-                    MATCH (c:Credential)
-                    RETURN c
-                    LIMIT 10
-                    """
-                )
-                context["known_credentials"] = credentials if credentials else []
-            except Exception as e:
-                self.logger.warning(f"Failed to query credentials: {e}")
-                context["known_credentials"] = []
-
-        # 4. Vector: Tool documentation for exploitation tools
-        if self.vector_store:
-            try:
-                tool_docs = self.vector_store.search_tool_usage(
-                    query="exploitation post-exploitation privilege escalation",
-                    n_results=5
-                )
-                context["exploitation_tools"] = tool_docs
-            except Exception as e:
-                self.logger.warning(f"Failed to search tool docs: {e}")
-                context["exploitation_tools"] = []
-
-        # 5. Recent exploitation attempts from history
-        recent_exploits = [
-            action for action in self.operation_history
-            if action.get("action_type") in ["exploit", "privilege_escalation", "lateral_movement"]
+        context['similar_past_operations'] = [
+            {
+                'operation_id': op.get('operation_id', 'unknown'),
+                'techniques_used': op.get('techniques_used', []),
+                'findings': op.get('findings_summary', ''),
+                'success': op.get('success', False)
+            }
+            for op in past_ops
         ]
-        context["recent_exploitation_attempts"] = recent_exploits[-10:]
+
+        # Get attack chain templates (MITRE sequences)
+        attack_chain_results = self.vector_store.search_mitre_techniques(
+            "lateral movement privilege escalation",
+            n_results=5
+        )
+
+        context['attack_chain_templates'] = [
+            {
+                'technique_id': r.get('technique_id', 'T????'),
+                'name': r.get('name', 'Unknown'),
+                'tactic': r.get('tactic', 'unknown')
+            }
+            for r in attack_chain_results
+        ]
 
         return context
+
+    async def get_contextual_recommendations(
+        self,
+        query: str,
+        operation_phase: str,
+        operation_state: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get context-aware recommendations for current operation.
+
+        Args:
+            query: User query or task description
+            operation_phase: Current phase (reconnaissance, analysis, etc.)
+            operation_state: Current operation state
+
+        Returns:
+            Ranked recommendations with context
+        """
+        # Use RAG optimizer for retrieval
+        results = await self.rag_optimizer.retrieve(
+            query,
+            n_results=10,
+            operation_state=operation_state
+        )
+
+        # Rerank for current phase
+        reranked = self.reranker.rerank(
+            results,
+            operation_phase=operation_phase,
+            query=query,
+            context=operation_state
+        )
+
+        return reranked[:5]
 
     def record_action(self, action: Dict[str, Any]):
+        """Record an action for operation history."""
+        action['timestamp'] = datetime.now().isoformat()
+        self.action_history.append(action)
+
+    async def add_operation_to_history(
+        self,
+        operation_id: str,
+        target: str,
+        objectives: List[str],
+        findings_summary: str,
+        techniques_used: List[str],
+        success: bool,
+        duration_seconds: float
+    ):
         """
-        Record an action to short-term memory
+        Add completed operation to history for future reference.
 
         Args:
-            action: Action details (agent, action_type, target, etc.)
+            operation_id: Unique operation identifier
+            target: Target of operation
+            objectives: Operation objectives
+            findings_summary: Summary of findings
+            techniques_used: MITRE techniques used
+            success: Whether operation succeeded
+            duration_seconds: Operation duration
         """
-        self.operation_history.append({
-            "timestamp": datetime.now().isoformat(),
-            **action
-        })
-
-        # Keep only last 50 actions in memory
-        if len(self.operation_history) > 50:
-            self.operation_history = self.operation_history[-50:]
-
-    def get_context_summary(self) -> str:
-        """
-        Generate human-readable context summary for LLM
-
-        Returns:
-            Formatted context summary
-        """
-        # Vector store stats
-        vector_stats = {}
-        if self.vector_store:
-            try:
-                vector_stats = self.vector_store.get_stats()
-            except Exception as e:
-                self.logger.warning(f"Failed to get vector stats: {e}")
-
-        # Graph stats
-        graph_stats = {}
-        if self.world_model:
-            try:
-                graph_stats = self.world_model.get_graph_statistics()
-            except Exception as e:
-                self.logger.warning(f"Failed to get graph stats: {e}")
-
-        # Recent actions
-        recent_cutoff = (datetime.now() - timedelta(minutes=10)).isoformat()
-        recent_actions = [
-            a for a in self.operation_history
-            if a.get('timestamp', '') > recent_cutoff
-        ]
-
-        summary = f"""
-# Current Knowledge Base Status
-
-## Graph Database (Infrastructure State)
-{json.dumps(graph_stats, indent=2)}
-
-## Vector Database (Semantic Knowledge)
-{json.dumps(vector_stats, indent=2)}
-
-## Operation History
-- Actions recorded: {len(self.operation_history)}
-- Recent actions (last 10 min): {len(recent_actions)}
-"""
-        return summary
-
-    def clear_history(self):
-        """Clear operation history"""
-        self.operation_history = []
-        self.logger.info("Operation history cleared")
-
-    def export_context(self, filepath: str):
-        """
-        Export current context to JSON file
-
-        Args:
-            filepath: Path to save context
-        """
-        context_data = {
-            "timestamp": datetime.now().isoformat(),
-            "operation_history": self.operation_history,
-            "vector_stats": self.vector_store.get_stats() if self.vector_store else {},
-            "graph_stats": self.world_model.get_graph_statistics() if self.world_model else {}
+        operation_doc = {
+            'id': f"operation_{operation_id}",
+            'operation_id': operation_id,
+            'content': f"{' '.join(objectives)} against {target}: {findings_summary}",
+            'target': target,
+            'objectives': objectives,
+            'findings_summary': findings_summary,
+            'techniques_used': techniques_used,
+            'success': success,
+            'duration_seconds': duration_seconds,
+            'timestamp': datetime.now().isoformat()
         }
 
-        with open(filepath, 'w') as f:
-            json.dump(context_data, f, indent=2)
+        # Add to vector store
+        self.vector_store.add_documents(
+            'operations',
+            [operation_doc]
+        )
 
-        self.logger.info(f"Context exported to {filepath}")
+    def get_stats(self) -> Dict[str, Any]:
+        """Get engine statistics."""
+        return {
+            'vector_store': self.vector_store.get_stats(),
+            'rag_optimizer': self.rag_optimizer.get_metrics(),
+            'actions_recorded': len(self.action_history)
+        }

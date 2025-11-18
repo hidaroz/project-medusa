@@ -1,30 +1,20 @@
 """
-Multi-Agent System for MEDUSA
-Specialized agents that collaborate to perform security operations
+AI Agents for Autonomous Penetration Testing
+
+Specialized agents for different phases of penetration testing operations.
 """
 
-from .base_agent import BaseAgent, AgentCapability
-from .data_models import AgentMessage, AgentTask, AgentResult, AgentStatus
-from .message_bus import MessageBus
+from .data_models import AgentTask, AgentResult, TaskPriority, TaskStatus
+from .base_agent import BaseAgent
 from .reconnaissance_agent import ReconnaissanceAgent
 from .vulnerability_analysis_agent import VulnerabilityAnalysisAgent
-from .planning_agent import PlanningAgent
-from .exploitation_agent import ExploitationAgent
-from .reporting_agent import ReportingAgent
-from .orchestrator_agent import OrchestratorAgent
 
 __all__ = [
-    'BaseAgent',
-    'AgentCapability',
-    'AgentMessage',
-    'AgentTask',
-    'AgentResult',
-    'AgentStatus',
-    'MessageBus',
-    'ReconnaissanceAgent',
-    'VulnerabilityAnalysisAgent',
-    'PlanningAgent',
-    'ExploitationAgent',
-    'ReportingAgent',
-    'OrchestratorAgent'
+    "AgentTask",
+    "AgentResult",
+    "TaskPriority",
+    "TaskStatus",
+    "BaseAgent",
+    "ReconnaissanceAgent",
+    "VulnerabilityAnalysisAgent",
 ]

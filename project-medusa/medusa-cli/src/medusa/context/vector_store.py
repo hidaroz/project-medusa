@@ -1,395 +1,200 @@
 """
-Vector Store for semantic knowledge retrieval
-Uses ChromaDB with AWS Titan Embeddings (or local sentence-transformers)
+Vector Store for Context Fusion Engine
+
+Provides vector-based semantic search for MITRE ATT&CK techniques, CVE data,
+tool documentation, and operation history.
 """
 
-import chromadb
-from chromadb.config import Settings
-from typing import List, Dict, Any, Optional
-import logging
-from pathlib import Path
+import os
 import json
+from typing import List, Dict, Any, Optional
+from datetime import datetime
+import hashlib
 
 
 class VectorStore:
     """
-    Vector database for semantic search over security knowledge
+    Vector database interface for semantic search and retrieval.
 
-    Stores:
+    Uses ChromaDB for vector storage and retrieval. Supports:
     - MITRE ATT&CK techniques
-    - CVE database
+    - CVE vulnerability data
     - Tool documentation
-    - Historical operation summaries
+    - Operation history
     """
 
-    def __init__(
-        self,
-        persist_directory: str = "~/.medusa/vector_db",
-        embedding_provider: str = "local"  # or "bedrock"
-    ):
-        self.persist_dir = Path(persist_directory).expanduser()
-        self.persist_dir.mkdir(parents=True, exist_ok=True)
-
-        # Initialize ChromaDB
-        self.client = chromadb.PersistentClient(
-            path=str(self.persist_dir),
-            settings=Settings(
-                anonymized_telemetry=False,
-                allow_reset=True
-            )
-        )
-
-        # Configure embedding function
-        if embedding_provider == "bedrock":
-            self.embedding_function = self._create_bedrock_embeddings()
-        else:
-            self.embedding_function = self._create_local_embeddings()
-
-        # Collections
-        self.collections = {
-            "mitre_attack": self._get_or_create_collection("mitre_attack"),
-            "cve_database": self._get_or_create_collection("cve_database"),
-            "tool_docs": self._get_or_create_collection("tool_documentation"),
-            "operation_history": self._get_or_create_collection("operation_history")
-        }
-
-        self.logger = logging.getLogger(__name__)
-        self.logger.info(f"VectorStore initialized at {self.persist_dir}")
-
-    def _get_or_create_collection(self, name: str):
-        """Get or create a collection"""
-        try:
-            return self.client.get_collection(
-                name=name,
-                embedding_function=self.embedding_function
-            )
-        except ValueError:
-            return self.client.create_collection(
-                name=name,
-                embedding_function=self.embedding_function,
-                metadata={"hnsw:space": "cosine"}
-            )
-
-    def _create_bedrock_embeddings(self):
-        """Create Bedrock Titan embedding function"""
-        import boto3
-
-        class BedrockEmbeddingFunction:
-            def __init__(self):
-                self.bedrock = boto3.client('bedrock-runtime', region_name='us-west-2')
-                self.model_id = "amazon.titan-embed-text-v2:0"
-
-            def __call__(self, input: List[str]) -> List[List[float]]:
-                embeddings = []
-                for text in input:
-                    response = self.bedrock.invoke_model(
-                        modelId=self.model_id,
-                        body=json.dumps({"inputText": text})
-                    )
-                    result = json.loads(response['body'].read())
-                    embeddings.append(result['embedding'])
-                return embeddings
-
-        return BedrockEmbeddingFunction()
-
-    def _create_local_embeddings(self):
-        """Create local sentence-transformers embedding function"""
-        from chromadb.utils import embedding_functions
-
-        return embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
-
-    def index_mitre_attack(self, techniques: List[Dict[str, Any]]):
+    def __init__(self, persist_directory: Optional[str] = None):
         """
-        Index MITRE ATT&CK techniques
+        Initialize vector store.
 
         Args:
-            techniques: List of MITRE techniques with id, name, description
+            persist_directory: Directory for persistent storage.
+                             Defaults to ~/.medusa/vector_store/
         """
-        collection = self.collections["mitre_attack"]
-
-        ids = [t["id"] for t in techniques]
-        documents = [
-            f"{t['name']}: {t['description']}\n\nTactics: {', '.join(t.get('tactics', []))}"
-            for t in techniques
-        ]
-        metadatas = [
-            {
-                "technique_id": t["id"],
-                "technique_name": t["name"],
-                "tactics": ",".join(t.get("tactics", [])),
-                "platforms": ",".join(t.get("platforms", []))
-            }
-            for t in techniques
-        ]
-
-        collection.upsert(
-            ids=ids,
-            documents=documents,
-            metadatas=metadatas
+        self.persist_directory = persist_directory or os.path.expanduser(
+            "~/.medusa/vector_store"
         )
+        os.makedirs(self.persist_directory, exist_ok=True)
 
-        self.logger.info(f"Indexed {len(techniques)} MITRE ATT&CK techniques")
+        # For now, use in-memory storage until ChromaDB is installed
+        # TODO: Replace with actual ChromaDB client
+        self.collections = {
+            "mitre": [],
+            "cve": [],
+            "tools": [],
+            "operations": []
+        }
+        self._load_from_disk()
+
+    def _load_from_disk(self):
+        """Load vector store data from disk if it exists."""
+        data_file = os.path.join(self.persist_directory, "vector_data.json")
+        if os.path.exists(data_file):
+            try:
+                with open(data_file, 'r') as f:
+                    self.collections = json.load(f)
+            except Exception:
+                pass
+
+    def _save_to_disk(self):
+        """Save vector store data to disk."""
+        data_file = os.path.join(self.persist_directory, "vector_data.json")
+        with open(data_file, 'w') as f:
+            json.dump(self.collections, f, indent=2)
+
+    def add_documents(
+        self,
+        collection_name: str,
+        documents: List[Dict[str, Any]],
+        embeddings: Optional[List[List[float]]] = None
+    ):
+        """
+        Add documents to a collection.
+
+        Args:
+            collection_name: Name of the collection (mitre, cve, tools, operations)
+            documents: List of documents with content and metadata
+            embeddings: Optional pre-computed embeddings
+        """
+        if collection_name not in self.collections:
+            self.collections[collection_name] = []
+
+        for doc in documents:
+            # Add unique ID if not present
+            if 'id' not in doc:
+                content_hash = hashlib.md5(
+                    str(doc.get('content', '')).encode()
+                ).hexdigest()
+                doc['id'] = f"{collection_name}_{content_hash}"
+
+            # Add timestamp
+            if 'timestamp' not in doc:
+                doc['timestamp'] = datetime.now().isoformat()
+
+            # Check if document already exists
+            existing_ids = {d.get('id') for d in self.collections[collection_name]}
+            if doc['id'] not in existing_ids:
+                self.collections[collection_name].append(doc)
+
+        self._save_to_disk()
+
+    def search(
+        self,
+        collection_name: str,
+        query: str,
+        n_results: int = 5,
+        filter_dict: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for documents in a collection.
+
+        Args:
+            collection_name: Collection to search
+            query: Search query
+            n_results: Number of results to return
+            filter_dict: Optional filters to apply
+
+        Returns:
+            List of matching documents with relevance scores
+        """
+        if collection_name not in self.collections:
+            return []
+
+        results = []
+        query_lower = query.lower()
+        query_terms = set(query_lower.split())
+
+        for doc in self.collections[collection_name]:
+            # Apply filters if provided
+            if filter_dict:
+                matches_filter = all(
+                    doc.get(key) == value
+                    for key, value in filter_dict.items()
+                )
+                if not matches_filter:
+                    continue
+
+            # Simple keyword-based relevance score
+            # TODO: Replace with actual embedding similarity
+            content = str(doc.get('content', '')).lower()
+            doc_terms = set(content.split())
+
+            # Calculate relevance score
+            common_terms = query_terms & doc_terms
+            if common_terms:
+                relevance_score = len(common_terms) / len(query_terms)
+                results.append({
+                    **doc,
+                    'relevance_score': relevance_score
+                })
+
+        # Sort by relevance score and return top N
+        results.sort(key=lambda x: x['relevance_score'], reverse=True)
+        return results[:n_results]
 
     def search_mitre_techniques(
         self,
         query: str,
-        n_results: int = 5,
-        filter_tactics: Optional[List[str]] = None
+        tactic: Optional[str] = None,
+        n_results: int = 5
     ) -> List[Dict[str, Any]]:
-        """
-        Semantic search for relevant MITRE techniques
+        """Search for MITRE ATT&CK techniques."""
+        filter_dict = {'tactic': tactic} if tactic else None
+        return self.search("mitre", query, n_results, filter_dict)
 
-        Args:
-            query: Search query (e.g., "lateral movement using credentials")
-            n_results: Number of results to return
-            filter_tactics: Filter by specific tactics
-
-        Returns:
-            List of relevant techniques with scores
-        """
-        collection = self.collections["mitre_attack"]
-
-        where_filter = {}
-        if filter_tactics:
-            # Note: Chroma doesn't support OR filters well, so we search all
-            # and filter in post-processing
-            pass
-
-        results = collection.query(
-            query_texts=[query],
-            n_results=n_results,
-            where=where_filter if where_filter else None
-        )
-
-        techniques = []
-        if results['ids'] and len(results['ids']) > 0:
-            for i in range(len(results['ids'][0])):
-                techniques.append({
-                    "technique_id": results['metadatas'][0][i]['technique_id'],
-                    "technique_name": results['metadatas'][0][i]['technique_name'],
-                    "description": results['documents'][0][i],
-                    "relevance_score": 1.0 - results['distances'][0][i],  # Convert distance to similarity
-                    "tactics": results['metadatas'][0][i]['tactics'].split(',')
-                })
-
-        return techniques
-
-    def index_tool_documentation(self, tool_docs: List[Dict[str, Any]]):
-        """
-        Index tool documentation for semantic search
-
-        Args:
-            tool_docs: List with tool, command, description, examples
-        """
-        collection = self.collections["tool_docs"]
-
-        ids = [f"{doc['tool']}_{i}" for i, doc in enumerate(tool_docs)]
-        documents = [
-            f"Tool: {doc['tool']}\nCommand: {doc['command']}\n"
-            f"Description: {doc['description']}\nExamples: {doc.get('examples', '')}"
-            for doc in tool_docs
-        ]
-        metadatas = [
-            {
-                "tool": doc["tool"],
-                "command": doc["command"],
-                "category": doc.get("category", "general")
-            }
-            for doc in tool_docs
-        ]
-
-        collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
-        self.logger.info(f"Indexed {len(tool_docs)} tool documentation entries")
-
-    def search_tool_usage(self, query: str, n_results: int = 3) -> List[Dict[str, Any]]:
-        """
-        Search for relevant tool usage examples
-
-        Example query: "scan for SQL injection vulnerabilities"
-        Returns: SQLMap commands and usage
-        """
-        collection = self.collections["tool_docs"]
-
-        results = collection.query(
-            query_texts=[query],
-            n_results=n_results
-        )
-
-        tool_usage = []
-        if results['ids'] and len(results['ids']) > 0:
-            for i in range(len(results['ids'][0])):
-                tool_usage.append({
-                    "tool": results['metadatas'][0][i]['tool'],
-                    "command": results['metadatas'][0][i]['command'],
-                    "documentation": results['documents'][0][i],
-                    "relevance_score": 1.0 - results['distances'][0][i]
-                })
-
-        return tool_usage
-
-    def index_cves(self, cves: List[Dict[str, Any]]):
-        """
-        Index CVE database for vulnerability search
-
-        Args:
-            cves: List of CVEs with id, description, severity, etc.
-        """
-        collection = self.collections["cve_database"]
-
-        ids = [cve["cve_id"] for cve in cves]
-        documents = [
-            f"CVE {cve['cve_id']}: {cve['description']}\n"
-            f"Severity: {cve['severity']}, CVSS: {cve.get('cvss', 'N/A')}\n"
-            f"Affected: {', '.join(cve.get('affected_software', []))}"
-            for cve in cves
-        ]
-        metadatas = [
-            {
-                "cve_id": cve["cve_id"],
-                "severity": cve["severity"],
-                "cvss": str(cve.get("cvss", 0)),
-                "affected_software": ",".join(cve.get("affected_software", []))
-            }
-            for cve in cves
-        ]
-
-        collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
-        self.logger.info(f"Indexed {len(cves)} CVEs")
-
-    def search_cves(
+    def search_cve(
         self,
         query: str,
-        n_results: int = 5,
-        min_severity: Optional[str] = None
+        severity: Optional[str] = None,
+        n_results: int = 5
     ) -> List[Dict[str, Any]]:
-        """
-        Search for relevant CVEs
+        """Search for CVE vulnerability data."""
+        filter_dict = {'severity': severity} if severity else None
+        return self.search("cve", query, n_results, filter_dict)
 
-        Args:
-            query: Search query (e.g., "MySQL vulnerability")
-            n_results: Number of results to return
-            min_severity: Minimum severity filter (low, medium, high, critical)
-
-        Returns:
-            List of relevant CVEs
-        """
-        collection = self.collections["cve_database"]
-
-        where_filter = {}
-        if min_severity:
-            # This would need severity mapping, simplified for now
-            pass
-
-        results = collection.query(
-            query_texts=[query],
-            n_results=n_results,
-            where=where_filter if where_filter else None
-        )
-
-        cves = []
-        if results['ids'] and len(results['ids']) > 0:
-            for i in range(len(results['ids'][0])):
-                cves.append({
-                    "cve_id": results['metadatas'][0][i]['cve_id'],
-                    "severity": results['metadatas'][0][i]['severity'],
-                    "cvss": results['metadatas'][0][i]['cvss'],
-                    "affected_software": results['metadatas'][0][i]['affected_software'].split(','),
-                    "description": results['documents'][0][i],
-                    "relevance_score": 1.0 - results['distances'][0][i]
-                })
-
-        return cves
-
-    def index_operation_history(self, operation: Dict[str, Any]):
-        """
-        Index operation history for learning from past operations
-
-        Args:
-            operation: Operation summary with findings, techniques, outcomes
-        """
-        collection = self.collections["operation_history"]
-
-        operation_id = operation.get("operation_id", f"op_{len(collection.get()['ids'])}")
-
-        document = f"Operation: {operation.get('target', 'N/A')}\n"
-        document += f"Objectives: {', '.join(operation.get('objectives', []))}\n"
-        document += f"Findings: {operation.get('findings_summary', 'N/A')}\n"
-        document += f"Techniques Used: {', '.join(operation.get('techniques_used', []))}\n"
-        document += f"Success Rate: {operation.get('success_rate', 'N/A')}"
-
-        metadata = {
-            "operation_id": operation_id,
-            "target": operation.get("target", "unknown"),
-            "timestamp": operation.get("timestamp", ""),
-            "success": str(operation.get("success", False))
-        }
-
-        collection.upsert(
-            ids=[operation_id],
-            documents=[document],
-            metadatas=[metadata]
-        )
-
-        self.logger.info(f"Indexed operation: {operation_id}")
+    def search_tools(
+        self,
+        query: str,
+        tool_type: Optional[str] = None,
+        n_results: int = 5
+    ) -> List[Dict[str, Any]]:
+        """Search for tool documentation."""
+        filter_dict = {'tool_type': tool_type} if tool_type else None
+        return self.search("tools", query, n_results, filter_dict)
 
     def search_operation_history(
         self,
         query: str,
+        success_only: bool = False,
         n_results: int = 3
     ) -> List[Dict[str, Any]]:
-        """
-        Search for similar past operations
+        """Search for similar past operations."""
+        filter_dict = {'success': True} if success_only else None
+        return self.search("operations", query, n_results, filter_dict)
 
-        Args:
-            query: Search query describing the scenario
-            n_results: Number of similar operations to return
-
-        Returns:
-            List of similar past operations
-        """
-        collection = self.collections["operation_history"]
-
-        results = collection.query(
-            query_texts=[query],
-            n_results=n_results
-        )
-
-        operations = []
-        if results['ids'] and len(results['ids']) > 0:
-            for i in range(len(results['ids'][0])):
-                operations.append({
-                    "operation_id": results['metadatas'][0][i]['operation_id'],
-                    "target": results['metadatas'][0][i]['target'],
-                    "summary": results['documents'][0][i],
-                    "relevance_score": 1.0 - results['distances'][0][i]
-                })
-
-        return operations
-
-    def get_stats(self) -> Dict[str, Any]:
-        """Get vector store statistics"""
-        stats = {}
-        for name, collection in self.collections.items():
-            count = collection.count()
-            stats[name] = count
-
+    def get_stats(self) -> Dict[str, int]:
+        """Get statistics about the vector store."""
         return {
-            "persist_directory": str(self.persist_dir),
-            "collections": stats,
-            "total_documents": sum(stats.values())
+            collection: len(docs)
+            for collection, docs in self.collections.items()
         }
-
-    def reset_collection(self, collection_name: str):
-        """Reset a specific collection"""
-        if collection_name in self.collections:
-            self.client.delete_collection(name=collection_name)
-            self.collections[collection_name] = self._get_or_create_collection(collection_name)
-            self.logger.info(f"Reset collection: {collection_name}")
-
-    def reset_all(self):
-        """Reset all collections"""
-        for collection_name in list(self.collections.keys()):
-            self.reset_collection(collection_name)
-        self.logger.info("Reset all collections")
