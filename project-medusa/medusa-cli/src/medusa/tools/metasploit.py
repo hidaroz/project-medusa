@@ -1,386 +1,457 @@
 """
-Metasploit Integration
-Provides access to Metasploit Framework via RPC API
+Metasploit Framework Integration
+Provides exploit search, module execution, and vulnerability validation
 """
 
 import json
-import requests
-from typing import Dict, Any, List, Optional, Union
-from pathlib import Path
-import logging
 import time
+import re
+from typing import Dict, List, Any, Optional
+from pathlib import Path
+
+from .base import BaseTool, ToolExecutionError
+from .graph_integration import update_graph
 
 
-class MetasploitRPC:
-    """Metasploit RPC Client"""
+class MetasploitClient(BaseTool):
+    """
+    Metasploit Framework integration
 
-    def __init__(
-        self,
-        host: str = "127.0.0.1",
-        port: int = 55553,
-        username: str = "msf",
-        password: str = "",
-        ssl: bool = False
-    ):
+    Provides access to Metasploit's exploit database and execution capabilities
+    with safety controls and structured output parsing
+    """
+
+    def __init__(self, timeout: int = 300, auto_approve: bool = False):
         """
-        Initialize Metasploit RPC client
+        Initialize Metasploit client
 
         Args:
-            host: MSF RPC host
-            port: MSF RPC port
-            username: MSF RPC username
-            password: MSF RPC password
-            ssl: Use HTTPS
+            timeout: Maximum execution time in seconds (default: 300)
+            auto_approve: Auto-approve exploit execution (DANGEROUS - default: False)
         """
-        self.host = host
-        self.port = port
-        self.username = username
-        self.password = password
-        self.ssl = ssl
+        super().__init__(timeout=timeout, tool_name="metasploit")
+        self.auto_approve = auto_approve
 
-        protocol = "https" if ssl else "http"
-        self.url = f"{protocol}://{host}:{port}/api/"
+    @property
+    def tool_binary_name(self) -> str:
+        return "msfconsole"
 
-        self.token = None
-        self.logger = logging.getLogger(__name__)
-
-    def connect(self) -> bool:
-        """
-        Authenticate with MSF RPC
-
-        Returns:
-            True if authentication successful
-        """
-        try:
-            response = self._call("auth.login", [self.username, self.password])
-
-            if response.get("result") == "success":
-                self.token = response.get("token")
-                self.logger.info("Successfully authenticated with Metasploit RPC")
-                return True
-            else:
-                self.logger.error(f"MSF RPC authentication failed: {response}")
-                return False
-
-        except Exception as e:
-            self.logger.error(f"Failed to connect to MSF RPC: {e}")
-            return False
-
-    def disconnect(self):
-        """Disconnect from MSF RPC"""
-        if self.token:
-            try:
-                self._call("auth.logout", [self.token])
-                self.logger.info("Disconnected from Metasploit RPC")
-            except Exception as e:
-                self.logger.warning(f"Error during disconnect: {e}")
-            finally:
-                self.token = None
-
-    def search_exploits(
+    async def search_exploits(
         self,
         query: str,
-        type_filter: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        platform: Optional[str] = None,
+        type_filter: Optional[str] = None,
+        rank_min: str = "normal"
+    ) -> Dict[str, Any]:
         """
-        Search for exploits
+        Search Metasploit exploit database
 
         Args:
             query: Search query (CVE, keyword, etc.)
-            type_filter: Filter by type (exploit, auxiliary, post, etc.)
+            platform: Filter by platform (linux, windows, etc.)
+            type_filter: Filter by type (exploit, auxiliary, post)
+            rank_min: Minimum exploit rank (low, normal, good, great, excellent)
 
         Returns:
-            List of matching modules
+            Dict with search results including:
+            {
+                "success": bool,
+                "findings": List[Dict],  # List of matching exploits
+                "findings_count": int,
+                "query": str
+            }
         """
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
-
-        try:
-            # Search modules
-            response = self._call("module.search", [self.token, query])
-
-            modules = response.get("modules", [])
-
-            # Filter by type if specified
-            if type_filter:
-                modules = [m for m in modules if m.startswith(type_filter)]
-
-            # Get details for each module
-            detailed_modules = []
-            for module_name in modules[:20]:  # Limit to 20 for performance
-                details = self.get_module_info(module_name)
-                if details:
-                    detailed_modules.append({
-                        "name": module_name,
-                        **details
-                    })
-
-            return detailed_modules
-
-        except Exception as e:
-            self.logger.error(f"Failed to search exploits: {e}")
-            return []
-
-    def get_module_info(self, module_name: str) -> Optional[Dict[str, Any]]:
-        """
-        Get detailed information about a module
-
-        Args:
-            module_name: Module name (e.g., "exploit/windows/smb/ms17_010_eternalblue")
-
-        Returns:
-            Module information dictionary
-        """
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
-
-        try:
-            # Determine module type
-            module_type = module_name.split("/")[0]
-
-            response = self._call(
-                f"module.info",
-                [self.token, module_type, module_name]
+        if not self.is_available():
+            return self._create_result_dict(
+                success=False,
+                findings=[],
+                raw_output="",
+                duration=0,
+                error=f"{self.tool_binary_name} is not installed or not in PATH"
             )
 
-            return response
+        # Build search command
+        search_cmd = f"search {query}"
 
-        except Exception as e:
-            self.logger.error(f"Failed to get module info for {module_name}: {e}")
-            return None
+        if platform:
+            search_cmd += f" platform:{platform}"
+        if type_filter:
+            search_cmd += f" type:{type_filter}"
+        if rank_min:
+            search_cmd += f" rank:{rank_min}"
 
-    def execute_exploit(
+        # Execute search
+        start_time = time.time()
+        try:
+            cmd = ["msfconsole", "-q", "-x", f"{search_cmd}; exit"]
+            stdout, stderr, returncode = await self._run_command(cmd)
+            duration = time.time() - start_time
+
+            # Parse results
+            findings = self._parse_search_output(stdout)
+
+            return self._create_result_dict(
+                success=True,
+                findings=findings,
+                raw_output=stdout,
+                duration=duration,
+                metadata={
+                    "query": query,
+                    "platform": platform,
+                    "type_filter": type_filter,
+                    "rank_min": rank_min
+                }
+            )
+
+        except ToolExecutionError as e:
+            duration = time.time() - start_time
+            return self._create_result_dict(
+                success=False,
+                findings=[],
+                raw_output="",
+                duration=duration,
+                error=str(e)
+            )
+
+    async def get_module_info(self, module_path: str) -> Dict[str, Any]:
+        """
+        Get detailed information about a Metasploit module
+
+        Args:
+            module_path: Full module path (e.g., exploit/unix/webapp/example)
+
+        Returns:
+            Dict with module information
+        """
+        if not self.is_available():
+            return self._create_result_dict(
+                success=False,
+                findings=[],
+                raw_output="",
+                duration=0,
+                error=f"{self.tool_binary_name} is not installed"
+            )
+
+        start_time = time.time()
+        try:
+            cmd = ["msfconsole", "-q", "-x", f"info {module_path}; exit"]
+            stdout, stderr, returncode = await self._run_command(cmd)
+            duration = time.time() - start_time
+
+            # Parse module info
+            module_info = self._parse_module_info(stdout)
+
+            return self._create_result_dict(
+                success=True,
+                findings=[module_info] if module_info else [],
+                raw_output=stdout,
+                duration=duration,
+                metadata={"module_path": module_path}
+            )
+
+        except ToolExecutionError as e:
+            duration = time.time() - start_time
+            return self._create_result_dict(
+                success=False,
+                findings=[],
+                raw_output="",
+                duration=duration,
+                error=str(e)
+            )
+
+    async def verify_vulnerability(
         self,
-        module_name: str,
-        options: Dict[str, Any],
-        payload: Optional[str] = None,
-        payload_options: Optional[Dict[str, Any]] = None
+        target: str,
+        module_path: str,
+        options: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
         """
-        Execute an exploit module
+        Verify if a target is vulnerable (check mode only - no exploitation)
 
         Args:
-            module_name: Exploit module name
-            options: Module options (RHOST, RPORT, etc.)
-            payload: Payload to use (optional)
-            payload_options: Payload options (LHOST, LPORT, etc.)
+            target: Target IP or hostname
+            module_path: Metasploit module to use
+            options: Additional module options
 
         Returns:
-            Execution result
+            Dict with verification results
         """
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
+        if not self.is_available():
+            return self._create_result_dict(
+                success=False,
+                findings=[],
+                raw_output="",
+                duration=0,
+                error=f"{self.tool_binary_name} is not installed"
+            )
 
+        # Sanitize target
         try:
-            # Create console
-            console = self.create_console()
-            console_id = console.get("id")
+            safe_target = self._sanitize_target(target)
+        except ValueError as e:
+            return self._create_result_dict(
+                success=False,
+                findings=[],
+                raw_output="",
+                duration=0,
+                error=f"Invalid target: {str(e)}"
+            )
 
-            if not console_id:
-                return {"error": "Failed to create console"}
+        # Build verification command (check mode)
+        commands = [
+            f"use {module_path}",
+            f"set RHOST {safe_target}",
+            "set CHECK true",  # Enable check mode
+        ]
 
-            # Build command
-            cmd = f"use {module_name}\n"
-
-            # Set options
+        # Add custom options
+        if options:
             for key, value in options.items():
-                cmd += f"set {key} {value}\n"
+                commands.append(f"set {key} {value}")
 
-            # Set payload if specified
-            if payload:
-                cmd += f"set PAYLOAD {payload}\n"
+        commands.extend(["check", "exit"])
+        command_str = "; ".join(commands)
 
-                if payload_options:
-                    for key, value in payload_options.items():
-                        cmd += f"set {key} {value}\n"
+        start_time = time.time()
+        try:
+            cmd = ["msfconsole", "-q", "-x", command_str]
+            stdout, stderr, returncode = await self._run_command(cmd)
+            duration = time.time() - start_time
 
-            # Execute
-            cmd += "exploit -j\n"  # -j for job mode
+            # Parse check results
+            is_vulnerable = self._parse_check_output(stdout)
 
-            # Write commands to console
-            self.write_console(console_id, cmd)
-
-            # Wait and read output
-            time.sleep(2)
-            output = self.read_console(console_id)
-
-            # Clean up console
-            self.destroy_console(console_id)
-
-            return {
-                "success": True,
-                "output": output.get("data", ""),
-                "module": module_name,
-                "payload": payload,
+            finding = {
+                "type": "vulnerability_check",
+                "target": safe_target,
+                "module": module_path,
+                "vulnerable": is_vulnerable,
+                "severity": self._determine_severity(module_path),
+                "confidence": "high" if is_vulnerable else "low"
             }
 
-        except Exception as e:
-            self.logger.error(f"Failed to execute exploit: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "module": module_name,
-            }
+            # Update graph if vulnerable
+            if is_vulnerable:
+                self._update_graph_for_vulnerability(finding)
 
-    def list_sessions(self) -> List[Dict[str, Any]]:
+            return self._create_result_dict(
+                success=True,
+                findings=[finding],
+                raw_output=stdout,
+                duration=duration,
+                metadata={
+                    "target": safe_target,
+                    "module": module_path,
+                    "check_only": True
+                }
+            )
+
+        except ToolExecutionError as e:
+            duration = time.time() - start_time
+            return self._create_result_dict(
+                success=False,
+                findings=[],
+                raw_output="",
+                duration=duration,
+                error=str(e)
+            )
+
+    def parse_output(self, stdout: str, stderr: str) -> List[Dict[str, Any]]:
         """
-        List active sessions
-
-        Returns:
-            List of session dictionaries
-        """
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
-
-        try:
-            response = self._call("session.list", [self.token])
-            sessions = []
-
-            for session_id, session_data in response.items():
-                sessions.append({
-                    "id": session_id,
-                    **session_data
-                })
-
-            return sessions
-
-        except Exception as e:
-            self.logger.error(f"Failed to list sessions: {e}")
-            return []
-
-    def interact_session(self, session_id: str, command: str) -> str:
-        """
-        Execute command in a session
+        Parse Metasploit output into structured format
 
         Args:
-            session_id: Session ID
-            command: Command to execute
+            stdout: Standard output from msfconsole
+            stderr: Standard error from msfconsole
 
         Returns:
-            Command output
+            List of findings
         """
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
+        # This is primarily used by search operations
+        return self._parse_search_output(stdout)
 
-        try:
-            # Write command
-            self._call("session.shell_write", [self.token, session_id, command + "\n"])
-
-            # Wait for output
-            time.sleep(1)
-
-            # Read output
-            response = self._call("session.shell_read", [self.token, session_id])
-
-            return response.get("data", "")
-
-        except Exception as e:
-            self.logger.error(f"Failed to interact with session {session_id}: {e}")
-            return f"Error: {e}"
-
-    def stop_session(self, session_id: str) -> bool:
+    def _parse_search_output(self, output: str) -> List[Dict[str, Any]]:
         """
-        Stop/kill a session
+        Parse Metasploit search output
 
         Args:
-            session_id: Session ID
+            output: Raw search output
 
         Returns:
-            True if stopped successfully
+            List of exploit findings
         """
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
+        findings = []
 
-        try:
-            response = self._call("session.stop", [self.token, session_id])
-            return response.get("result") == "success"
+        # Parse search results (typical format):
+        # Name                           Disclosure Date  Rank    Description
+        # ----                           ---------------  ----    -----------
+        # exploit/unix/webapp/example    2023-01-01       great   Example
 
-        except Exception as e:
-            self.logger.error(f"Failed to stop session {session_id}: {e}")
-            return False
+        lines = output.split('\n')
+        in_results = False
 
-    def create_console(self) -> Dict[str, Any]:
-        """Create a new console"""
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
+        for line in lines:
+            # Skip header and separator lines
+            if 'Name' in line and 'Disclosure Date' in line:
+                in_results = True
+                continue
+            if line.strip().startswith('---'):
+                continue
 
-        return self._call("console.create", [self.token])
+            if in_results and line.strip():
+                # Try to parse exploit line
+                parts = re.split(r'\s{2,}', line.strip())
+                if len(parts) >= 4:
+                    finding = {
+                        "type": "metasploit_module",
+                        "module_path": parts[0],
+                        "disclosure_date": parts[1] if parts[1] != '-' else None,
+                        "rank": parts[2],
+                        "description": parts[3] if len(parts) > 3 else "",
+                        "severity": self._rank_to_severity(parts[2])
+                    }
+                    findings.append(finding)
 
-    def destroy_console(self, console_id: str) -> bool:
-        """Destroy a console"""
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
+        return findings
 
-        try:
-            self._call("console.destroy", [self.token, console_id])
-            return True
-        except Exception:
-            return False
-
-    def write_console(self, console_id: str, data: str):
-        """Write to console"""
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
-
-        return self._call("console.write", [self.token, console_id, data])
-
-    def read_console(self, console_id: str) -> Dict[str, Any]:
-        """Read from console"""
-        if not self.token:
-            raise RuntimeError("Not authenticated. Call connect() first.")
-
-        return self._call("console.read", [self.token, console_id])
-
-    def get_version(self) -> str:
-        """Get Metasploit version"""
-        try:
-            response = self._call("core.version", [])
-            return response.get("version", "unknown")
-        except Exception as e:
-            self.logger.error(f"Failed to get version: {e}")
-            return "unknown"
-
-    def _call(self, method: str, params: List[Any]) -> Dict[str, Any]:
+    def _parse_module_info(self, output: str) -> Optional[Dict[str, Any]]:
         """
-        Make RPC call
+        Parse module info output
 
         Args:
-            method: RPC method name
-            params: Method parameters
+            output: Raw info output
 
         Returns:
-            Response dictionary
+            Module information dict or None
         """
-        payload = {
-            "jsonrpc": "2.0",
-            "method": method,
-            "params": params,
-            "id": 1
+        if not output:
+            return None
+
+        info = {
+            "type": "metasploit_module_info",
+            "name": None,
+            "description": None,
+            "authors": [],
+            "references": [],
+            "targets": []
         }
 
-        headers = {"Content-Type": "application/json"}
+        # Simple parsing - extract key information
+        lines = output.split('\n')
+        for line in lines:
+            if 'Name:' in line:
+                info['name'] = line.split('Name:')[1].strip()
+            elif 'Description:' in line:
+                info['description'] = line.split('Description:')[1].strip()
 
-        response = requests.post(
-            self.url,
-            data=json.dumps(payload),
-            headers=headers,
-            verify=False,  # For self-signed certs
-            timeout=30
-        )
+        return info if info['name'] else None
 
-        response.raise_for_status()
-        result = response.json()
+    def _parse_check_output(self, output: str) -> bool:
+        """
+        Parse vulnerability check output
 
-        if "error" in result:
-            raise RuntimeError(f"RPC error: {result['error']}")
+        Args:
+            output: Raw check output
 
-        return result.get("result", {})
+        Returns:
+            True if vulnerable, False otherwise
+        """
+        output_lower = output.lower()
 
-    def __enter__(self):
-        """Context manager entry"""
-        self.connect()
-        return self
+        # Look for vulnerability indicators
+        vulnerable_indicators = [
+            "target is vulnerable",
+            "the target appears to be vulnerable",
+            "vulnerable to",
+            "[+] vulnerable"
+        ]
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit"""
-        self.disconnect()
+        for indicator in vulnerable_indicators:
+            if indicator in output_lower:
+                return True
+
+        # Look for not vulnerable indicators
+        safe_indicators = [
+            "target is not vulnerable",
+            "does not appear to be vulnerable",
+            "[-] not vulnerable"
+        ]
+
+        for indicator in safe_indicators:
+            if indicator in output_lower:
+                return False
+
+        # Default to false if unclear
+        return False
+
+    def _rank_to_severity(self, rank: str) -> str:
+        """
+        Convert Metasploit rank to severity level
+
+        Args:
+            rank: Metasploit exploit rank
+
+        Returns:
+            Severity level (critical, high, medium, low)
+        """
+        rank_lower = rank.lower()
+
+        if rank_lower in ['excellent', 'great']:
+            return 'critical'
+        elif rank_lower in ['good']:
+            return 'high'
+        elif rank_lower in ['normal', 'average']:
+            return 'medium'
+        else:
+            return 'low'
+
+    def _determine_severity(self, module_path: str) -> str:
+        """
+        Determine severity based on module path and type
+
+        Args:
+            module_path: Metasploit module path
+
+        Returns:
+            Severity level
+        """
+        path_lower = module_path.lower()
+
+        # Remote code execution = critical
+        if 'rce' in path_lower or 'remote_code' in path_lower:
+            return 'critical'
+        # Exploits = high
+        elif 'exploit' in path_lower:
+            return 'high'
+        # Auxiliary = medium
+        elif 'auxiliary' in path_lower:
+            return 'medium'
+        # Default
+        else:
+            return 'medium'
+
+    def _update_graph_for_vulnerability(self, finding: Dict[str, Any]) -> None:
+        """
+        Update graph database with vulnerability information
+
+        Args:
+            finding: Vulnerability finding dictionary
+        """
+        try:
+            parameters = {
+                "host": finding.get("target", ""),
+                "vulnerability_name": finding.get("module", ""),
+                "severity": finding.get("severity", "medium"),
+                "confidence": finding.get("confidence", "medium"),
+                "vulnerable": finding.get("vulnerable", False)
+            }
+
+            if parameters["host"] and parameters["vulnerability_name"]:
+                # Note: This would use a Cypher template for vulnerabilities
+                # For now, just log
+                self.logger.info(
+                    f"Vulnerability found: {parameters['vulnerability_name']} "
+                    f"on {parameters['host']}"
+                )
+        except Exception as e:
+            self.logger.debug(f"Graph update failed for vulnerability: {e}")
