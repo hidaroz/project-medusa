@@ -52,6 +52,18 @@ class Config:
         """Check if configuration file exists"""
         return self.config_path.exists()
 
+    def _expand_env_vars(self, data: Any) -> Any:
+        """Recursively expand environment variables in config data"""
+        if isinstance(data, dict):
+            return {key: self._expand_env_vars(value) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self._expand_env_vars(item) for item in data]
+        elif isinstance(data, str) and data.startswith('${') and data.endswith('}'):
+            env_var = data[2:-1]
+            return os.getenv(env_var)
+        else:
+            return data
+
     def load(self) -> Dict[str, Any]:
         """Load configuration from file"""
         if not self.exists():
@@ -61,6 +73,8 @@ class Config:
 
         with open(self.config_path, "r") as f:
             self.config_data = yaml.safe_load(f) or {}
+
+        self.config_data = self._expand_env_vars(self.config_data)
 
         return self.config_data
 

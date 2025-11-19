@@ -227,8 +227,20 @@ class BedrockProvider(BaseLLMProvider):
     async def health_check(self) -> bool:
         """Check if Bedrock is accessible"""
         try:
+            # Use configured region or default to us-west-2
+            region = self.config.aws_region if hasattr(self.config, 'aws_region') and self.config.aws_region else 'us-west-2'
+            
+            # Build AWS config with region
+            aws_config = {'region_name': region}
+            
+            # Add credentials if explicitly provided in config
+            if hasattr(self.config, 'aws_access_key_id') and self.config.aws_access_key_id:
+                aws_config['aws_access_key_id'] = self.config.aws_access_key_id
+            if hasattr(self.config, 'aws_secret_access_key') and self.config.aws_secret_access_key:
+                aws_config['aws_secret_access_key'] = self.config.aws_secret_access_key
+            
             # Try listing models as a connectivity test
-            bedrock_client = boto3.client('bedrock', region_name='us-west-2')
+            bedrock_client = boto3.client('bedrock', **aws_config)
             bedrock_client.list_foundation_models(
                 byProvider='anthropic',
                 byOutputModality='TEXT'

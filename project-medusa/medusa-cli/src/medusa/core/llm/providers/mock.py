@@ -163,7 +163,30 @@ class MockProvider(BaseLLMProvider):
 
         # Vulnerability assessment responses
         elif "vulnerability" in prompt_lower or "risk" in prompt_lower:
-            if "sql" in prompt_lower or "injection" in prompt_lower:
+            if force_json and "vulnerabilities" in prompt_lower:
+                 return """{
+    "vulnerabilities": [
+        {
+            "vulnerability_type": "OpenSSH 7.4 Vulnerability",
+            "cve_references": ["CVE-2016-10009"],
+            "severity": "high",
+            "cvss_score": 7.5,
+            "exploitability": "high",
+            "affected_service": "ssh",
+            "description": "Vulnerability in OpenSSH 7.4 allows remote code execution"
+        },
+        {
+            "vulnerability_type": "Apache 2.4.6 Misconfiguration",
+            "cve_references": ["CVE-2017-15715"],
+            "severity": "medium",
+            "cvss_score": 5.0,
+            "exploitability": "medium",
+            "affected_service": "http",
+            "description": "Misconfiguration in Apache allows bypass of access controls"
+        }
+    ]
+}"""
+            elif "sql" in prompt_lower or "injection" in prompt_lower:
                 return "HIGH"
             elif "xss" in prompt_lower or "csrf" in prompt_lower:
                 return "MEDIUM"

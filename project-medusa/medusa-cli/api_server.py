@@ -13,6 +13,7 @@ import threading
 import time
 from datetime import datetime
 from typing import Dict, List, Any, Optional
+import shlex
 from pathlib import Path
 
 app = Flask(__name__)
@@ -148,49 +149,97 @@ def run_medusa_operation(operation_type: str, objective: str):
     try:
         add_log_entry('medusa', f'Starting {operation_type} operation: {objective}', 'info')
         
-        # Get the directory of this script
-        script_dir = Path(__file__).parent
-        medusa_script = script_dir / 'medusa.py'
-        
         if operation_type == 'assess':
-            # Run assessment
-            cmd = ['python3', str(medusa_script), 'assess', '--output', 'medusa_assessment_report.txt']
-            add_log_entry('system', 'Executing: medusa assess', 'info')
+            # Run assessment (using multi-agent system)
+            # objective is treated as the target
+            cmd = ['medusa', 'agent', 'run', objective, '--type', 'full_assessment', '--max-duration', '86400', '--save', '--auto-approve']
+            add_log_entry('system', f'Executing: medusa agent run {objective} --type full_assessment', 'info')
             
         elif operation_type == 'find':
-            # Run find operation
-            cmd = ['python3', str(medusa_script), 'find', objective, '--output', 'discovery_results.json']
-            add_log_entry('system', f'Executing: medusa find "{objective}"', 'info')
+            # Run reconnaissance (using multi-agent system)
+            cmd = ['medusa', 'agent', 'run', objective, '--type', 'recon_only', '--max-duration', '3600', '--save', '--auto-approve']
+            add_log_entry('system', f'Executing: medusa agent run {objective} --type recon_only', 'info')
             
         elif operation_type == 'deploy':
-            # Run deploy operation
-            cmd = ['python3', str(medusa_script), 'deploy', '--objective', objective]
-            add_log_entry('system', f'Executing: medusa deploy --objective "{objective}"', 'info')
+            # Run exploitation/deployment (using multi-agent system)
+            cmd = ['medusa', 'agent', 'run', objective, '--type', 'penetration_test', '--max-duration', '86400', '--save', '--auto-approve']
+            add_log_entry('system', f'Executing: medusa agent run {objective} --type penetration_test', 'info')
         
         else:
             add_log_entry('system', f'Unknown operation type: {operation_type}', 'error')
             medusa_state['status'] = 'error'
             return
         
-        # Execute command (mock for now - replace with actual execution)
-        # In production, you'd use subprocess.run() here
-        add_log_entry('medusa', 'Operation completed successfully', 'success')
-        medusa_state['status'] = 'completed'
-        medusa_state['metrics']['operations_completed'] += 1
-        medusa_state['metrics']['time_completed'] = datetime.now().isoformat()
+        # Execute command
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Read output in real-time (simplified for now)
+        stdout, stderr = process.communicate()
+        
+        if process.returncode == 0:
+            add_log_entry('medusa', 'Operation completed successfully', 'success')
+            add_log_entry('medusa', f'Output: {stdout[:500]}...', 'info') # Log first 500 chars
+            medusa_state['status'] = 'completed'
+            medusa_state['metrics']['operations_completed'] += 1
+            medusa_state['metrics']['time_completed'] = datetime.now().isoformat()
+        else:
+            add_log_entry('medusa', f'Operation failed with code {process.returncode}', 'error')
+            add_log_entry('medusa', f'Error: {stderr}', 'error')
+            medusa_state['status'] = 'error'
+            medusa_state['current_operation'] = None
         
     except Exception as e:
         add_log_entry('system', f'Error: {str(e)}', 'error')
         medusa_state['status'] = 'error'
         medusa_state['current_operation'] = None
 
+@app.route('/api/command', methods=['POST'])
+def execute_command():
+    """Execute a raw CLI command"""
+    data = request.json
+    command_str = data.get('command', '').strip()
+    
+    if not command_str:
+        return jsonify({'error': 'No command provided'}), 400
+        
+    # basic security check - only allow medusa commands or specific safe system commands
+    if not (command_str.startswith('medusa') or command_str in ['help', 'ls', 'pwd', 'whoami', 'clear']):
+        return jsonify({'error': 'Command not allowed. Only "medusa" commands are permitted.'}), 403
+        
+    try:
+        # Split command into list for subprocess
+        cmd_args = shlex.split(command_str)
+        
+        # Run command
+        result = subprocess.run(
+            cmd_args,
+            capture_output=True,
+            text=True,
+            timeout=30 # timeout to prevent hanging
+        )
+        
+        return jsonify({
+            'command': command_str,
+            'stdout': result.stdout,
+            'stderr': result.stderr,
+            'returncode': result.returncode
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 if __name__ == '__main__':
     # Initialize with welcome message
     add_log_entry('system', 'Medusa API Server started', 'info')
     
     # Run Flask server
-    # Using port 5001 to avoid conflict with macOS AirPlay Receiver on port 5000
-    port = int(os.getenv('MEDUSA_API_PORT', '5001'))
+    # Using port 5000 as default for production
+    # Respect PORT env var for Render/Heroku compatibility
+    port = int(os.getenv('PORT', os.getenv('MEDUSA_API_PORT', '5000')))
     print(f"Starting Medusa API Server on http://0.0.0.0:{port}")
-    app.run(host='0.0.0.0', port=port, debug=True)
+    app.run(host='0.0.0.0', port=port, debug=False)
 

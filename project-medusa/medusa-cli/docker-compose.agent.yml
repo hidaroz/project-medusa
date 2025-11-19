@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  medusa-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medusa_agent
+    volumes:
+      - ~/.medusa/logs:/home/medusa/.medusa/logs
+      - ~/.medusa/reports:/home/medusa/.medusa/reports
+      - ~/.medusa/config.yaml:/home/medusa/.medusa/config.yaml
+    environment:
+      - PYTHONUNBUFFERED=1
+    # Example command for 24h autonomous run with 1-hour interval
+    command: ["run", "--autonomous", "--loop", "--interval", "3600"]
+    restart: unless-stopped

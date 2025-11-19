@@ -33,7 +33,7 @@ class PlanningAgent(BaseAgent):
             **kwargs
         )
 
-    async def execute_task(self, task: AgentTask) -> AgentResult:
+    async def _execute_task(self, task: AgentTask) -> AgentResult:
         """
         Execute planning task
 
