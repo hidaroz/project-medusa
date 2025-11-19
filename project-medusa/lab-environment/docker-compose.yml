@@ -29,6 +29,8 @@ services:
       - NODE_ENV=production
       - NEXT_PUBLIC_EHR_API_URL=http://ehr-api:3000
       - NEXT_PUBLIC_EHR_BACKEND_URL=http://ehr-backend:3000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api
+      - NEXT_PUBLIC_HEALTH_URL=http://localhost:3001/health
       - PORT=3000
     networks:
       - healthcare-dmz
@@ -313,41 +315,7 @@ services:
           cpus: '0.2'
           memory: 256M
 
-  # ==========================================================================
-  # 6. LDAP DIRECTORY SERVER
-  # ==========================================================================
-  # LDAP for user authentication (simulating Active Directory)
-  # Intentional Vulnerabilities:
-  # - Anonymous bind enabled
-  # - Weak admin password
-  # - Unencrypted LDAP (not LDAPS)
-  # - Sensitive user information exposed
-  # ==========================================================================
-  ldap-server:
-    image: osixia/openldap:1.5.0
-    container_name: medusa_ldap
-    hostname: ldap-server
-    ports:
-      - "389:389"      # LDAP
-      - "636:636"      # LDAPS (not properly configured)
-    environment:
-      - LDAP_ORGANISATION="MedCare Health System"
-      - LDAP_DOMAIN=medcare.local
-      - LDAP_ADMIN_PASSWORD=admin123
-      - LDAP_CONFIG_PASSWORD=config123
-      - LDAP_TLS=false
-    volumes:
-      - ldap-data:/var/lib/ldap
-      - ldap-config:/etc/ldap/slapd.d
-      - ldap-logs:/var/log/slapd
-    networks:
-      - healthcare-internal
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: '0.3'
-          memory: 256M
+
 
   # ==========================================================================
   # 7. NETWORK MONITORING & LOGGING

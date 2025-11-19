@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  medusa-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: medusa_api
+    ports:
+      - "5001:5000"
+    volumes:
+      - ~/.medusa/logs:/home/medusa/.medusa/logs
+      - ~/.medusa/reports:/home/medusa/.medusa/reports
+      - ~/.medusa/config.yaml:/home/medusa/.medusa/config.yaml
+      # Mount source for development (optional)
+      # - ./src:/app/src
+      # - ./api_server.py:/app/api_server.py
+    environment:
+      - PYTHONUNBUFFERED=1
+      - MEDUSA_API_PORT=5000
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+

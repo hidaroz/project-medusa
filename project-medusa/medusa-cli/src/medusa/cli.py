@@ -220,6 +220,12 @@ def run(
     mode: Optional[str] = typer.Option(
         None, "--mode", "-m", help="Operating mode: autonomous, interactive, observe"
     ),
+    loop: bool = typer.Option(
+        False, "--loop", "-l", help="Run continuously in a loop"
+    ),
+    interval: int = typer.Option(
+        3600, "--interval", "-i", help="Interval between runs in seconds (default: 3600)"
+    ),
 ):
     """
     🚀 Run a penetration test.
@@ -330,7 +336,7 @@ def run(
 
     # Execute selected mode
     if selected_mode == "autonomous":
-        _run_autonomous_mode(target, api_key)
+        _run_autonomous_mode(target, api_key, loop, interval)
     elif selected_mode == "interactive":
         _run_interactive_mode(target, api_key)
     elif selected_mode == "observe":
@@ -1102,17 +1108,32 @@ def reports(
     console.print("[cyan]Tip:[/cyan] Use [bold]--summary[/bold] for statistics")
 
 
-def _run_autonomous_mode(target: str, api_key: str):
+def _run_autonomous_mode(target: str, api_key: str, loop: bool = False, interval: int = 3600):
     """Run autonomous mode"""
-    try:
-        mode = AutonomousMode(target, api_key)
-        asyncio.run(mode.run())
-    except KeyboardInterrupt:
-        console.print("\n[yellow]⏸️  Operation interrupted by user[/yellow]")
-        sys.exit(0)
-    except Exception as e:
-        handle_error(e)
-        sys.exit(1)
+    import time
+    
+    while True:
+        try:
+            mode = AutonomousMode(target, api_key)
+            asyncio.run(mode.run())
+            
+            if not loop:
+                break
+                
+            console.print(f"\n[bold cyan]🔄 Loop enabled. Waiting {interval} seconds for next run...[/bold cyan]")
+            time.sleep(interval)
+            console.print("\n[bold cyan]🚀 Starting next run...[/bold cyan]\n")
+            
+        except KeyboardInterrupt:
+            console.print("\n[yellow]⏸️  Operation interrupted by user[/yellow]")
+            sys.exit(0)
+        except Exception as e:
+            handle_error(e)
+            if not loop:
+                sys.exit(1)
+            
+            console.print(f"[red]Error occurred: {e}. Retrying in {interval} seconds...[/red]")
+            time.sleep(interval)
 
 
 def _run_interactive_mode(target: Optional[str], api_key: str):

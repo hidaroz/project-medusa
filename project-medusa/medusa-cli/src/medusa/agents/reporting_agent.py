@@ -48,7 +48,7 @@ class ReportingAgent(BaseAgent):
 
         self.generated_reports: Dict[str, Dict[str, Any]] = {}
 
-    async def execute_task(self, task: AgentTask) -> AgentResult:
+    async def _execute_task(self, task: AgentTask) -> AgentResult:
         """
         Execute reporting task
 

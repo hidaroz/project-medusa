@@ -1,6 +1,7 @@
 // API client for Medusa Backend
-
-const API_BASE_URL = 'http://localhost:3001/api';
+// Use environment variable with fallback to localhost for browser-side API calls
+// Note: Browser needs to use host-accessible URLs, not Docker internal hostnames
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3001/api';
 
 // Types for API responses
 export interface ApiResponse<T> {
@@ -12,6 +13,17 @@ export interface ApiResponse<T> {
   warning?: string;
 }
 
+export interface Medication {
+  id: string;
+  name: string;
+  dosage: string;
+  frequency: string;
+  route: string;
+  startDate: string;
+  prescribingPhysician: string;
+  status: string;
+}
+
 export interface Patient {
   id: string;
   firstName: string;
@@ -21,7 +33,7 @@ export interface Patient {
   bloodType: string;
   allergies: string[];
   conditions: string[];
-  medications: any[];
+  medications: Medication[];
   lastVisit: string;
   nextAppointment: string;
   phone: string;
@@ -35,9 +47,9 @@ export interface Patient {
   insuranceProvider: string;
   insuranceNumber: string;
   primaryPhysician: string;
-  vitalSigns: any[];
-  labResults: any[];
-  appointments: any[];
+  vitalSigns: unknown[];
+  labResults: unknown[];
+  appointments: unknown[];
   mrn: string;
   status: string;
   lastUpdated: string;
@@ -50,7 +62,7 @@ export interface Patient {
     bankAccountNumber: string;
     bankRoutingNumber: string;
     outstandingBalance: number;
-    paymentHistory: any[];
+    paymentHistory: unknown[];
   };
   sensitiveConditions: string[];
   familyHistory: string[];
@@ -60,6 +72,11 @@ export interface Patient {
     drugUse: string;
     occupation: string;
     maritalStatus: string;
+  };
+  biometricData: {
+    fingerprints: string;
+    retinalScan: string;
+    dnaProfile: string;
   };
 }
 
@@ -100,8 +117,13 @@ export interface Employee {
     taxWithholding: number;
     retirementContribution: number;
   };
-  performanceReviews: any[];
-  disciplinaryActions: any[];
+  performanceReviews: unknown[];
+  disciplinaryActions: unknown[];
+  backgroundCheck: {
+    creditScore: number;
+    criminalHistory: string[];
+    drugTestResults: string;
+  };
   benefitsInfo: {
     healthInsurance: string;
     dentalInsurance: string;
@@ -237,7 +259,8 @@ export async function getEmployeeCredentials(id: string): Promise<Employee> {
 // Health check function
 export async function checkHealth(): Promise<{ status: string; timestamp: string }> {
   try {
-    const response = await fetch('http://localhost:3001/health');
+    const HEALTH_URL = process.env.NEXT_PUBLIC_HEALTH_URL || 'http://localhost:3001/health';
+    const response = await fetch(HEALTH_URL);
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

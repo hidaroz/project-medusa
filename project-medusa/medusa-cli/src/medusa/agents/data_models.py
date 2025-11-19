@@ -25,6 +25,26 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class AgentCapability(str, Enum):
+    """Agent capability types."""
+    RECONNAISSANCE = "reconnaissance"
+    VULNERABILITY_ANALYSIS = "vulnerability_analysis"
+    EXPLOITATION = "exploitation"
+    PLANNING = "planning"
+    REPORTING = "reporting"
+    ORCHESTRATION = "orchestration"
+
+
+class AgentStatus(str, Enum):
+    """Agent execution status."""
+    IDLE = "idle"
+    THINKING = "thinking"
+    EXECUTING = "executing"
+    WAITING = "waiting"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
+
 @dataclass
 class AgentTask:
     """
@@ -48,6 +68,7 @@ class AgentTask:
     status: TaskStatus = TaskStatus.PENDING
     created_at: datetime = field(default_factory=datetime.now)
     context: Optional[Dict[str, Any]] = None
+    parent_task_id: Optional[str] = None
 
 
 @dataclass
@@ -67,9 +88,49 @@ class AgentResult:
     """
     task_id: str
     status: TaskStatus
+    agent_name: Optional[str] = None
     data: Dict[str, Any] = field(default_factory=dict)
+    metadata: Dict[str, Any] = field(default_factory=dict)
     error: Optional[str] = None
     cost_usd: float = 0.0
+    tokens_used: int = 0
     duration_seconds: float = 0.0
     context_used: Optional[Dict[str, Any]] = None
     llm_response: Optional[str] = None
+    findings: List[Dict[str, Any]] = field(default_factory=list)
+    recommendations: List[Dict[str, Any]] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary."""
+        return {
+            "task_id": self.task_id,
+            "status": self.status.value,
+            "data": self.data,
+            "error": self.error,
+            "cost_usd": self.cost_usd,
+            "duration_seconds": self.duration_seconds,
+            "context_used": self.context_used,
+            "findings": self.findings,
+            "recommendations": self.recommendations
+        }
+
+
+@dataclass
+class AgentMessage:
+    """
+    Message for inter-agent communication.
+
+    Attributes:
+        sender: Name of sending agent
+        recipient: Name of recipient agent (or "broadcast")
+        message_type: Type of message (request, response, notification, error)
+        content: Message payload
+        timestamp: Message timestamp
+        correlation_id: Optional ID for request-response correlation
+    """
+    sender: str
+    recipient: str
+    message_type: str
+    content: Dict[str, Any]
+    timestamp: datetime = field(default_factory=datetime.now)
+    correlation_id: Optional[str] = None

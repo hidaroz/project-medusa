@@ -18,12 +18,14 @@ services:
   # ==========================================================================
   # EHR Frontend (Next.js) - Development Overrides
   # ==========================================================================
-  ehr-frontend:
+  ehr-webapp-medcare:
     # Use production mode to ensure Tailwind CSS is properly compiled
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_EHR_API_URL=http://ehr-api:3000
       - NEXT_PUBLIC_EHR_BACKEND_URL=http://ehr-backend:3000
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api
+      - NEXT_PUBLIC_HEALTH_URL=http://localhost:3001/health
 
     # Use production build (npm start) for proper CSS compilation
     user: root
@@ -155,24 +157,7 @@ services:
           cpus: '1.0'
           memory: 512M
   
-  # ==========================================================================
-  # LDAP Server - Development Overrides
-  # ==========================================================================
-  ldap-server:
-    volumes:
-      - ./dev-data/ldap:/var/lib/ldap:rw
-      - ./dev-data/ldap-config:/etc/ldap/slapd.d:rw
-      - ./dev-logs/ldap:/var/log/slapd:rw
-    
-    environment:
-      - LDAP_LOG_LEVEL=256  # Stats logging
-      - LDAP_TLS=false
-    
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
+
   
   # ==========================================================================
   # Log Collector - Development Overrides

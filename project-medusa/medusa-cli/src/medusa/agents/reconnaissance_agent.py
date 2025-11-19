@@ -5,9 +5,14 @@ Specialized agent for reconnaissance phase of penetration testing.
 Provides tool recommendations, technique suggestions, and strategy planning.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+import subprocess
+import shutil
+import xml.etree.ElementTree as ET
+import asyncio
+import json
 from .base_agent import BaseAgent
-from .data_models import AgentTask, TaskStatus
+from .data_models import AgentTask, TaskStatus, AgentResult
 
 
 class ReconnaissanceAgent(BaseAgent):
@@ -19,9 +24,10 @@ class ReconnaissanceAgent(BaseAgent):
     - Suggest appropriate tools
     - Identify MITRE techniques
     - Prioritize targets
+    - Execute Nmap scans
     """
 
-    async def _execute_task(self, task: AgentTask) -> Dict[str, Any]:
+    async def _execute_task(self, task: AgentTask) -> Any:
         """
         Execute reconnaissance task.
 
@@ -38,6 +44,8 @@ class ReconnaissanceAgent(BaseAgent):
             return await self._suggest_tools(task)
         elif task_type == "prioritize_targets":
             return await self._prioritize_targets(task)
+        elif task_type == "run_scan":
+            return await self._run_scan(task)
         else:
             raise ValueError(f"Unknown task type: {task_type}")
 
@@ -118,6 +126,105 @@ class ReconnaissanceAgent(BaseAgent):
             'prioritized_targets': targets,  # Simplified for now
             'rationale': llm_response['text']
         }
+
+    async def _run_scan(self, task: AgentTask) -> AgentResult:
+        """Execute Nmap scan."""
+        target = task.parameters.get('target')
+        scan_type = task.parameters.get('scan_type', 'fast')
+        
+        if not target:
+            raise ValueError("Target is required for scan")
+            
+        self.logger.info(f"Starting {scan_type} scan against {target}")
+        
+        try:
+            scan_results = await self._execute_nmap_scan(target, scan_type)
+            
+            return AgentResult(
+                task_id=task.task_id,
+                status=TaskStatus.COMPLETED,
+                findings=scan_results,
+                data={
+                    'target': target,
+                    'scan_type': scan_type
+                }
+            )
+        except Exception as e:
+            self.logger.error(f"Scan failed: {e}")
+            raise
+
+    async def _execute_nmap_scan(self, target: str, scan_type: str) -> List[Dict[str, Any]]:
+        """Run Nmap command and parse results."""
+        if not shutil.which("nmap"):
+            raise RuntimeError("nmap is not installed")
+
+        # Build command
+        cmd = ["nmap", "-oX", "-"]
+        
+        if scan_type == "fast":
+            cmd.extend(["-F", "-T4"])
+        elif scan_type == "comprehensive":
+            cmd.extend(["-sV", "-sC", "-p-", "-T4"])
+        else:
+            cmd.extend(["-sV", "-T4"])
+            
+        cmd.append(target)
+        
+        self.logger.debug(f"Running command: {' '.join(cmd)}")
+        
+        # Execute
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            self.logger.error(f"Nmap failed: {stderr.decode()}")
+            return []
+            
+        xml_content = stdout.decode()
+        self.logger.info(f"Nmap output length: {len(xml_content)}")
+        
+        findings = self._parse_nmap_xml(xml_content)
+        self.logger.info(f"Parsed {len(findings)} findings from Nmap XML")
+        return findings
+
+    def _parse_nmap_xml(self, xml_content: str) -> List[Dict[str, Any]]:
+        """Parse Nmap XML output into structured findings."""
+        findings = []
+        try:
+            root = ET.fromstring(xml_content)
+            
+            for host in root.findall("host"):
+                address = host.find("address").get("addr")
+                ports = host.find("ports")
+                
+                if ports:
+                    for port in ports.findall("port"):
+                        state = port.find("state").get("state")
+                        if state == "open":
+                            port_id = port.get("portid")
+                            protocol = port.get("protocol")
+                            service = port.find("service")
+                            service_name = service.get("name") if service is not None else "unknown"
+                            product = service.get("product") if service is not None else ""
+                            version = service.get("version") if service is not None else ""
+                            
+                            findings.append({
+                                "type": "open_port",
+                                "ip": address,
+                                "port": int(port_id),
+                                "protocol": protocol,
+                                "service": service_name,
+                                "version": f"{product} {version}".strip(),
+                                "state": state
+                            })
+        except Exception as e:
+            self.logger.error(f"Failed to parse Nmap XML: {e}")
+            
+        return findings
 
     def _build_reconnaissance_prompt(
         self,

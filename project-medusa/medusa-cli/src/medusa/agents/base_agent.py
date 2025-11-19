@@ -5,10 +5,11 @@ Foundation for all specialized penetration testing agents.
 """
 
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import time
+import logging
 
-from .data_models import AgentTask, AgentResult, TaskStatus
+from .data_models import AgentTask, AgentResult, TaskStatus, AgentCapability, AgentStatus
 
 
 class BaseAgent(ABC):
@@ -20,12 +21,16 @@ class BaseAgent(ABC):
     - Context fusion engine integration
     - Cost tracking
     - Error handling
+    - Message bus integration
     """
 
     def __init__(
         self,
         llm_client: Any,
-        context_engine: Optional[Any] = None
+        context_engine: Optional[Any] = None,
+        message_bus: Optional[Any] = None,
+        name: Optional[str] = None,
+        capabilities: Optional[List[AgentCapability]] = None
     ):
         """
         Initialize base agent.
@@ -33,10 +38,18 @@ class BaseAgent(ABC):
         Args:
             llm_client: LLM client for generation
             context_engine: Optional context fusion engine
+            message_bus: Optional message bus for inter-agent communication
+            name: Agent name
+            capabilities: List of agent capabilities
         """
         self.llm_client = llm_client
         self.context_engine = context_engine
+        self.message_bus = message_bus
+        self.name = name or self.__class__.__name__
+        self.capabilities = capabilities or []
+        self.status = AgentStatus.IDLE
         self.total_cost = 0.0
+        self.logger = logging.getLogger(f"medusa.agents.{self.name}")
 
     async def run_task(self, task: AgentTask) -> AgentResult:
         """
@@ -54,6 +67,12 @@ class BaseAgent(ABC):
         try:
             # Execute task
             result_data = await self._execute_task(task)
+
+            # If _execute_task returned an AgentResult, use it
+            if isinstance(result_data, AgentResult):
+                result = result_data
+                result.duration_seconds = time.time() - start_time
+                return result
 
             # Create result
             result = AgentResult(
@@ -173,17 +192,20 @@ class BaseAgent(ABC):
             LLM response with metadata
         """
         try:
-            # This is a simplified version
-            # Real implementation would use the actual LLM client
-            response = {
-                'text': f"Mock LLM response for: {prompt[:50]}...",
-                'tokens_used': 100,
-                'cost_usd': 0.001
+            response = await self.llm_client.generate(
+                prompt=prompt,
+                max_tokens=max_tokens
+            )
+
+            self.total_cost += response.metadata.get('cost_usd', 0.0)
+
+            return {
+                'text': response.content,
+                'tokens_used': response.tokens_used,
+                'cost_usd': response.metadata.get('cost_usd', 0.0),
+                'metadata': response.metadata
             }
 
-            self.total_cost += response['cost_usd']
-
-            return response
-
         except Exception as e:
+            self.logger.error(f"LLM call failed: {e}")
             raise Exception(f"LLM call failed: {str(e)}")

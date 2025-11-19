@@ -57,7 +57,7 @@ class OrchestratorAgent(BaseAgent):
             f"{list(specialist_agents.keys())}"
         )
 
-    async def execute_task(self, task: AgentTask) -> AgentResult:
+    async def _execute_task(self, task: AgentTask) -> AgentResult:
         """
         Execute orchestration task
 
@@ -114,11 +114,11 @@ class OrchestratorAgent(BaseAgent):
         self.logger.info("Phase 1: Reconnaissance")
         recon_task = AgentTask(
             task_id=self._generate_task_id(),
-            task_type="recommend_recon_strategy",
-            description=f"Recommend reconnaissance strategy for {target}",
+            task_type="run_scan",
+            description=f"Run reconnaissance scan against {target}",
             parameters={
                 "target": target,
-                "objectives": objectives
+                "scan_type": "fast" # Start with fast scan
             },
             priority=TaskPriority.HIGH,
             parent_task_id=task.task_id
@@ -127,35 +127,43 @@ class OrchestratorAgent(BaseAgent):
         recon_result = await self._delegate_task(recon_task, "ReconAgent")
         if recon_result:
             phase_results["reconnaissance"] = recon_result.to_dict()
-            all_findings.extend(recon_result.findings)
+            # Extract findings from the result
+            if recon_result.findings:
+                current_findings = recon_result.findings
+            elif isinstance(recon_result.data, dict):
+                current_findings = recon_result.data.get("findings", [])
+            else:
+                current_findings = []
+
+            all_findings.extend(current_findings)
             all_recommendations.extend(recon_result.recommendations)
+        else:
+            current_findings = []
+            self.logger.warning("Reconnaissance phase failed or returned no results")
 
         # Phase 2: Vulnerability Analysis
-        # Simulate some findings for analysis
-        simulated_findings = [
-            {"type": "open_port", "port": 22, "service": "ssh", "version": "OpenSSH 7.4"},
-            {"type": "open_port", "port": 80, "service": "http", "version": "Apache 2.4.6"},
-            {"type": "open_port", "port": 3306, "service": "mysql", "version": "MySQL 5.7"}
-        ]
-
         self.logger.info("Phase 2: Vulnerability Analysis")
-        vuln_task = AgentTask(
-            task_id=self._generate_task_id(),
-            task_type="analyze_findings",
-            description="Analyze findings for vulnerabilities",
-            parameters={
-                "findings": simulated_findings,
-                "target": target
-            },
-            priority=TaskPriority.HIGH,
-            parent_task_id=task.task_id
-        )
+        
+        if not current_findings:
+            self.logger.warning("No findings to analyze. Skipping Vulnerability Analysis.")
+        else:
+            vuln_task = AgentTask(
+                task_id=self._generate_task_id(),
+                task_type="analyze_findings",
+                description="Analyze findings for vulnerabilities",
+                parameters={
+                    "findings": current_findings,
+                    "target": target
+                },
+                priority=TaskPriority.HIGH,
+                parent_task_id=task.task_id
+            )
 
-        vuln_result = await self._delegate_task(vuln_task, "VulnAnalysisAgent")
-        if vuln_result:
-            phase_results["vulnerability_analysis"] = vuln_result.to_dict()
-            all_findings.extend(vuln_result.findings)
-            all_recommendations.extend(vuln_result.recommendations)
+            vuln_result = await self._delegate_task(vuln_task, "VulnAnalysisAgent")
+            if vuln_result:
+                phase_results["vulnerability_analysis"] = vuln_result.to_dict()
+                all_findings.extend(vuln_result.findings)
+                all_recommendations.extend(vuln_result.recommendations)
 
         # Phase 3: Strategic Planning
         self.logger.info("Phase 3: Strategic Planning")

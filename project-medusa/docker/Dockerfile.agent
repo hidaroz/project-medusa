@@ -1,0 +1,37 @@
+FROM python:3.11-bullseye
+
+# 1. Install System Dependencies & Security Tools
+RUN apt-get update && apt-get install -y \
+    nmap \
+    sqlmap \
+    git \
+    curl \
+    wget \
+    unzip \
+    golang-go \
+    && rm -rf /var/lib/apt/lists/*
+
+# 2. Install Go Tools (Amass, Httpx, Kerbrute)
+# Note: We install these from source or binary to ensure they are in PATH
+ENV GOPATH=/root/go
+ENV PATH=$PATH:/root/go/bin
+RUN go install -v github.com/projectdiscovery/httpx/cmd/httpx@latest && \
+    go install -v github.com/owasp-amass/amass/v4/...@master && \
+    go install github.com/ropnop/kerbrute@latest
+
+# 3. Set up Application Directory
+WORKDIR /app
+COPY medusa-cli/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# 4. Install the Project
+COPY medusa-cli/ .
+RUN pip install -e .
+
+# 5. Create directories for persistence
+RUN mkdir -p /root/.medusa/logs /root/.medusa/reports /root/.medusa/vector_db
+
+# 6. Set Entrypoint
+# Runs the API server so the container stays alive and accepts commands
+CMD ["python", "api_server.py"]
+

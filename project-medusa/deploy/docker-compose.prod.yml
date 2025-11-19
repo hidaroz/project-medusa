@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  # 1. The Brain & Tools
+  medusa-core:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.agent
+    container_name: medusa_agent
+    restart: unless-stopped
+    env_file: .env.prod
+    depends_on:
+      - neo4j
+    volumes:
+      - medusa_data:/root/.medusa  # Persist logs and vector DB
+    networks:
+      - medusa_net
+
+  # 2. The Dashboard
+  medusa-web:
+    build:
+      context: ../medusa-webapp
+      dockerfile: Dockerfile
+    container_name: medusa_dashboard
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Expose Dashboard to internet (secure this!)
+    environment:
+      - NEXT_PUBLIC_MEDUSA_API_URL=http://medusa-core:5000
+    depends_on:
+      - medusa-core
+    networks:
+      - medusa_net
+
+  # 3. The Knowledge Graph
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: medusa_brain
+    restart: unless-stopped
+    environment:
+      - NEO4J_AUTH=${NEO4J_USERNAME}/${NEO4J_PASSWORD}
+    volumes:
+      - neo4j_data:/data
+    networks:
+      - medusa_net
+
+volumes:
+  medusa_data:
+  neo4j_data:
+
+networks:
+  medusa_net:
+    driver: bridge
+
