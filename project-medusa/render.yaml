@@ -2,7 +2,7 @@ services:
   # Backend API
   - type: web
     name: medusa-api
-    env: docker
+    runtime: docker
     dockerContext: medusa-cli
     dockerfilePath: medusa-cli/Dockerfile.api
     plan: free
@@ -14,7 +14,7 @@ services:
   # Frontend Webapp
   - type: web
     name: medusa-webapp
-    env: docker
+    runtime: docker
     dockerContext: medusa-webapp
     dockerfilePath: medusa-webapp/Dockerfile
     plan: free
