@@ -1,4 +1,4 @@
-import MedusaDashboard from './MedusaDashboard';
+import MedusaDashboard from '../components/MedusaDashboard';
 
 export default function Page() {
   // This runs on the server at request time, so process.env is available
