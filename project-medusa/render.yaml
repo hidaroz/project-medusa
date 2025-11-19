@@ -1,0 +1,28 @@
+services:
+  # Backend API
+  - type: web
+    name: medusa-api
+    runtime: docker
+    dockerContext: medusa-cli
+    dockerfilePath: medusa-cli/Dockerfile.api
+    plan: free
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    healthCheckPath: /api/health
+
+  # Frontend Webapp
+  - type: web
+    name: medusa-webapp
+    runtime: docker
+    dockerContext: medusa-webapp
+    dockerfilePath: medusa-webapp/Dockerfile
+    plan: free
+    envVars:
+      - key: MEDUSA_API_URL
+        fromService:
+          type: web
+          name: medusa-api
+          property: url
+    healthCheckPath: /api/health
+
