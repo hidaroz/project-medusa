@@ -1,0 +1,43 @@
+# fly.toml app configuration file for medusa-webapp
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'medusa-webapp'
+primary_region = 'sjc'
+kill_signal = 'SIGINT'
+kill_timeout = '5s'
+
+[build]
+  dockerfile = 'Dockerfile.fly'
+
+[build.args]
+  # Set the API URL for the frontend
+  # Update this to point to your deployed API
+  NEXT_PUBLIC_MEDUSA_API_URL = 'https://medusa-api-v2.fly.dev'
+
+[env]
+  NODE_ENV = 'production'
+  PORT = '3000'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  # Health check endpoint
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '3s'
+    grace_period = '10s'
+    method = 'get'
+    path = '/api/health'
+    
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 512
+

@@ -1,46 +1,60 @@
-import React, { useEffect, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
-import { Shield, AlertTriangle, Activity, Server, Database } from 'lucide-react';
+import React from 'react';
+import { Shield, AlertTriangle, Activity, Server, Database, DollarSign } from 'lucide-react';
+import { useMedusa, useMedusaStatus } from '../contexts/MedusaContext';
+import ActivityChart from './Charts/ActivityChart';
+import CostBreakdown from './Charts/CostBreakdown';
+import AgentEfficiency from './Charts/AgentEfficiency';
+import { MedusaLogEntry } from '../types/medusa';
 
 interface DashboardProps {
     apiUrl: string;
 }
 
 export default function Dashboard({ apiUrl }: DashboardProps) {
-    const [metrics, setMetrics] = useState<any>(null);
+    const { metrics, logs, isLoading } = useMedusa();
+    const { status, isConnected } = useMedusaStatus();
 
-    // Mock data for visual appeal since real backend might not have history yet
-    const activityData = [
-        { name: '00:00', activity: 400, threats: 240 },
-        { name: '04:00', activity: 300, threats: 139 },
-        { name: '08:00', activity: 200, threats: 980 },
-        { name: '12:00', activity: 278, threats: 390 },
-        { name: '16:00', activity: 189, threats: 480 },
-        { name: '20:00', activity: 239, threats: 380 },
-        { name: '23:59', activity: 349, threats: 430 },
-    ];
-
-    useEffect(() => {
-        const fetchMetrics = async () => {
-            try {
-                const res = await fetch(`${apiUrl}/api/metrics`);
-                const data = await res.json();
-                setMetrics(data);
-            } catch (e) {
-                console.error('Failed to fetch metrics', e);
-            }
-        };
-        fetchMetrics();
-        const interval = setInterval(fetchMetrics, 5000);
-        return () => clearInterval(interval);
-    }, [apiUrl]);
+    // Derive recent operations for charts (using logs as proxy for now)
+    const recentOperations = logs.filter((l: MedusaLogEntry) => l.message.includes('Starting') || l.message.includes('Operation')).map((l: MedusaLogEntry) => ({
+        ...l,
+        type: l.message.includes('assess') ? 'assess' : l.message.includes('recon') ? 'recon_only' : 'unknown',
+        status: l.level === 'error' ? 'error' : 'completed'
+    }));
 
     const stats = [
-        { label: 'Active Agents', value: '12', icon: Server, color: 'text-cyan-400', bg: 'bg-cyan-400/10' },
-        { label: 'Threats Detected', value: metrics?.data_found || '0', icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-400/10' },
-        { label: 'System Load', value: '42%', icon: Activity, color: 'text-green-400', bg: 'bg-green-400/10' },
-        { label: 'Total Operations', value: metrics?.operations_completed || '0', icon: Database, color: 'text-purple-400', bg: 'bg-purple-400/10' },
+        { 
+            label: 'System Status', 
+            value: isConnected ? status : 'Offline', 
+            icon: Server, 
+            color: isConnected ? (status === 'running' ? 'text-yellow-400' : 'text-green-400') : 'text-red-400', 
+            bg: isConnected ? (status === 'running' ? 'bg-yellow-400/10' : 'bg-green-400/10') : 'bg-red-400/10' 
+        },
+        { 
+            label: 'Data Points Found', 
+            value: metrics?.data_found || '0', 
+            icon: AlertTriangle, 
+            color: 'text-red-400', 
+            bg: 'bg-red-400/10' 
+        },
+        { 
+            label: 'Est. Cost (Session)', 
+            value: metrics?.total_cost ? `$${Number(metrics.total_cost).toFixed(2)}` : '$0.00',
+            icon: DollarSign, 
+            color: 'text-emerald-400', 
+            bg: 'bg-emerald-400/10' 
+        },
+        { 
+            label: 'Total Operations', 
+            value: metrics?.operations_completed || '0', 
+            icon: Database, 
+            color: 'text-purple-400', 
+            bg: 'bg-purple-400/10' 
+        },
     ];
+
+    if (isLoading) {
+        return <div className="h-full flex items-center justify-center text-slate-400">Loading system metrics...</div>;
+    }
 
     return (
         <div className="space-y-6 h-full overflow-y-auto custom-scrollbar p-1">
@@ -52,7 +66,9 @@ export default function Dashboard({ apiUrl }: DashboardProps) {
                             <div className={`p-2 rounded-lg ${stat.bg}`}>
                                 <stat.icon className={`w-6 h-6 ${stat.color}`} />
                             </div>
-                            <span className={`text-2xl font-bold text-white group-hover:scale-110 transition-transform`}>{stat.value}</span>
+                            <span className={`text-xl font-bold text-white group-hover:scale-105 transition-transform truncate`}>
+                                {String(stat.value).toUpperCase()}
+                            </span>
                         </div>
                         <h3 className="text-slate-400 text-sm font-medium">{stat.label}</h3>
                     </div>
@@ -61,63 +77,60 @@ export default function Dashboard({ apiUrl }: DashboardProps) {
 
             {/* Charts Area */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Activity Chart */}
                 <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl">
                     <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
                         <Activity className="w-5 h-5 text-cyan-400" />
-                        Network Activity
+                        System Activity
                     </h3>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={activityData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="name" stroke="#94a3b8" />
-                                <YAxis stroke="#94a3b8" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9' }}
-                                    itemStyle={{ color: '#f1f5f9' }}
-                                />
-                                <Line type="monotone" dataKey="activity" stroke="#06b6d4" strokeWidth={2} dot={false} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
+                    <ActivityChart logs={logs} />
                 </div>
 
+                {/* Cost Breakdown */}
                 <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl">
                     <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-red-400" />
-                        Threat Analysis
+                        <DollarSign className="w-5 h-5 text-emerald-400" />
+                        Cost Estimation
                     </h3>
-                    <div className="h-[300px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={activityData}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                                <XAxis dataKey="name" stroke="#94a3b8" />
-                                <YAxis stroke="#94a3b8" />
-                                <Tooltip
-                                    contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9' }}
-                                    cursor={{ fill: '#1e293b' }}
-                                />
-                                <Bar dataKey="threats" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
+                    <CostBreakdown operations={recentOperations} />
                 </div>
             </div>
 
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                 {/* Agent Efficiency */}
+                 <div className="lg:col-span-1 p-6 bg-slate-900 border border-slate-800 rounded-xl">
+                    <h3 className="text-lg font-semibold text-white mb-6 flex items-center gap-2">
+                        <Shield className="w-5 h-5 text-purple-400" />
+                        Operation Success
+                    </h3>
+                    <AgentEfficiency operations={recentOperations} />
+            </div>
+
             {/* Recent Logs Preview */}
-            <div className="p-6 bg-slate-900 border border-slate-800 rounded-xl">
-                <h3 className="text-lg font-semibold text-white mb-4">System Logs</h3>
-                <div className="space-y-2 font-mono text-sm">
-                    {[1, 2, 3].map((_, i) => (
-                        <div key={i} className="flex items-center gap-4 text-slate-400 py-2 border-b border-slate-800/50 last:border-0">
-                            <span className="text-slate-500">{new Date().toLocaleTimeString()}</span>
-                            <span className="text-green-400">[INFO]</span>
-                            <span>System scan completed successfully. No critical vulnerabilities found.</span>
+                <div className="lg:col-span-2 p-6 bg-slate-900 border border-slate-800 rounded-xl">
+                    <h3 className="text-lg font-semibold text-white mb-4">Live Log Stream</h3>
+                    <div className="space-y-2 font-mono text-sm max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                        {logs.slice(0, 10).map((log, i) => (
+                            <div key={i} className="flex items-start gap-4 text-slate-400 py-2 border-b border-slate-800/50 last:border-0">
+                                <span className="text-slate-600 text-xs shrink-0 mt-0.5">
+                                    {new Date(log.timestamp).toLocaleTimeString()}
+                                </span>
+                                <span className={`text-xs font-bold shrink-0 w-16 uppercase ${
+                                    log.level === 'error' ? 'text-red-400' :
+                                    log.level === 'warning' ? 'text-yellow-400' :
+                                    log.level === 'success' ? 'text-green-400' : 'text-cyan-400'
+                                }`}>
+                                    [{log.level}]
+                                </span>
+                                <span className="break-all">{log.message}</span>
                         </div>
                     ))}
+                        {logs.length === 0 && (
+                            <div className="text-slate-600 italic">No logs available yet...</div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
     );
 }
-

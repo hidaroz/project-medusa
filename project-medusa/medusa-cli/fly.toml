@@ -1,0 +1,56 @@
+# fly.toml app configuration file generated for medusa-api-v2 on 2025-11-21T00:15:22-08:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'medusa-api-v2'
+primary_region = 'sjc'
+kill_signal = 'SIGINT'
+kill_timeout = '5s'
+
+[build]
+  dockerfile = 'Dockerfile.api'
+
+[env]
+  LOG_LEVEL = 'info'
+  PORT = '8000'
+  
+  # Default Configuration for Headless Operation
+  LLM_PROVIDER = 'openai'
+  CLOUD_MODEL = 'gpt-4-turbo'
+  LLM_MOCK_MODE = 'false'
+  
+  # Target Defaults
+  TARGET_TYPE = 'docker'
+  TARGET_URL = 'http://localhost:3001'
+  
+  # Risk Tolerance Defaults
+  AUTO_APPROVE_LOW = 'true'
+  AUTO_APPROVE_MEDIUM = 'false'
+  AUTO_APPROVE_HIGH = 'false'
+  
+  # Database Defaults (Neo4j - Optional)
+  # Note: NEO4J_PASSWORD should be set via fly secrets, not hardcoded here
+  # Use: flyctl secrets set NEO4J_PASSWORD=your-secure-password
+  NEO4J_URI = 'bolt://localhost:7687'
+  NEO4J_USERNAME = 'neo4j'
+  # NEO4J_PASSWORD removed - use fly secrets instead
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = '10s'
+    timeout = '2s'
+    grace_period = '5s'
+    method = 'get'
+    path = '/api/health'
+
+[[vm]]
+  cpu_kind = 'shared'
+  cpus = 1
+  memory_mb = 1024

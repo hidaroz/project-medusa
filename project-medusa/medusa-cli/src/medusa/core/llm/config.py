@@ -41,7 +41,7 @@ class LLMConfig:
 
     # Cloud provider settings (optional)
     cloud_api_key: Optional[str] = field(
-        default_factory=lambda: os.getenv("CLOUD_API_KEY")
+        default_factory=lambda: os.getenv("CLOUD_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
     )
     cloud_model: Optional[str] = field(
         default_factory=lambda: os.getenv("CLOUD_MODEL")
@@ -109,6 +109,10 @@ class LLMConfig:
         # Map legacy 'api_key' to cloud_api_key if set
         if self.api_key and not self.cloud_api_key:
             self.cloud_api_key = self.api_key
+
+        # Fallback: If cloud_api_key is still None (e.g. passed as None from config dict), try env vars
+        if not self.cloud_api_key:
+            self.cloud_api_key = os.getenv("CLOUD_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
 
     @classmethod
     def from_env(cls) -> "LLMConfig":

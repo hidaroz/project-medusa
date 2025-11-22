@@ -435,3 +435,18 @@ class SQLMapScanner(BaseTool):
             except Exception as e:
                 self.logger.warning(f"Failed to clean up temp directory: {e}")
 
+
+class SQLInjectionTester(SQLMapScanner):
+    """
+    Backwards-compatible wrapper for SQLMap-based SQL injection testing.
+
+    Older parts of the codebase (and external automations) import
+    `SQLInjectionTester` from this module. During the SQLMap refactor the class
+    was renamed to `SQLMapScanner`, which removed the original symbol and caused
+    import failures when initializing the tool registry. This subclass restores
+    the legacy name while delegating all functionality to the scanner.
+    """
+
+    def __init__(self, timeout: int = 600):
+        """Initialize the legacy tester alias."""
+        super().__init__(timeout=timeout)

@@ -16,31 +16,28 @@ This section documents MEDUSA's architecture, including system design, component
 - [Project Overview](project-overview.md) - High-level system overview and goals
 - [CLI Architecture](cli-architecture.md) - CLI component design and structure
 
-### Multi-Agent Evolution (NEW!)
+### Multi-Agent System
 
-> **🎯 First time here?** Start with the [📊 EXECUTIVE SUMMARY](EXECUTIVE-SUMMARY.md)
->
-> **📚 Looking for specific docs?** Check the [DOCUMENTATION MAP](DOCUMENTATION-MAP.md)
+**Core Documentation**:
+- [**Implementation Status**](IMPLEMENTATION-STATUS.md) - Current implementation status (consolidated)
+- [**System Overview**](system-overview.md) - High-level architecture and design principles
+- [**Component Design**](component-design.md) - Detailed technical specifications
+- [**Network Architecture**](network-architecture.md) - Lab environment topology
+- [**LangGraph Migration**](langgraph-migration.md) - LangGraph implementation details
 
-**Quick Links**:
-- [**📊 EXECUTIVE SUMMARY**](EXECUTIVE-SUMMARY.md) - **Start here!** Complete overview and metrics
-- [**📚 DOCUMENTATION MAP**](DOCUMENTATION-MAP.md) - Guide to all documentation
+**Planning & Reference**:
+- [Multi-Agent Evolution Plan](multi-agent-evolution-plan.md) - Original 12-week implementation plan
+- [Quick Reference Guide](multi-agent-quick-reference.md) - TL;DR summary
+- [Context Fusion Engine](context-fusion-engine.md) - Context engineering details
+- [Reasoning Engine](reasoning-engine.md) - Reasoning engine design
 
-**Status & Planning**:
-- [**🎉 Current Status Report**](CURRENT-STATUS.md) - **95% complete - 24,444 lines of code - 1-2 hours to production**
-- [**🧪 Testing Plan**](TESTING-PLAN.md) - **Comprehensive testing plan for final 5%**
-- [**🚀 Multi-Agent Evolution Plan**](multi-agent-evolution-plan.md) - Complete 12-week implementation plan
-- [Quick Reference Guide](multi-agent-quick-reference.md) - TL;DR summary and fast-start
-- [Implementation Checklist](implementation-checklist.md) - Week-by-week tracking
-
-**Historical Records**:
-- [Previous Status Report](FINAL-STATUS.md) - Historical status (85% - Nov 12)
-- [Implementation Status](implementation-status.md) - Detailed verification and metrics
+**Historical** (archived):
+- See `archive/` directory for historical status files and planning documents
 
 ### Technical Documentation
-- System Overview - *To be created* - Detailed system architecture
-- Component Design - *To be created* - Individual component architectures
-- Network Architecture - *To be created* - Network topology and security
+- [System Overview](system-overview.md) - Detailed system architecture
+- [Component Design](component-design.md) - Individual component architectures
+- [Network Architecture](network-architecture.md) - Network topology and security
 - MITRE ATT&CK Mapping - *To be created* - Attack technique coverage
 - Database Schema - *To be created* - Data models and relationships
 

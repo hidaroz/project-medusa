@@ -1,0 +1,20 @@
+# Ignore massive artifacts and unnecessary directories to speed up build context transfer
+medusa-webapp/node_modules
+**/node_modules
+**/venv
+**/.venv
+**/__pycache__
+**/.git
+**/.DS_Store
+archive/
+training-data/
+lab-environment/
+tmp/
+*.db
+*.sqlite3
+*.log
+coverage/
+htmlcov/
+dist/
+build/
+

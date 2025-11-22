@@ -288,6 +288,26 @@ class MockProvider(BaseLLMProvider):
             else:
                 return "Recommend proceeding with SQL injection exploitation."
 
+        # Supervisor routing responses
+        elif "who should act next" in prompt_lower or "supervisor" in prompt_lower:
+            if force_json:
+                # Simple state machine for mock supervisor
+                if "reconnaissance completed" in prompt_lower:
+                    return '{"next_worker": "VulnerabilityAnalysis"}'
+                elif "vulnerability analysis completed" in prompt_lower:
+                    return '{"next_worker": "Planning"}'
+                elif "strategic plan created" in prompt_lower:
+                    return '{"next_worker": "Exploitation"}'
+                elif "exploitation completed" in prompt_lower:
+                    return '{"next_worker": "Reporting"}'
+                elif "report generated" in prompt_lower:
+                    return '{"next_worker": "FINISH"}'
+                else:
+                    # Default start state
+                    return '{"next_worker": "Reconnaissance"}'
+            else:
+                return "Reconnaissance"
+
         # Default response
         else:
             if force_json:

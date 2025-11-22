@@ -1,8 +1,8 @@
 # MEDUSA CLI - Multi-Agent AI-Powered Penetration Testing
 
-**Enterprise-grade autonomous security assessment with AWS Bedrock integration**
+**Enterprise-grade autonomous security assessment with LangGraph SDK and AWS Bedrock integration**
 
-MEDUSA CLI is a professional command-line tool featuring a **6-agent AI system** that coordinates reconnaissance, vulnerability analysis, exploitation planning, and comprehensive reporting. Built for security professionals with smart cost optimization and real-time tracking.
+MEDUSA CLI is a professional command-line tool featuring a **LangGraph-based multi-agent system** with 5 specialized agents orchestrated by a Supervisor node. Built for security professionals with smart cost optimization and real-time tracking.
 
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![AWS Bedrock](https://img.shields.io/badge/AWS-Bedrock-orange.svg)](https://aws.amazon.com/bedrock/)
@@ -18,21 +18,23 @@ MEDUSA CLI is a professional command-line tool featuring a **6-agent AI system**
 
 ## Features
 
-### 🤖 Multi-Agent AI System (Recommended)
+### 🤖 LangGraph Multi-Agent System (Recommended)
 
-**6 specialized agents work together** for comprehensive security assessments:
+**LangGraph StateGraph with Supervisor-Worker pattern** for comprehensive security assessments:
 
-- **Orchestrator Agent** - Coordinates all operations and task delegation
-- **Reconnaissance Agent** - Network discovery and enumeration
-- **Vulnerability Analysis Agent** - CVE correlation and risk assessment
+- **Supervisor Node** - Routes tasks to specialized agents based on state
+- **Reconnaissance Agent** - Network discovery and enumeration (Nmap, Amass, Httpx)
+- **Vulnerability Analysis Agent** - CVE correlation and web scanning (WebScanner)
 - **Planning Agent** - Strategic attack chain development
-- **Exploitation Agent** - Controlled exploitation simulation
+- **Exploitation Agent** - Controlled exploitation simulation (Metasploit)
 - **Reporting Agent** - Multi-format report generation
 
 **Benefits:**
+- ✅ **LangGraph SDK** - Stateful, cyclic agent workflows with conditional routing
 - ✅ **60% cost savings** through smart model routing (Haiku vs Sonnet)
 - ✅ **Real-time cost tracking** - See exactly what you're spending
 - ✅ **Context fusion** - Combines graph + vector databases for intelligence
+- ✅ **Tool integration** - Real security tools (Nmap, Amass, Httpx, WebScanner, Metasploit)
 - ✅ **Comprehensive reports** - Executive, technical, and remediation formats
 
 ### 💻 Classic Single-Agent Modes (Legacy)
@@ -159,9 +161,9 @@ medusa agent status --verbose
 medusa agent report --type technical --format html
 ```
 
-The multi-agent system will:
-- ✅ Coordinate 6 specialized agents
-- ✅ Perform intelligent reconnaissance
+The LangGraph multi-agent system will:
+- ✅ Coordinate 5 specialized agents via Supervisor node
+- ✅ Perform intelligent reconnaissance with real tools
 - ✅ Correlate with CVE database
 - ✅ Generate strategic plans
 - ✅ Simulate exploitation (safely)
@@ -189,7 +191,8 @@ medusa shell
 
 | Command | Description |
 |---------|-------------|
-| `medusa agent run <target>` | Run multi-agent assessment |
+| `medusa graph run <target>` | **NEW!** Run autonomous graph assessment |
+| `medusa agent run <target>` | Run legacy multi-agent assessment |
 | `medusa agent run <target> --type recon_only` | Reconnaissance only |
 | `medusa agent run <target> --type vuln_scan` | Vulnerability scanning |
 | `medusa agent status` | Show latest operation status |
@@ -257,10 +260,11 @@ medusa agent run http://target.com
 **What happens:**
 
 1. **Initialization** ⚙️
-   - Orchestrator Agent starts
+   - LangGraph StateGraph initializes
+   - Supervisor Node starts
    - Connects to Neo4j graph database
    - Loads vector database (MITRE/CVE knowledge)
-   - Initializes all 6 specialist agents
+   - Initializes all 5 specialist agent nodes
 
 2. **Reconnaissance Phase** 🔍
    - Recon Agent performs discovery

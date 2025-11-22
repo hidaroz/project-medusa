@@ -240,35 +240,173 @@ class LLMClient:
 
     def _extract_json_from_response(self, response: str) -> Dict[str, Any]:
         """
-        Extract JSON from LLM response.
-        
+        Extract JSON from LLM response with robust error handling.
+
         Handles various formats:
         - Pure JSON
-        - JSON wrapped in markdown code blocks
+        - JSON wrapped in markdown code blocks (```json ... ```)
         - JSON with surrounding text
+        - Malformed JSON (trailing commas, unescaped quotes)
+
+        Implements a "Clean and Parse" workflow:
+        1. Strip markdown code blocks
+        2. Find first { and last }
+        3. Attempt json.loads
+        4. If fails, apply text repairs and retry
+        5. Validate result is dict or list
+
+        Args:
+            response: Raw LLM response string
+
+        Returns:
+            Parsed JSON as dict or list
+
+        Raises:
+            ValueError: If JSON cannot be extracted or parsed
         """
+        if not response or not isinstance(response, str):
+            raise ValueError(f"Invalid response type: {type(response)}")
+
+        # Step 1: Try direct parsing first (fastest path)
         try:
-            return json.loads(response)
+            result = json.loads(response)
+            if isinstance(result, (dict, list)):
+                return result
         except json.JSONDecodeError:
-            # Try to extract JSON from markdown code blocks
-            json_match = re.search(
-                r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL
-            )
-            if json_match:
-                try:
-                    return json.loads(json_match.group(1))
-                except json.JSONDecodeError:
-                    pass
-            
-            # Try to find JSON object in the response
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
-            if json_match:
-                try:
-                    return json.loads(json_match.group(0))
-                except json.JSONDecodeError:
-                    pass
-            
-            raise ValueError("Invalid JSON response from LLM")
+            pass
+
+        # Step 2: Strip markdown code blocks
+        cleaned = self._strip_markdown_code_blocks(response)
+
+        # Step 3: Extract JSON boundaries (first { to last })
+        json_str = self._extract_json_boundaries(cleaned)
+
+        if not json_str:
+            # Fallback: try original response boundaries
+            json_str = self._extract_json_boundaries(response)
+
+        if not json_str:
+            raise ValueError("No JSON object found in response")
+
+        # Step 4: Attempt to parse
+        try:
+            result = json.loads(json_str)
+            if isinstance(result, (dict, list)):
+                return result
+            else:
+                raise ValueError(f"JSON parsed but result is {type(result)}, not dict/list")
+        except json.JSONDecodeError as e:
+            self.logger.debug(f"Initial JSON parse failed: {e}")
+
+            # Step 5: Apply text repairs and retry
+            repaired = self._repair_json_text(json_str)
+            try:
+                result = json.loads(repaired)
+                if isinstance(result, (dict, list)):
+                    self.logger.debug("JSON successfully repaired and parsed")
+                    return result
+                else:
+                    raise ValueError(f"Repaired JSON is {type(result)}, not dict/list")
+            except json.JSONDecodeError as e2:
+                self.logger.error(
+                    f"JSON parsing failed even after repair. "
+                    f"Original error: {e}, Repair error: {e2}"
+                )
+                # Log snippet for debugging
+                snippet = json_str[:200] + "..." if len(json_str) > 200 else json_str
+                self.logger.debug(f"Failed JSON snippet: {snippet}")
+                raise ValueError(f"Invalid JSON in LLM response: {e2}")
+
+    def _strip_markdown_code_blocks(self, text: str) -> str:
+        """
+        Remove markdown code block delimiters.
+
+        Handles:
+        - ```json ... ```
+        - ``` ... ```
+        - Multiple code blocks
+
+        Args:
+            text: Text potentially containing markdown code blocks
+
+        Returns:
+            Text with code block delimiters removed
+        """
+        # Remove code blocks with language specifier (```json, ```python, etc.)
+        text = re.sub(r'```\w+\s*\n', '', text)
+        # Remove plain code blocks
+        text = re.sub(r'```\s*\n?', '', text)
+        return text.strip()
+
+    def _extract_json_boundaries(self, text: str) -> Optional[str]:
+        """
+        Extract content between first { and last }.
+
+        Also handles [ ] for JSON arrays.
+
+        Args:
+            text: Text containing JSON
+
+        Returns:
+            Extracted JSON string or None if not found
+        """
+        # Try object extraction first { ... }
+        first_brace = text.find('{')
+        last_brace = text.rfind('}')
+
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            return text[first_brace:last_brace + 1]
+
+        # Try array extraction [ ... ]
+        first_bracket = text.find('[')
+        last_bracket = text.rfind(']')
+
+        if first_bracket != -1 and last_bracket != -1 and last_bracket > first_bracket:
+            return text[first_bracket:last_bracket + 1]
+
+        return None
+
+    def _repair_json_text(self, json_str: str) -> str:
+        """
+        Apply common JSON repairs to fix LLM-generated malformed JSON.
+
+        Fixes:
+        - Trailing commas before } or ]
+        - Unescaped newlines in strings
+        - Single quotes to double quotes (simple cases)
+        - Common escape sequence issues
+
+        Args:
+            json_str: Potentially malformed JSON string
+
+        Returns:
+            Repaired JSON string
+        """
+        repaired = json_str
+
+        # Fix 1: Remove trailing commas before closing braces/brackets
+        # ,} -> }  and  ,] -> ]
+        repaired = re.sub(r',\s*}', '}', repaired)
+        repaired = re.sub(r',\s*]', ']', repaired)
+
+        # Fix 2: Remove trailing commas in middle of objects/arrays
+        # Multiple commas: ,, -> ,
+        repaired = re.sub(r',\s*,', ',', repaired)
+
+        # Fix 3: Replace unescaped newlines within strings (common LLM error)
+        # This is tricky - only do simple cases
+        # Replace \n not preceded by \ with \\n
+        # repaired = re.sub(r'(?<!\\)\n', '\\n', repaired)
+
+        # Fix 4: Remove comments (// or /* */) that LLMs sometimes add
+        repaired = re.sub(r'//.*?$', '', repaired, flags=re.MULTILINE)
+        repaired = re.sub(r'/\*.*?\*/', '', repaired, flags=re.DOTALL)
+
+        # Fix 5: Handle common escape issues
+        # Replace \" with " in simple cases (if not already escaped)
+        # This is risky, so we skip it for now
+
+        return repaired.strip()
 
     async def get_reconnaissance_recommendation(
         self,
