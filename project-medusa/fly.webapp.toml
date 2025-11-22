@@ -1,17 +1,20 @@
 # fly.toml app configuration file generated for medusa-webapp on 2024-05-20T10:00:00-07:00
 
-app = "medusa-webapp-prod"
+app = "medusa-webapp"
 primary_region = "sjc"
 
 [build]
   dockerfile = "medusa-webapp/Dockerfile"
+  [build.args]
+    NEXT_PUBLIC_MEDUSA_API_URL = "https://medusa-cli.fly.dev"
 
 [env]
   NODE_ENV = "production"
-  PORT = "8080"
+  PORT = "3000"
+  MEDUSA_API_URL = "https://medusa-cli.fly.dev"
 
 [http_service]
-  internal_port = 8080
+  internal_port = 3000
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true

@@ -11,9 +11,10 @@
 MEDUSA (Multi-Environment Detection and Understanding System for Autonomous testing) is an AI-powered penetration testing framework that combines local and cloud language models with traditional security testing tools. It provides autonomous security assessment through intelligent decision-making in controlled, authorized test environments.
 
 **Key Features:**
-- 🤖 **Multi-Agent AI System** - 6 specialized agents (Recon, Analysis, Planning, Exploitation, Reporting, Orchestrator) work together
+- 🤖 **LangGraph Multi-Agent System** - 5 specialized agents (Recon, Analysis, Planning, Exploitation, Reporting) orchestrated by a Supervisor node
 - ☁️ **AWS Bedrock Integration** - Enterprise-grade Claude 3.5 with smart model routing (60% cost savings)
 - 🧠 **Context Fusion Engine** - Combines Neo4j graph + ChromaDB vector database for intelligent decision-making
+- 🔄 **StateGraph Orchestration** - LangGraph SDK for stateful, cyclic agent workflows
 - 🛡️ **Approval Gates** - Risk-based approval system prevents unintended actions
 - 🎮 **Three Modes** - Observe (read-only), Autonomous (AI-driven), Shell (interactive)
 - 🐳 **Comprehensive Lab** - 8 vulnerable Docker services for safe testing
@@ -187,19 +188,18 @@ llm:
 - Local CPU only: 10-30s per AI decision
 - All options faster than manual analysis!
 
-## 🏗️ Architecture
+### LangGraph Multi-Agent System
 
-### Multi-Agent System
-
-MEDUSA uses a **6-agent architecture** coordinated by an Orchestrator:
+MEDUSA uses **LangGraph SDK** for stateful agent orchestration with a **Supervisor-Worker pattern**:
 
 ```
 ┌────────────────────────────────────────────────────────────────┐
-│                    MEDUSA ORCHESTRATION LAYER                  │
+│                 MEDUSA LANGGRAPH ARCHITECTURE                  │
 │                                                                │
 │  ┌──────────────────────────────────────────────────────────┐  │
-│  │           Orchestrator Agent (Supervisor)                │  │
-│  │         Model: Claude 4.5 Sonnet (Bedrock)               │  │
+│  │              Supervisor Node (Router)                    │  │
+│  │         Model: Claude 3.5 Sonnet (Bedrock)               │  │
+│  │         Decides next agent based on state                │  │
 │  └──────────────┬───────────────────────────────────────────┘  │
 │                 │                                              │
 │       ┌─────────┼─────────────┬──────────────┐                 │
@@ -207,13 +207,23 @@ MEDUSA uses a **6-agent architecture** coordinated by an Orchestrator:
 │       ▼         ▼             ▼              ▼                 │
 │  ┌─────────┐ ┌─────────┐ ┌──────────┐ ┌──────────┐             │
 │  │ Recon   │ │ Vuln    │ │ Exploit  │ │ Planning │             │
-│  │ Agent   │ │ Analysis│ │ Agent    │ │ Agent    │             │
+│  │ Node    │ │ Analysis│ │ Node     │ │ Node     │             │
 │  │ (Haiku) │ │ (Haiku) │ │ (Haiku)  │ │ (Sonnet) │             │
 │  └────┬────┘ └────┬────┘ └─────┬────┘ └────┬─────┘             │
 │       │           │            │           │                   │
-│       └───────────┼────────────┼───────────┘                   │
-│                   │            │                               │
-│                   ▼            ▼                               │
+│       └───────────┴────────────┴───────────┘                   │
+│                   │                                            │
+│                   ▼                                            │
+│       ┌────────────────────────────────────┐                   │
+│       │      MedusaState (TypedDict)       │                   │
+│       │  • messages: List[BaseMessage]     │                   │
+│       │  • findings: List[Dict]            │                   │
+│       │  • operation_plan: Dict            │                   │
+│       │  • current_phase: str              │                   │
+│       │  • next_worker: str                │                   │
+│       └────────────────────────────────────┘                   │
+│                   │                                            │
+│                   ▼                                            │
 │       ┌────────────────────────────────────┐                   │
 │       │    Context Fusion Engine           │                   │
 │       │  ┌──────────────┐  ┌─────────────┐ │                   │
@@ -228,12 +238,16 @@ MEDUSA uses a **6-agent architecture** coordinated by an Orchestrator:
 ```
 
 **Key Components:**
-- **6 Specialized Agents**: Reconnaissance, Vulnerability Analysis, Planning, Exploitation, Reporting, Orchestrator
+- **LangGraph StateGraph**: Manages stateful, cyclic agent workflows with conditional routing
+- **Supervisor Node**: Routes tasks to specialized agents based on current state and findings
+- **5 Specialized Agent Nodes**: Reconnaissance, Vulnerability Analysis, Planning, Exploitation, Reporting
+- **MedusaState**: Shared state (TypedDict) passed between nodes containing messages, findings, and operation context
+- **Tool Integration**: Each agent node has access to real security tools (Nmap, Amass, Httpx, WebScanner, Metasploit)
 - **Smart Model Routing**: Automatically uses Claude Haiku (cheap) or Sonnet (smart) based on task complexity
 - **Context Fusion**: Combines Neo4j graph (infrastructure state) + ChromaDB vector (MITRE/CVE knowledge)
 - **Cost Optimization**: 60-70% cost savings through intelligent model selection
 
-📚 **[Multi-Agent Architecture Guide](docs/01-architecture/multi-agent-evolution-plan.md)**
+📚 **[LangGraph Architecture Guide](docs/01-architecture/langgraph-migration.md)**
 
 ## 📦 Project Structure
 
@@ -462,12 +476,15 @@ MEDUSA is designed for:
 
 ## 🏆 Features
 
-### Multi-Agent AI System
-- **6 specialized agents** work together: Recon, Analysis, Planning, Exploitation, Reporting, Orchestrator
+### LangGraph Multi-Agent System
+- **LangGraph SDK** for stateful, cyclic agent workflows
+- **Supervisor-Worker pattern** with intelligent routing
+- **5 specialized agent nodes** work together: Recon, Analysis, Planning, Exploitation, Reporting
 - **AWS Bedrock integration** with Claude 3.5 Sonnet and Haiku
 - **Smart model routing** - Automatically selects optimal model (60% cost savings)
 - **Context fusion** - Combines graph + vector databases for intelligent decisions
 - **Real-time cost tracking** - Monitor LLM usage and costs per operation
+- **Tool integration** - Real security tools (Nmap, Amass, Httpx, WebScanner, Metasploit)
 
 ### Approval Gates
 - Risk-based approval system (LOW, MEDIUM, HIGH, CRITICAL)

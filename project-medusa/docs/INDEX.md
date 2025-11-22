@@ -40,17 +40,20 @@
 **Path**: `/docs/01-architecture/`
 
 - [**Multi-Agent Evolution Plan**](01-architecture/multi-agent-evolution-plan.md) - 🚀 **NEW: Comprehensive implementation plan for AWS Bedrock, Vector DB, and Multi-Agent System**
-- [Project Overview](01-architecture/project-overview.md) - High-level system overview
+- [**Implementation Status**](01-architecture/IMPLEMENTATION-STATUS.md) - ✅ **Current implementation status (consolidated)**
+- [**System Overview**](01-architecture/system-overview.md) - High-level architecture and design principles
+- [**Component Design**](01-architecture/component-design.md) - Detailed technical specifications for all components
+- [**Network Architecture**](01-architecture/network-architecture.md) - Lab environment topology and attack paths
+- [**LangGraph Migration**](01-architecture/langgraph-migration.md) - LangGraph multi-agent implementation details
+- [Project Overview](01-architecture/project-overview.md) - Legacy project overview
 - [CLI Architecture](01-architecture/cli-architecture.md) - CLI component design
-- System Overview - *To be created*
-- Component Design - *To be created*
-- Network Architecture - *To be created*
 - MITRE ATT&CK Mapping - *To be created*
 - Database Schema - *To be created*
 
 **Current Location References**:
 - [Project Overview](PROJECT_MEDUSA_OVERVIEW.md)
 - Architecture docs: `/docs/architecture/`
+
 
 ---
 

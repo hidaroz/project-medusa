@@ -12,6 +12,8 @@ out/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.prod
+.env.*.local
 
 # Logs
 npm-debug.log*
@@ -147,3 +149,7 @@ htmlcov/
 # Cursor/IDE files
 .cursor/
 .cursorignore
+.ai/
+.ai
+.claude/
+.claude

@@ -2,10 +2,15 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-COPY package.json package-lock.json* ./
+COPY medusa-webapp/package.json medusa-webapp/package-lock.json* ./
 RUN npm install
 
-COPY . .
+COPY medusa-webapp/ .
+
+# Build-time environment variables
+ARG NEXT_PUBLIC_MEDUSA_API_URL
+ENV NEXT_PUBLIC_MEDUSA_API_URL=$NEXT_PUBLIC_MEDUSA_API_URL
+
 RUN npm run build
 
 FROM node:18-alpine AS runner

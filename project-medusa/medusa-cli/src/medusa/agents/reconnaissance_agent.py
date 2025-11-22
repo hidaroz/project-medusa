@@ -13,6 +13,7 @@ import asyncio
 import json
 from .base_agent import BaseAgent
 from .data_models import AgentTask, TaskStatus, AgentResult
+from ..core.tool_registry import ToolRegistry
 
 
 class ReconnaissanceAgent(BaseAgent):
@@ -26,6 +27,17 @@ class ReconnaissanceAgent(BaseAgent):
     - Prioritize targets
     - Execute Nmap scans
     """
+
+    def __init__(self, tool_registry: Optional[ToolRegistry] = None, *args, **kwargs):
+        """
+        Initialize Reconnaissance Agent.
+
+        Args:
+            tool_registry: Optional ToolRegistry instance. If None, creates new registry.
+            *args, **kwargs: BaseAgent arguments
+        """
+        super().__init__(*args, **kwargs)
+        self.tools = tool_registry or ToolRegistry()
 
     async def _execute_task(self, task: AgentTask) -> Any:
         """
@@ -128,103 +140,51 @@ class ReconnaissanceAgent(BaseAgent):
         }
 
     async def _run_scan(self, task: AgentTask) -> AgentResult:
-        """Execute Nmap scan."""
+        """Execute scan using appropriate tool from registry."""
         target = task.parameters.get('target')
         scan_type = task.parameters.get('scan_type', 'fast')
-        
+
         if not target:
             raise ValueError("Target is required for scan")
-            
+
         self.logger.info(f"Starting {scan_type} scan against {target}")
-        
+
         try:
-            scan_results = await self._execute_nmap_scan(target, scan_type)
-            
+            if scan_type == "fast":
+                nmap_tool = self.tools.get_tool("nmap")
+                result = await nmap_tool.quick_scan(target)
+            elif scan_type == "comprehensive":
+                nmap_tool = self.tools.get_tool("nmap")
+                result = await nmap_tool.full_scan(target)
+            elif scan_type == "subdomain":
+                # Amass execution
+                amass_tool = self.tools.get_tool("amass")
+                result = await amass_tool.execute(target)
+            elif scan_type == "web_probe":
+                # Httpx execution
+                httpx_tool = self.tools.get_tool("httpx")
+                result = await httpx_tool.execute(target)
+            else:
+                # Default scan
+                nmap_tool = self.tools.get_tool("nmap")
+                result = await nmap_tool.execute(target, scan_type="-sV")
+
+            if not result.get("success"):
+                raise RuntimeError(result.get("error", "Unknown error during scan"))
+
             return AgentResult(
                 task_id=task.task_id,
                 status=TaskStatus.COMPLETED,
-                findings=scan_results,
+                findings=result.get("findings", []),
                 data={
                     'target': target,
-                    'scan_type': scan_type
+                    'scan_type': scan_type,
+                    'raw_output': result.get("raw_output", "")
                 }
             )
         except Exception as e:
             self.logger.error(f"Scan failed: {e}")
             raise
-
-    async def _execute_nmap_scan(self, target: str, scan_type: str) -> List[Dict[str, Any]]:
-        """Run Nmap command and parse results."""
-        if not shutil.which("nmap"):
-            raise RuntimeError("nmap is not installed")
-
-        # Build command
-        cmd = ["nmap", "-oX", "-"]
-        
-        if scan_type == "fast":
-            cmd.extend(["-F", "-T4"])
-        elif scan_type == "comprehensive":
-            cmd.extend(["-sV", "-sC", "-p-", "-T4"])
-        else:
-            cmd.extend(["-sV", "-T4"])
-            
-        cmd.append(target)
-        
-        self.logger.debug(f"Running command: {' '.join(cmd)}")
-        
-        # Execute
-        process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode != 0:
-            self.logger.error(f"Nmap failed: {stderr.decode()}")
-            return []
-            
-        xml_content = stdout.decode()
-        self.logger.info(f"Nmap output length: {len(xml_content)}")
-        
-        findings = self._parse_nmap_xml(xml_content)
-        self.logger.info(f"Parsed {len(findings)} findings from Nmap XML")
-        return findings
-
-    def _parse_nmap_xml(self, xml_content: str) -> List[Dict[str, Any]]:
-        """Parse Nmap XML output into structured findings."""
-        findings = []
-        try:
-            root = ET.fromstring(xml_content)
-            
-            for host in root.findall("host"):
-                address = host.find("address").get("addr")
-                ports = host.find("ports")
-                
-                if ports:
-                    for port in ports.findall("port"):
-                        state = port.find("state").get("state")
-                        if state == "open":
-                            port_id = port.get("portid")
-                            protocol = port.get("protocol")
-                            service = port.find("service")
-                            service_name = service.get("name") if service is not None else "unknown"
-                            product = service.get("product") if service is not None else ""
-                            version = service.get("version") if service is not None else ""
-                            
-                            findings.append({
-                                "type": "open_port",
-                                "ip": address,
-                                "port": int(port_id),
-                                "protocol": protocol,
-                                "service": service_name,
-                                "version": f"{product} {version}".strip(),
-                                "state": state
-                            })
-        except Exception as e:
-            self.logger.error(f"Failed to parse Nmap XML: {e}")
-            
-        return findings
 
     def _build_reconnaissance_prompt(
         self,

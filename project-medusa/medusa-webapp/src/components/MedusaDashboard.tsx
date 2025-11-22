@@ -3,6 +3,11 @@ import React, { useState } from 'react';
 import Sidebar from './Sidebar';
 import Terminal from './Terminal';
 import Dashboard from './Dashboard';
+import OperationsCenter from './Operations/OperationsCenter';
+import ReportsPage from './Reports/ReportsPage';
+import SystemStatus from './System/SystemStatus';
+import CostDashboard from './Cost/CostDashboard';
+import SettingsPage from './Settings/SettingsPage';
 import { Search, Bell, User, Shield } from 'lucide-react';
 
 interface MedusaDashboardProps {
@@ -56,31 +61,13 @@ export default function MedusaDashboard({ apiUrl }: MedusaDashboardProps) {
                 <main className="flex-1 p-6 overflow-hidden z-10">
                     {activeTab === 'dashboard' && <Dashboard apiUrl={apiUrl} />}
                     {activeTab === 'terminal' && <Terminal apiUrl={apiUrl} />}
-                    {activeTab === 'operations' && (
-                        <div className="h-full flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-900/50 backdrop-blur-sm">
-                            <div className="text-center">
-                                <div className="w-20 h-20 rounded-full bg-slate-800/50 flex items-center justify-center mx-auto mb-4 border border-slate-700">
-                                    <Shield className="w-10 h-10 text-slate-500" />
-                                </div>
-                                <h3 className="text-xl font-medium text-slate-300 font-mono">OPERATIONS CENTER</h3>
-                                <p className="text-slate-500 mt-2 max-w-md mx-auto">Select a target to begin security assessment or initialize a new campaign.</p>
-                                <button className="mt-6 px-6 py-2 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg font-medium transition-colors shadow-lg shadow-cyan-900/20">
-                                    Initialize Campaign
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                    {['settings', 'system'].includes(activeTab) && (
-                        <div className="h-full flex items-center justify-center border border-dashed border-slate-800 rounded-xl bg-slate-900/50 backdrop-blur-sm">
-                            <div className="text-center">
-                                <h3 className="text-xl font-medium text-slate-300 font-mono">MODULE OFFLINE</h3>
-                                <p className="text-slate-500 mt-2">This system module is currently under development.</p>
-                            </div>
-                        </div>
-                    )}
+                    {activeTab === 'operations' && <OperationsCenter />}
+                    {activeTab === 'reports' && <ReportsPage />}
+                    {activeTab === 'system' && <SystemStatus />}
+                    {activeTab === 'cost' && <CostDashboard />}
+                    {activeTab === 'settings' && <SettingsPage />}
                 </main>
             </div>
         </div>
     );
 }
-

@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Terminal, Shield, Settings, Activity, Lock } from 'lucide-react';
+import { LayoutDashboard, Terminal, Shield, Settings, Activity, Lock, FileText, DollarSign } from 'lucide-react';
 import clsx from 'clsx';
 
 interface SidebarProps {
@@ -11,6 +11,8 @@ export default function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'operations', label: 'Operations', icon: Shield },
+    { id: 'reports', label: 'Reports', icon: FileText },
+    { id: 'cost', label: 'Cost Mgmt', icon: DollarSign },
     { id: 'terminal', label: 'Terminal', icon: Terminal },
     { id: 'system', label: 'System Status', icon: Activity },
     { id: 'settings', label: 'Settings', icon: Settings },

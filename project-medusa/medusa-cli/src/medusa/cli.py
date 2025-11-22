@@ -18,6 +18,7 @@ from medusa.modes import AutonomousMode, InteractiveMode, ObserveMode
 from medusa.error_handler import error_handler_decorator, handle_error
 from medusa.first_run import is_first_run, run_first_time_wizard
 from medusa.cli_multi_agent import agent_app
+from medusa.commands.graph_run import run_graph_command
 
 app = typer.Typer(
     name="medusa",
@@ -33,6 +34,11 @@ app.add_typer(llm_app, name="llm")
 
 # Multi-agent command group
 app.add_typer(agent_app, name="agent")
+
+# Graph command group
+graph_app = typer.Typer(help="LangGraph autonomous agent commands")
+app.add_typer(graph_app, name="graph")
+graph_app.command("run")(run_graph_command)
 
 
 @llm_app.command("verify")
@@ -1158,6 +1164,128 @@ def _run_observe_mode(target: str, api_key: str):
         console.print("\n[yellow]⏸️  Observation interrupted by user[/yellow]")
         sys.exit(0)
     except Exception as e:
+        handle_error(e)
+        sys.exit(1)
+
+
+@app.command()
+def watchdog(
+    api_url: str = typer.Option(
+        "http://localhost:8000",
+        "--api-url",
+        "-u",
+        help="MEDUSA API base URL"
+    ),
+    operation_id: Optional[str] = typer.Option(
+        None,
+        "--operation-id",
+        "-o",
+        help="Specific operation ID to monitor (monitors all if not specified)"
+    ),
+    check_interval: int = typer.Option(
+        30,
+        "--check-interval",
+        "-i",
+        help="Seconds between health checks"
+    ),
+    stuck_threshold: int = typer.Option(
+        600,
+        "--stuck-threshold",
+        "-t",
+        help="Seconds before considering operation stuck (zombie state)"
+    ),
+    auto_restart: bool = typer.Option(
+        False,
+        "--auto-restart",
+        "-r",
+        help="Enable auto-restart on failures (exits with non-zero code for Docker)"
+    ),
+    env_config: bool = typer.Option(
+        False,
+        "--env-config",
+        "-e",
+        help="Load configuration from environment variables"
+    )
+):
+    """
+    🐕 Run the application watchdog to monitor for stuck operations.
+
+    The watchdog monitors the MEDUSA API for "zombie" states where the
+    process is alive but the logic is stuck (e.g., infinite loops, deadlocks).
+
+    Features:
+    - Regular health endpoint pings
+    - State update timestamp monitoring
+    - Alerts on stuck operations
+    - Docker-friendly logging and exit codes
+
+    Exit codes:
+        0 - Normal shutdown
+        1 - Health check failures
+        2 - Stuck operation detected
+        3 - Watchdog service crashed
+
+    Examples:
+        # Monitor all operations with default settings
+        medusa watchdog
+
+        # Monitor specific operation
+        medusa watchdog --operation-id op_123
+
+        # Custom check interval and stuck threshold
+        medusa watchdog --check-interval 60 --stuck-threshold 300
+
+        # Enable auto-restart for Docker deployment
+        medusa watchdog --auto-restart
+
+        # Load config from environment
+        medusa watchdog --env-config
+    """
+    from medusa.core.watchdog import WatchdogService, WatchdogConfig
+    from rich.panel import Panel
+
+    try:
+        if env_config:
+            console.print("[cyan]Loading configuration from environment variables...[/cyan]")
+            config = WatchdogConfig.from_env()
+        else:
+            config = WatchdogConfig(
+                api_base_url=api_url,
+                health_check_interval=check_interval,
+                stuck_threshold=stuck_threshold,
+                enable_auto_restart=auto_restart
+            )
+
+        # Display configuration
+        from rich.table import Table
+        config_table = Table(show_header=False, box=None, padding=(0, 2))
+        config_table.add_row("[bold]API URL[/bold]", f"[cyan]{config.api_base_url}[/cyan]")
+        config_table.add_row("[bold]Check Interval[/bold]", f"[cyan]{config.health_check_interval}s[/cyan]")
+        config_table.add_row("[bold]Stuck Threshold[/bold]", f"[cyan]{config.stuck_threshold}s[/cyan]")
+        config_table.add_row("[bold]Auto-Restart[/bold]", f"[cyan]{config.enable_auto_restart}[/cyan]")
+
+        if operation_id:
+            config_table.add_row("[bold]Operation ID[/bold]", f"[cyan]{operation_id}[/cyan]")
+        else:
+            config_table.add_row("[bold]Mode[/bold]", "[cyan]Monitor all operations[/cyan]")
+
+        console.print(Panel(
+            config_table,
+            title="[bold cyan]🐕 MEDUSA Watchdog[/bold cyan]",
+            border_style="cyan"
+        ))
+
+        console.print("\n[yellow]Starting watchdog monitoring...[/yellow]")
+        console.print("[dim]Press Ctrl+C to stop[/dim]\n")
+
+        watchdog_service = WatchdogService(config)
+        asyncio.run(watchdog_service.monitor_loop(operation_id=operation_id))
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]⏸️  Watchdog stopped by user[/yellow]")
+        sys.exit(0)
+    except Exception as e:
+        console.print(f"\n[red]❌ Watchdog error: {e}[/red]")
         handle_error(e)
         sys.exit(1)
 

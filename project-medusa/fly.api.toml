@@ -1,6 +1,6 @@
 # fly.toml app configuration file generated for medusa-api on 2024-05-20T10:00:00-07:00
 
-app = "medusa-api-prod"
+app = "medusa-cli"
 primary_region = "sjc"
 
 [build]
@@ -9,6 +9,16 @@ primary_region = "sjc"
 [env]
   PYTHONUNBUFFERED = "1"
   MEDUSA_API_PORT = "8080"
+  FRONTEND_URL = "https://medusa-webapp.fly.dev"
+  LLM_PROVIDER = "local"
+  LLM_LOCAL_MODEL = "mistral:7b-instruct"
+  LLM_OLLAMA_URL = "http://localhost:11434"
+  LLM_MOCK_MODE = "false"
+  TARGET_TYPE = "custom"
+  TARGET_URL = "http://localhost:3001"
+  AUTO_APPROVE_LOW = "true"
+  AUTO_APPROVE_MEDIUM = "false"
+  AUTO_APPROVE_HIGH = "false"
 
 [http_service]
   internal_port = 8080
