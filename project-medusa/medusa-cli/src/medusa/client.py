@@ -5,6 +5,7 @@ Includes mock responses for development and real LLM integration
 """
 
 import httpx
+import os
 from typing import Dict, Any, List, Optional
 from datetime import datetime
 import random
@@ -176,8 +177,15 @@ class MedusaClient:
                 target_host = target_host.split(':')[0]
 
         # Step 1: Get AI recommendation for reconnaissance strategy
+        # Include objective from environment variable if available
+        context = {}
+        objective = os.getenv('MEDUSA_OBJECTIVE', '')
+        if objective:
+            context['objective'] = objective
+            context['focus'] = objective
+            logger.info(f"Using objective for reconnaissance: {objective}")
         try:
-            strategy = await self.get_reconnaissance_strategy(target)
+            strategy = await self.get_reconnaissance_strategy(target, context)
             logger.info(f"AI recommended {len(strategy.get('recommended_actions', []))} reconnaissance actions")
         except Exception as e:
             logger.warning(f"Failed to get AI strategy: {e}, proceeding with default strategy")
@@ -293,7 +301,7 @@ class MedusaClient:
             "mode": "REAL_TOOLS"  # Flag to indicate real tools were used
         }
 
-    async def enumerate_services(self, target: str, reconnaissance_findings: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+    async def enumerate_services(self, target: str, reconnaissance_findings: Optional[List[Dict[str, Any]]] = None, objective_strategy=None) -> Dict[str, Any]:
         """
         Enumerate services on target using REAL tools
 
@@ -342,8 +350,8 @@ class MedusaClient:
         # Step 2: Deep web enumeration
         logger.info(f"Executing deep web enumeration on {target}")
         try:
-            # Check for common API endpoints
-            api_findings = await self._enumerate_api_endpoints(target)
+            # Check for common API endpoints (filtered by objective strategy if provided)
+            api_findings = await self._enumerate_api_endpoints(target, objective_strategy=objective_strategy)
             all_findings.extend(api_findings)
 
             if api_findings:
@@ -405,12 +413,13 @@ class MedusaClient:
             "mode": "REAL_TOOLS"
         }
 
-    async def _enumerate_api_endpoints(self, target: str) -> List[Dict[str, Any]]:
+    async def _enumerate_api_endpoints(self, target: str, objective_strategy=None) -> List[Dict[str, Any]]:
         """
         Enumerate common API endpoints
 
         Args:
             target: Target URL
+            objective_strategy: Optional ObjectiveStrategy to filter endpoints
 
         Returns:
             List of API endpoint findings
@@ -418,11 +427,23 @@ class MedusaClient:
         findings = []
 
         # Common API endpoints to check
-        api_endpoints = [
+        all_api_endpoints = [
             "/api/v1/users",
             "/api/users",
             "/api/patients",
             "/api/employees",
+            "/api/medical_records",
+            "/api/appointments",
+            "/api/prescriptions",
+            "/api/lab_results",
+            "/api/auth",
+            "/api/login",
+            "/api/authenticate",
+            "/api/token",
+            "/api/session",
+            "/api/credentials",
+            "/api/account",
+            "/api/profile",
             "/api/admin",
             "/api/config",
             "/api/health",
@@ -432,6 +453,22 @@ class MedusaClient:
             "/graphql",
             "/api/graphql",
         ]
+
+        # Filter endpoints based on objective strategy
+        if objective_strategy and objective_strategy.endpoint_patterns:
+            # Only check endpoints that match the objective
+            api_endpoints = [
+                ep for ep in all_api_endpoints
+                if objective_strategy.should_check_endpoint(ep)
+            ]
+            # Also add priority endpoints if specified
+            if objective_strategy.priority_endpoints:
+                for priority_ep in objective_strategy.priority_endpoints:
+                    if priority_ep not in api_endpoints:
+                        api_endpoints.insert(0, priority_ep)  # Add to front
+            logger.info(f"Filtered to {len(api_endpoints)} relevant endpoints based on objective")
+        else:
+            api_endpoints = all_api_endpoints
 
         if not target.startswith(('http://', 'https://')):
             target = f"http://{target}"
@@ -690,10 +727,10 @@ class MedusaClient:
     async def get_ai_recommendation(self, context: Dict[str, Any]) -> Dict[str, Any]:
         """
         Get AI recommendation for next action using LLM
-        
+
         Args:
             context: Operation context including phase, findings, history
-            
+
         Returns:
             Dict with recommendations, analysis, and suggested next phase
         """
@@ -718,7 +755,7 @@ class MedusaClient:
                 "context_analysis": "Continuing with safe reconnaissance activities",
                 "suggested_next_phase": context.get("phase", "enumeration"),
             }
-    
+
     async def get_reconnaissance_strategy(
         self,
         target: str,
@@ -726,18 +763,18 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Get AI-powered reconnaissance strategy
-        
+
         Args:
             target: Target URL or IP
             context: Additional context
-            
+
         Returns:
             Dict with reconnaissance recommendations
         """
         try:
             logger.debug(f"Requesting reconnaissance strategy for {target}")
             result = await self.llm_client.get_reconnaissance_recommendation(
-                target, 
+                target,
                 context or {}
             )
             logger.info("Reconnaissance strategy generated")
@@ -749,7 +786,7 @@ class MedusaClient:
                 "focus_areas": ["web_services"],
                 "risk_assessment": "LOW"
             }
-    
+
     async def get_enumeration_strategy(
         self,
         target: str,
@@ -757,11 +794,11 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Get AI-powered enumeration strategy based on reconnaissance findings
-        
+
         Args:
             target: Target URL or IP
             findings: Reconnaissance findings
-            
+
         Returns:
             Dict with enumeration recommendations
         """
@@ -777,7 +814,7 @@ class MedusaClient:
                 "services_to_probe": ["http"],
                 "risk_assessment": "LOW"
             }
-    
+
     async def assess_vulnerability_risk(
         self,
         vulnerability: Dict[str, Any],
@@ -785,11 +822,11 @@ class MedusaClient:
     ) -> str:
         """
         Assess risk level of a vulnerability using AI
-        
+
         Args:
             vulnerability: Vulnerability details
             target_context: Target environment context
-            
+
         Returns:
             Risk level: "LOW", "MEDIUM", "HIGH", or "CRITICAL"
         """
@@ -802,7 +839,7 @@ class MedusaClient:
             logger.error(f"Failed to assess vulnerability risk: {e}")
             # Safe default
             return vulnerability.get("severity", "MEDIUM").upper()
-    
+
     async def plan_attack_strategy(
         self,
         target: str,
@@ -811,12 +848,12 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Generate comprehensive attack strategy using AI
-        
+
         Args:
             target: Target URL or IP
             findings: All findings so far
             objectives: Attack objectives
-            
+
         Returns:
             Dict with attack plan and strategy
         """
@@ -845,11 +882,11 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Enumerate subdomains using Amass
-        
+
         Args:
             domain: Target domain
             passive: Use passive enumeration only
-            
+
         Returns:
             Enumeration results
         """
@@ -873,11 +910,11 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Validate live web servers using httpx
-        
+
         Args:
             targets: List of URLs or domains
             threads: Number of concurrent threads
-            
+
         Returns:
             Validation results
         """
@@ -901,11 +938,11 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Prioritize targets using LLM analysis
-        
+
         Args:
             amass_findings: Findings from Amass
             httpx_findings: Findings from httpx
-            
+
         Returns:
             Prioritized target list
         """
@@ -932,12 +969,12 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Enumerate Kerberos users
-        
+
         Args:
             dc: Domain Controller IP or hostname
             domain: Domain name
             userlist: Path to username file
-            
+
         Returns:
             Enumeration results
         """
@@ -964,13 +1001,13 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Perform Kerberos password spray
-        
+
         Args:
             dc: Domain Controller IP or hostname
             domain: Domain name
             userlist: Path to username file
             password: Password to spray
-            
+
         Returns:
             Spray results
         """
@@ -998,14 +1035,14 @@ class MedusaClient:
     ) -> Dict[str, Any]:
         """
         Test URL for SQL injection vulnerabilities
-        
+
         Args:
             url: Target URL
             method: HTTP method (GET, POST, etc.)
             data: POST data if applicable
             level: Test level (1-5, higher = more thorough)
             risk: Risk level (1-3, higher = more aggressive)
-            
+
         Returns:
             Test results
         """

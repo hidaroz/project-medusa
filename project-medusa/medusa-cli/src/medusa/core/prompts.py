@@ -7,10 +7,14 @@ These prompts are specifically designed for smaller language models:
 - Concise instructions
 - Rule-based constraints
 - Reduced verbosity compared to Gemini prompts
+- Enhanced with feedback from past operations for continuous learning
 """
 
 import json
 from typing import Dict, Any, List, Optional
+from medusa.core.feedback import get_feedback_tracker
+from medusa.core.strategy_selector import StrategySelector
+from medusa.core.objective_parser import ObjectiveParser
 
 
 class PromptTemplates:
@@ -27,12 +31,68 @@ class PromptTemplates:
 
     @staticmethod
     def reconnaissance_strategy(target: str, context: Dict[str, Any]) -> str:
-        """Generate reconnaissance prompt for Mistral-7B"""
+        """Generate reconnaissance prompt for Mistral-7B with feedback integration"""
         context_str = json.dumps(context, indent=2) if context else "{}"
+
+        # Get feedback from past operations
+        feedback = get_feedback_tracker()
+        successful_techniques = feedback.get_successful_techniques(min_success_rate=0.5)
+        failed_techniques = feedback.get_failed_techniques()
+        best_paths = feedback.get_best_attack_paths(limit=3)
+
+        # Use strategy selector for objective-specific recommendations
+        objective_strategy = None
+        if context and context.get('objective'):
+            parser = ObjectiveParser()
+            objective_strategy = parser.parse(context.get('objective'))
+            selector = StrategySelector()
+            recommended_techniques = selector.select_techniques(objective_strategy, limit=5)
+        else:
+            recommended_techniques = []
+
+        # Build feedback context with strategy selector recommendations
+        feedback_context = ""
+        if recommended_techniques:
+            feedback_context += "\n\nRECOMMENDED TECHNIQUES (based on objective and past performance):\n"
+            for rec in recommended_techniques[:3]:  # Top 3
+                feedback_context += f"- {rec.technique_id}: {rec.success_rate:.0%} success rate ({rec.reason})\n"
+
+        if successful_techniques and not recommended_techniques:
+            feedback_context += "\n\nPAST SUCCESSES (use these techniques):\n"
+            for tech in successful_techniques[:3]:  # Top 3
+                feedback_context += f"- {tech['technique_id']}: {tech['success_rate']:.0%} success rate"
+                if tech.get('best_payloads'):
+                    feedback_context += f", best payload: {tech['best_payloads'][0]}"
+                feedback_context += "\n"
+
+        if failed_techniques:
+            feedback_context += "\nPAST FAILURES (avoid these):\n"
+            for tech_id in failed_techniques[:3]:  # Top 3
+                # Check if should avoid based on strategy selector
+                if objective_strategy:
+                    selector = StrategySelector()
+                    should_avoid, reason = selector.should_avoid_technique(tech_id, objective_strategy)
+                    if should_avoid:
+                        feedback_context += f"- {tech_id}: {reason}\n"
+                else:
+                    feedback_context += f"- {tech_id}: Failed previously\n"
+
+        if best_paths:
+            feedback_context += "\nBEST ATTACK PATHS (consider this sequence):\n"
+            for path in best_paths[:2]:  # Top 2
+                feedback_context += f"- {' → '.join(path['sequence'][:3])}: {path['success_rate']:.0%} success\n"
+
+        # Extract objective from context if provided
+        objective_text = ""
+        if context and context.get('objective'):
+            objective = context.get('objective')
+            objective_text = f"\n\nOBJECTIVE: {objective}\nFocus the reconnaissance on finding: {objective}\n"
+
         return f"""You are a penetration testing AI assistant. Generate a reconnaissance strategy for the target.
+{feedback_context}
 
 TARGET: {target}
-CONTEXT: {context_str}
+CONTEXT: {context_str}{objective_text}
 
 TASK: Output a JSON object with reconnaissance recommendations.
 
@@ -73,12 +133,49 @@ RULES:
 OUTPUT (JSON only, no explanations):"""
 
     @staticmethod
-    def enumeration_strategy(target: str, reconnaissance_findings: List[Dict[str, Any]]) -> str:
-        """Generate enumeration prompt based on reconnaissance findings"""
+    def enumeration_strategy(target: str, reconnaissance_findings: List[Dict[str, Any]], objective: Optional[str] = None) -> str:
+        """Generate enumeration prompt with feedback integration"""
         findings_str = json.dumps(reconnaissance_findings[:5], indent=2)
-        return f"""You are a penetration testing AI assistant. Based on reconnaissance findings, recommend enumeration actions.
 
-TARGET: {target}
+        # Get feedback
+        feedback = get_feedback_tracker()
+        working_creds = feedback.get_working_credentials()
+        successful_techniques = feedback.get_successful_techniques(min_success_rate=0.5)
+
+        # Use strategy selector for objective-specific recommendations
+        objective_strategy = None
+        if objective:
+            parser = ObjectiveParser()
+            objective_strategy = parser.parse(objective)
+            selector = StrategySelector()
+            recommended_techniques = selector.select_techniques(objective_strategy, limit=5)
+        else:
+            recommended_techniques = []
+
+        feedback_context = ""
+        if working_creds:
+            feedback_context += "\n\nKNOWN WORKING CREDENTIALS (try these first):\n"
+            for cred in working_creds[:3]:  # Top 3
+                feedback_context += f"- {cred['service']}: {cred['username']} / {cred['password']}\n"
+
+        if recommended_techniques:
+            feedback_context += "\nRECOMMENDED TECHNIQUES (for this objective):\n"
+            for rec in recommended_techniques[:3]:
+                feedback_context += f"- {rec.technique_id}: {rec.success_rate:.0%} success ({rec.reason})\n"
+        elif successful_techniques:
+            feedback_context += "\nSUCCESSFUL TECHNIQUES:\n"
+            for tech in successful_techniques[:2]:
+                feedback_context += f"- {tech['technique_id']}: {tech['success_rate']:.0%} success\n"
+
+        # Include objective if provided
+        objective_text = ""
+        if objective:
+            objective_text = f"\n\nOBJECTIVE: {objective}\nFocus enumeration on finding: {objective}\n"
+
+        return f"""You are a penetration testing AI assistant. Based on reconnaissance findings, recommend enumeration actions.
+{feedback_context}
+
+TARGET: {target}{objective_text}
 
 RECONNAISSANCE FINDINGS:
 {findings_str}

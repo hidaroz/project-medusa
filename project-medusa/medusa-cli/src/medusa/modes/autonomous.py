@@ -16,6 +16,9 @@ from medusa.approval import ApprovalGate, Action, RiskLevel
 from medusa.reporter import ReportGenerator
 from medusa.config import get_config
 from medusa.checkpoint import CheckpointManager, OperationCheckpoint
+from medusa.core.feedback import get_feedback_tracker
+from medusa.core.objective_parser import ObjectiveParser, ObjectiveStrategy
+from medusa.core.strategy_selector import StrategySelector
 
 logger = logging.getLogger(__name__)
 
@@ -27,13 +30,36 @@ class AutonomousMode:
         self,
         target: str,
         api_key: str,
-        resume_operation_id: Optional[str] = None
+        resume_operation_id: Optional[str] = None,
+        objective: str = ''
     ):
         self.target = target
         self.api_key = api_key
+        self.objective = objective  # Store objective for use in phases
         self.config = get_config()
         self.approval_gate = ApprovalGate()
         self.reporter = ReportGenerator()
+        self.feedback = get_feedback_tracker()  # Initialize feedback tracker
+
+        # Parse objective into execution strategy
+        parser = ObjectiveParser()
+        self.objective_strategy: Optional[ObjectiveStrategy] = parser.parse(objective) if objective else None
+        if self.objective_strategy:
+            logger.info(f"Objective strategy: focus={self.objective_strategy.focus_areas}, "
+                       f"techniques={len(self.objective_strategy.relevant_techniques)}, "
+                       f"endpoints={len(self.objective_strategy.endpoint_patterns)}, "
+                       f"skip_phases={self.objective_strategy.skip_phases}")
+
+        # Initialize strategy selector for adaptive learning
+        self.strategy_selector = StrategySelector()
+
+        # Get recommended techniques based on feedback
+        if self.objective_strategy:
+            recommended = self.strategy_selector.select_techniques(self.objective_strategy, limit=5)
+            if recommended:
+                logger.info(f"Recommended techniques based on feedback:")
+                for rec in recommended:
+                    logger.info(f"  - {rec.technique_id}: {rec.success_rate:.0%} success rate ({rec.reason})")
 
         # Checkpoint management
         if resume_operation_id:
@@ -52,6 +78,7 @@ class AutonomousMode:
             "operation_id": self.operation_id,
             "mode": "autonomous",
             "target": target,
+            "objective": objective,  # Store objective in operation data
             "started_at": datetime.now().isoformat(),
             "phases": [],
             "findings": [],
@@ -83,6 +110,8 @@ class AutonomousMode:
             display.console.print(
                 f"[bold cyan]Starting Autonomous Assessment[/bold cyan] against [yellow]{self.target}[/yellow]"
             )
+            if self.objective:
+                display.console.print(f"[bold yellow]Objective:[/bold yellow] [cyan]{self.objective}[/cyan]")
             display.console.print(f"[dim]Operation ID: {self.operation_id}[/dim]\n")
             self.operation_checkpoint = OperationCheckpoint(
                 self.operation_id,
@@ -98,7 +127,10 @@ class AutonomousMode:
         try:
             async with MedusaClient(self.target, self.api_key, llm_config=llm_config) as client:
                 # Phase 1: Reconnaissance
-                if not self.operation_checkpoint.should_skip_phase("reconnaissance"):
+                # Skip if objective strategy says to skip, or if already completed
+                if self.objective_strategy and "reconnaissance" in self.objective_strategy.skip_phases:
+                    display.console.print("[dim]Skipping reconnaissance (not needed for objective)[/dim]\n")
+                elif not self.operation_checkpoint.should_skip_phase("reconnaissance"):
                     self.operation_checkpoint.start_phase("reconnaissance")
                     await self._phase_reconnaissance(client)
                     self.operation_checkpoint.complete_phase("reconnaissance")
@@ -113,7 +145,10 @@ class AutonomousMode:
                     return
 
                 # Phase 2: Enumeration
-                if not self.operation_checkpoint.should_skip_phase("enumeration"):
+                # Skip if objective strategy says to skip, or if already completed
+                if self.objective_strategy and "enumeration" in self.objective_strategy.skip_phases:
+                    display.console.print("[dim]Skipping enumeration (not needed for objective)[/dim]\n")
+                elif not self.operation_checkpoint.should_skip_phase("enumeration"):
                     self.operation_checkpoint.start_phase("enumeration")
                     await self._phase_enumeration(client)
                     self.operation_checkpoint.complete_phase("enumeration")
@@ -128,7 +163,10 @@ class AutonomousMode:
                     return
 
                 # Phase 3: Exploitation
-                if not self.operation_checkpoint.should_skip_phase("exploitation"):
+                # Skip if objective strategy says to skip, or if already completed
+                if self.objective_strategy and "exploitation" in self.objective_strategy.skip_phases:
+                    display.console.print("[dim]Skipping exploitation (not needed for objective)[/dim]\n")
+                elif not self.operation_checkpoint.should_skip_phase("exploitation"):
                     self.operation_checkpoint.start_phase("exploitation")
                     await self._phase_exploitation(client)
                     self.operation_checkpoint.complete_phase("exploitation")
@@ -143,7 +181,10 @@ class AutonomousMode:
                     return
 
                 # Phase 4: Post-Exploitation
-                if not self.operation_checkpoint.should_skip_phase("post_exploitation"):
+                # Skip if objective strategy says to skip, or if already completed
+                if self.objective_strategy and "post_exploitation" in self.objective_strategy.skip_phases:
+                    display.console.print("[dim]Skipping post-exploitation (not needed for objective)[/dim]\n")
+                elif not self.operation_checkpoint.should_skip_phase("post_exploitation"):
                     self.operation_checkpoint.start_phase("post_exploitation")
                     await self._phase_post_exploitation(client)
                     self.operation_checkpoint.complete_phase("post_exploitation")
@@ -154,6 +195,9 @@ class AutonomousMode:
             # Calculate final metrics
             self.operation_data["completed_at"] = datetime.now().isoformat()
             self.operation_data["duration_seconds"] = time.time() - start_time
+
+            # Record feedback for learning
+            self._record_operation_feedback(start_time)
 
             # Generate reports
             await self._generate_reports(client)
@@ -207,11 +251,12 @@ class AutonomousMode:
             display.show_warning("Reconnaissance phase skipped")
             return
 
-        # Show agent thinking
-        display.show_agent_thinking(
-            "Initiating reconnaissance to map the attack surface. "
-            "I'll identify open ports, running services, and potential entry points."
-        )
+        # Show agent thinking with objective context
+        thinking_msg = "Initiating reconnaissance to map the attack surface. "
+        if self.objective:
+            thinking_msg += f"Focusing on finding: {self.objective}. "
+        thinking_msg += "I'll identify open ports, running services, and potential entry points."
+        display.show_agent_thinking(thinking_msg)
 
         # Execute reconnaissance
         with display.create_progress_bar() as progress:
@@ -274,11 +319,12 @@ class AutonomousMode:
             display.show_warning("Enumeration phase skipped")
             return
 
-        # Show agent thinking
-        display.show_agent_thinking(
-            "Analyzing the target application to identify API endpoints, "
-            "authentication mechanisms, and potential vulnerabilities."
-        )
+        # Show agent thinking with objective context
+        thinking_msg = "Analyzing the target application to identify API endpoints, "
+        if self.objective:
+            thinking_msg += f"focusing on finding: {self.objective}. "
+        thinking_msg += "Checking authentication mechanisms, and potential vulnerabilities."
+        display.show_agent_thinking(thinking_msg)
 
         # Execute enumeration
         with display.create_progress_bar() as progress:
@@ -288,7 +334,8 @@ class AutonomousMode:
                 await asyncio.sleep(0.6)
                 progress.update(task, advance=25)
 
-            result = await client.enumerate_services(self.target)
+            # Pass objective strategy to client for focused enumeration
+            result = await client.enumerate_services(self.target, objective_strategy=self.objective_strategy)
             progress.update(task, completed=100)
 
         # Display findings
@@ -316,6 +363,16 @@ class AutonomousMode:
         if high_severity:
             display.console.print()
             display.show_findings(high_severity[:3], phase="enumeration")  # Show top 3
+
+        # Filter findings based on objective strategy
+        if self.objective_strategy:
+            parser = ObjectiveParser()
+            filtered_findings = [
+                f for f in result["findings"]
+                if parser.is_relevant_finding(f, self.objective_strategy)
+            ]
+            result["findings"] = filtered_findings
+            logger.info(f"Filtered findings: {len(result['findings'])} relevant out of {len(result.get('findings', []))} total")
 
         # Store results
         self.operation_data["phases"].append(
@@ -407,6 +464,27 @@ class AutonomousMode:
                     "details": f"{result['result']['credentials_found']} credentials found",
                 },
             ]
+
+            # Record successful technique in feedback
+            technique_id = action.technique_id
+            self.feedback.record_technique_success(
+                technique_id=technique_id,
+                payload=result.get("payload"),
+                target=self.target,
+                data_extracted={
+                    "credentials": result.get("result", {}).get("credentials", []),
+                    "data_extracted": result.get("result", {}).get("data_extracted", 0)
+                }
+            )
+
+            # Record credentials if found
+            if "credentials" in result.get("result", {}):
+                for cred in result["result"]["credentials"]:
+                    self.feedback.record_credential(
+                        service=cred.get("service", "unknown"),
+                        username=cred.get("username", ""),
+                        password=cred.get("password", "")
+                    )
         else:
             display.show_warning(
                 f"Exploitation failed: {result.get('error', 'Unknown error')}",
@@ -419,6 +497,14 @@ class AutonomousMode:
                     "details": result.get("error", "Unknown error"),
                 }
             ]
+
+            # Record failed technique in feedback
+            technique_id = action.technique_id
+            self.feedback.record_technique_failure(
+                technique_id=technique_id,
+                reason=result.get("error", "Unknown error"),
+                target=self.target
+            )
 
         display.show_phase_tree("Exploitation Phase", tasks)
 
@@ -507,45 +593,45 @@ class AutonomousMode:
         # Count findings by phase
         real_phases = ["reconnaissance", "enumeration"]
         mock_phases = ["exploitation", "post_exploitation"]
-        
+
         real_findings = []
         mock_findings = []
-        
+
         for phase_data in self.operation_data.get("phases", []):
             phase_name = phase_data.get("name", "")
             phase_result = phase_data.get("result", {})
             phase_findings = phase_result.get("findings", [])
-            
+
             if phase_name in real_phases:
                 real_findings.extend(phase_findings)
             elif phase_name in mock_phases:
                 mock_findings.extend(phase_findings)
-        
+
         # Count by phase names for display
         real_phase_names = []
         mock_phase_names = []
-        
+
         for phase_data in self.operation_data.get("phases", []):
             phase_name = phase_data.get("name", "")
             if phase_name in real_phases and phase_data.get("status") == "complete":
                 real_phase_names.append(phase_name.title())
             elif phase_name in mock_phases and phase_data.get("status") == "complete":
                 mock_phase_names.append(phase_name.replace("_", "-").title())
-        
+
         display.console.print("[bold cyan]📊 Scan Summary[/bold cyan]\n")
-        
+
         if real_phase_names:
             display.console.print(
                 f"[green]✅ Real Data:[/green] {', '.join(real_phase_names)} "
                 f"({len(real_findings)} findings)"
             )
-        
+
         if mock_phase_names:
             display.console.print(
                 f"[yellow]⚠️  Mock Data:[/yellow] {', '.join(mock_phase_names)} "
                 f"({len(mock_findings)} findings)"
             )
-        
+
         display.console.print()
         display.console.print("[dim]Note: Mock data is for demonstration purposes[/dim]")
 
@@ -609,4 +695,62 @@ class AutonomousMode:
         display.console.print(
             f"\n[bold green]✓ Assessment complete![/bold green] Total duration: {report_data.get('duration_seconds', 0):.1f}s"
         )
+
+    def _record_operation_feedback(self, start_time: float):
+        """
+        Record feedback for the completed operation
+        Updates learning metrics and attack paths
+        """
+        try:
+            # Count vulnerabilities found
+            vulnerabilities = [
+                f for f in self.operation_data["findings"]
+                if f.get("type") == "vulnerability" or f.get("severity") in ["high", "critical"]
+            ]
+            vuln_count = len(vulnerabilities)
+
+            # Calculate time to first vulnerability
+            time_to_first_vuln = None
+            if vulnerabilities and "phases" in self.operation_data:
+                # Find when first vulnerability was discovered
+                for phase in self.operation_data["phases"]:
+                    phase_findings = phase.get("result", {}).get("findings", [])
+                    phase_vulns = [
+                        f for f in phase_findings
+                        if f.get("type") == "vulnerability" or f.get("severity") in ["high", "critical"]
+                    ]
+                    if phase_vulns:
+                        # Approximate time (could be improved with timestamps)
+                        time_to_first_vuln = 60.0  # Default estimate
+                        break
+
+            # Update operation metrics
+            self.feedback.update_operation_metrics(
+                vulnerabilities_found=vuln_count,
+                time_to_first_vuln=time_to_first_vuln
+            )
+
+            # Record attack path if operation was successful
+            if self.operation_data.get("techniques"):
+                technique_sequence = [
+                    tech.get("technique_id", "UNKNOWN")
+                    for tech in self.operation_data["techniques"]
+                    if tech.get("technique_id")
+                ]
+
+                if technique_sequence:
+                    operation_success = vuln_count > 0
+                    duration = self.operation_data.get("duration_seconds", 0)
+
+                    self.feedback.record_attack_path(
+                        sequence=technique_sequence,
+                        success=operation_success,
+                        time_seconds=duration,
+                        vulnerabilities_found=vuln_count
+                    )
+
+            logger.info(f"Recorded feedback for operation {self.operation_id}: {vuln_count} vulnerabilities found")
+
+        except Exception as e:
+            logger.error(f"Failed to record operation feedback: {e}", exc_info=True)
 

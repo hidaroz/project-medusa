@@ -13,6 +13,14 @@ from .mock import MockProvider
 # from .openai import OpenAIProvider
 # from .anthropic import AnthropicProvider
 
+# Google Gemini provider (optional)
+try:
+    from .google import GoogleProvider
+    GOOGLE_AVAILABLE = True
+except ImportError:
+    GoogleProvider = None
+    GOOGLE_AVAILABLE = False
+
 __all__ = [
     "BaseLLMProvider",
     "LLMResponse",
@@ -21,3 +29,6 @@ __all__ = [
     # "OpenAIProvider",  # Optional
     # "AnthropicProvider",  # Optional
 ]
+
+if GOOGLE_AVAILABLE:
+    __all__.append("GoogleProvider")

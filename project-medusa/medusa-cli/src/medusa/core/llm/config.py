@@ -26,6 +26,7 @@ class LLMConfig:
     """
 
     # Provider selection
+    # Options: "local" (Ollama), "google" or "gemini" (Google Gemini), "openai", "anthropic", "mock", "auto"
     provider: str = field(
         default_factory=lambda: os.getenv("LLM_PROVIDER", "auto")
     )
@@ -81,6 +82,10 @@ class LLMConfig:
                 self.cloud_model = self.model
                 if not self.provider or self.provider == "auto":
                     self.provider = "openai"
+            elif "gemini" in self.model.lower():
+                self.cloud_model = self.model
+                if not self.provider or self.provider == "auto":
+                    self.provider = "google"
             elif "claude" in self.model.lower():
                 self.cloud_model = self.model
                 if not self.provider or self.provider == "auto":
@@ -107,6 +112,12 @@ class LLMConfig:
             if not self.cloud_model:
                 self.cloud_model = "gpt-4-turbo-preview"
 
+        elif self.provider == "google" or self.provider == "gemini":
+            if not self.cloud_api_key:
+                raise ValueError("cloud_api_key is required for Google Gemini provider")
+            if not self.cloud_model:
+                self.cloud_model = "gemini-1.5-flash-latest"
+
         elif self.provider == "anthropic":
             if not self.cloud_api_key:
                 raise ValueError("cloud_api_key is required for Anthropic provider")
@@ -116,5 +127,5 @@ class LLMConfig:
         elif self.provider not in ["auto", "mock"]:
             raise ValueError(
                 f"Unknown provider: {self.provider}. "
-                f"Valid: local, openai, anthropic, mock, auto"
+                f"Valid: local, google, gemini, openai, anthropic, mock, auto"
             )
