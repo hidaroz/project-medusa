@@ -1,0 +1,75 @@
+{
+  "operation_id": "auto_20251202_181437",
+  "target": "http://localhost:3001",
+  "mode": "autonomous",
+  "started_at": "2025-12-02T18:14:37.058384",
+  "current_phase": "reconnaissance",
+  "completed_phases": [
+    "reconnaissance"
+  ],
+  "phase_checkpoints": {
+    "reconnaissance": {
+      "phase_name": "reconnaissance",
+      "started_at": "2025-12-02T18:14:37.992658",
+      "completed_at": "2025-12-02T18:14:40.505296",
+      "status": "complete",
+      "findings": [],
+      "techniques": [],
+      "errors": [],
+      "progress": 100,
+      "metadata": {}
+    }
+  },
+  "operation_data": {
+    "operation_id": "auto_20251202_181437",
+    "mode": "autonomous",
+    "target": "http://localhost:3001",
+    "started_at": "2025-12-02T18:14:37.057681",
+    "phases": [
+      {
+        "name": "reconnaissance",
+        "status": "complete",
+        "result": {
+          "phase": "reconnaissance",
+          "target": "http://localhost:3001",
+          "duration": 0.0016469955444335938,
+          "findings": [],
+          "executed_actions": [
+            {
+              "action": "port_scan",
+              "tool": "nmap",
+              "success": false,
+              "error": "nmap is not installed or not in PATH"
+            },
+            {
+              "action": "web_reconnaissance",
+              "tool": "web_scanner",
+              "success": false,
+              "error": "aiohttp library not available. Install with: pip install aiohttp"
+            }
+          ],
+          "techniques": [],
+          "strategy": {
+            "recommended_actions": [],
+            "focus_areas": [
+              "web_services"
+            ],
+            "risk_assessment": "LOW"
+          },
+          "findings_count": 0,
+          "success": false,
+          "mode": "REAL_TOOLS"
+        }
+      }
+    ],
+    "findings": [],
+    "techniques": []
+  },
+  "aborted": false,
+  "abort_reason": null,
+  "_checkpoint_metadata": {
+    "saved_at": "2025-12-02T18:14:40.505320",
+    "operation_id": "auto_20251202_181437",
+    "version": "1.0"
+  }
+}

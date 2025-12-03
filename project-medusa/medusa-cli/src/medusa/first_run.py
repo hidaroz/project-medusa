@@ -158,6 +158,12 @@ def run_first_time_wizard(config_exists: bool = False) -> None:
     Args:
         config_exists: Whether configuration already exists
     """
+    import os
+
+    # Skip wizard in non-interactive mode
+    if os.getenv('MEDUSA_NON_INTERACTIVE') == '1':
+        mark_first_run_complete()
+        return
 
     if not show_welcome():
         mark_first_run_complete()
@@ -170,7 +176,7 @@ def run_first_time_wizard(config_exists: bool = False) -> None:
             console.print(
                 "\n[cyan]Run: medusa setup[/cyan]\n"
             )
-    
+
     show_quick_tips()
     show_next_steps(config_exists)
     mark_first_run_complete()

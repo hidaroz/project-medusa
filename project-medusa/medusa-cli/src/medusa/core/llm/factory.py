@@ -11,6 +11,14 @@ from .providers import LocalProvider, MockProvider
 from .providers.base import BaseLLMProvider
 from .exceptions import LLMConfigurationError
 
+# Lazy import for optional Google provider
+try:
+    from .providers.google import GoogleProvider
+    GOOGLE_AVAILABLE = True
+except ImportError:
+    GoogleProvider = None
+    GOOGLE_AVAILABLE = False
+
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +79,25 @@ def create_llm_provider(config: LLMConfig) -> BaseLLMProvider:
             logger.warning("Falling back to MockProvider")
             return MockProvider()
 
+    elif config.provider == "google" or config.provider == "gemini":
+        if not GOOGLE_AVAILABLE or GoogleProvider is None:
+            logger.error("Google provider requires: pip install google-generativeai")
+            logger.warning("Falling back to MockProvider")
+            return MockProvider()
+
+        if not config.cloud_api_key:
+            raise LLMConfigurationError(
+                "Google Gemini provider requires API key. "
+                "Set CLOUD_API_KEY or api_key in config."
+            )
+
+        logger.info(f"Using GoogleProvider with model: {config.cloud_model or 'gemini-pro'}")
+        return GoogleProvider(
+            api_key=config.cloud_api_key,
+            model=config.cloud_model or "gemini-pro",
+            timeout=config.timeout
+        )
+
     elif config.provider == "anthropic":
         try:
             from .providers.anthropic import AnthropicProvider
@@ -124,7 +151,17 @@ def create_llm_provider(config: LLMConfig) -> BaseLLMProvider:
 
         # Fall back to cloud if configured
         if config.cloud_api_key and config.cloud_model:
-            if "gpt" in config.cloud_model.lower():
+            # Check for Google Gemini
+            if "gemini" in config.cloud_model.lower():
+                if GOOGLE_AVAILABLE and GoogleProvider:
+                    logger.info("Auto-detected: Using GoogleProvider")
+                    return GoogleProvider(
+                        api_key=config.cloud_api_key,
+                        model=config.cloud_model,
+                        timeout=config.timeout
+                    )
+            # Check for OpenAI
+            elif "gpt" in config.cloud_model.lower():
                 try:
                     from .providers.openai import OpenAIProvider
                     logger.info("Auto-detected: Using OpenAIProvider")
@@ -136,6 +173,7 @@ def create_llm_provider(config: LLMConfig) -> BaseLLMProvider:
                     )
                 except ImportError:
                     pass
+            # Check for Anthropic Claude
             elif "claude" in config.cloud_model.lower():
                 try:
                     from .providers.anthropic import AnthropicProvider
@@ -162,7 +200,7 @@ def create_llm_provider(config: LLMConfig) -> BaseLLMProvider:
         logger.error(f"Unknown provider: {config.provider}")
         raise LLMConfigurationError(
             f"Unknown provider: {config.provider}. "
-            f"Valid providers: 'local', 'openai', 'anthropic', 'mock', 'auto'"
+            f"Valid providers: 'local', 'google', 'gemini', 'openai', 'anthropic', 'mock', 'auto'"
         )
 
 
