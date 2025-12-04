@@ -67,11 +67,15 @@ export default function MedusaDashboardPage() {
 
   // Determine API base URL:
   // - Prefer NEXT_PUBLIC_MEDUSA_API_URL when set (build-time config)
-  // - Otherwise, when running in the browser, use the current origin + /api
-  // - Fallback to localhost:5001 only for local development without proxy
+  // - For local development, always use localhost:5001 (API server)
+  // - For production, use current origin + /api (via Nginx proxy)
   const API_URL = (
     process.env.NEXT_PUBLIC_MEDUSA_API_URL ||
-    (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5001')
+    (typeof window !== 'undefined' && window.location.hostname === 'localhost'
+      ? 'http://localhost:5001'  // Local dev: direct API connection
+      : typeof window !== 'undefined'
+        ? window.location.origin  // Production: via Nginx proxy
+        : 'http://localhost:5001')
   ).replace(/\/$/, '');
 
   useEffect(() => {
