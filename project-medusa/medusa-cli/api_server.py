@@ -378,21 +378,21 @@ def get_learning_trends():
         # Calculate technique effectiveness from actual operation history (realistic learning)
         technique_effectiveness = {}
         technique_stats = {}
-        
+
         # Count successes and failures per technique from operation history
         for op in operation_history:
             tech_id = op.get('technique_id', '')
             if not tech_id:
                 continue
-            
+
             if tech_id not in technique_stats:
                 technique_stats[tech_id] = {'success': 0, 'total': 0, 'last_used': op.get('timestamp', '')}
-            
+
             technique_stats[tech_id]['total'] += 1
             if op.get('success', False):
                 technique_stats[tech_id]['success'] += 1
             technique_stats[tech_id]['last_used'] = max(technique_stats[tech_id]['last_used'], op.get('timestamp', ''))
-        
+
         # Calculate success rates and build effectiveness data
         for tech_id, stats in technique_stats.items():
             success_rate = stats['success'] / stats['total'] if stats['total'] > 0 else 0.0
@@ -401,12 +401,12 @@ def get_learning_trends():
                 'usage_count': stats['total'],
                 'last_used': stats['last_used'] if stats['last_used'] else None
             }
-        
+
         # Also try to get from feedback tracker (for real operations)
         try:
             feedback = get_feedback_tracker()
             metrics = feedback.get_metrics()
-            
+
             # Merge with feedback tracker data (real operations take precedence)
             for tech_id, success_rate in metrics.get('technique_success_rates', {}).items():
                 if tech_id not in technique_effectiveness:  # Only add if not already calculated
@@ -1828,37 +1828,44 @@ def generate_demo_data():
         'T1595': {'vulnerability': 0.88, 'endpoint': 0.75, 'default': 0.45},   # Active Scanning - good for vulns
         'T1046': {'endpoint': 0.90, 'default': 0.40},                     # Network Service - excellent for endpoints
     }
-    
+
     # Track cumulative unique data found (realistic: plateaus after finding most data)
     max_unique_data = 150  # Maximum unique data items in the system
     found_data_types = set()  # Track what types of data have been found
-    
+
     for i, objective in enumerate(objectives):
         # Operations every ~9 minutes over 12 hours (720 minutes / ~80 operations)
         operation_time = start_time + timedelta(minutes=i * 9)
-        
+
         # Realistic data discovery: starts high, plateaus, then decreases as most data is found
         # Early operations find more (exploration phase)
         if i < 20:
-            # Exploration phase: finding lots of new data
-            base_items = 3 + (i * 0.4) + random.uniform(-1, 2)
+            # Exploration phase: finding lots of new data (3-8 items per operation)
+            base_items = 3 + (i * 0.25) + random.uniform(-0.5, 1.5)
+            cumulative_data_items += int(base_items)
         elif i < 50:
             # Plateau phase: finding less new data, more repeats
-            # Simulate that we've found most unique data
+            # Simulate that we've found most unique data (plateau around 120-140 total)
             remaining_unique = max(0, max_unique_data - cumulative_data_items)
-            base_items = max(1, remaining_unique / (total_operations - i) + random.uniform(-0.5, 1.5))
+            if remaining_unique > 0:
+                # Still some unique data left, but finding less per operation
+                base_items = max(0.5, remaining_unique / max(1, (total_operations - i) * 2) + random.uniform(-0.3, 1.0))
+                cumulative_data_items += min(int(base_items), remaining_unique)
+            else:
+                # All unique data found, only finding duplicates
+                base_items = random.uniform(0, 1.5)
+                cumulative_data_items += int(base_items * 0.3)  # Mostly duplicates, small increments
         else:
             # Saturation phase: very little new data, mostly re-discovery
-            base_items = random.uniform(0.5, 2.5)  # Mostly finding duplicates or small amounts
+            # Cumulative should stay around 140-150 (plateau)
+            base_items = random.uniform(0, 1.0)
+            # Very small increments, mostly maintaining the plateau
+            cumulative_data_items += int(base_items * 0.2)
+            # Ensure we don't exceed realistic maximum
+            cumulative_data_items = min(cumulative_data_items, max_unique_data + 10)
         
         data_items = int(max(0, base_items))  # Can be 0 if no new data
-        
-        # Only add to cumulative if we found new unique data (not duplicates)
-        if data_items > 0:
-            # Some items are new, some are duplicates
-            new_items = int(data_items * (1 - (i / total_operations) * 0.7))  # More duplicates over time
-            cumulative_data_items += max(1, new_items)
-        
+
         # Show learning: extraction quality improves over time (but plateaus)
         if i < 30:
             # Learning phase: quality improves rapidly
@@ -1869,9 +1876,9 @@ def generate_demo_data():
         else:
             # Mastery phase: high quality with small variations
             base_quality = 92 + random.uniform(-2, 3)
-        
+
         structured_percentage = min(98, max(10, base_quality + random.uniform(-4, 4)))
-        
+
         # Duration decreases over time (getting faster, but plateaus)
         if i < 40:
             duration = 55 - (i * 0.4) + random.uniform(-6, 6)
@@ -1879,7 +1886,7 @@ def generate_demo_data():
             # Optimized: fast but consistent
             duration = 25 + random.uniform(-5, 5)
         duration = max(15, duration)
-        
+
         # Assign technique based on objective AND learning (better techniques chosen over time)
         objective_key = 'default'
         if 'password' in objective.lower() or 'credential' in objective.lower():
@@ -1913,21 +1920,21 @@ def generate_demo_data():
         else:
             # Generic objectives - use versatile techniques
             technique_id = random.choice(['T1071', 'T1592', 'T1046'])
-        
+
         # Determine success based on technique effectiveness for this objective
         tech_rates = technique_success_rates.get(technique_id, {'default': 0.50})
         success_rate = tech_rates.get(objective_key, tech_rates.get('default', 0.50))
-        
+
         # Over time, success rate improves (learning to use better techniques)
         if i > 40:
             success_rate = min(0.95, success_rate + 0.1)  # Better technique selection
-        
+
         operation_success = random.random() < success_rate
 
         # Adjust data_items based on success
         if not operation_success:
             data_items = max(0, int(data_items * 0.3))  # Failed operations find much less
-        
+
         operation_history.append({
             'timestamp': operation_time.isoformat(),
             'operation_type': 'find',
