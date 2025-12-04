@@ -7,7 +7,7 @@ typer[all]>=0.20.0
 click>=8.0.0
 
 # Terminal UI
-rich>=14.0.0
+rich>=12.0.0,<14.0.0  # Constrained to <14 for flask-limiter compatibility
 prompt-toolkit>=3.0.0
 
 # HTTP Client (async)
