@@ -200,7 +200,21 @@ server {
         add_header Access-Control-Allow-Origin *;
     }
 
-    # Next.js Dashboard
+    # Medusa Dashboard (must come before / location)
+    location /medusa {
+        proxy_pass http://127.0.0.1:3000/medusa;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+
+        # WebSocket support (if needed)
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+
+    # Next.js Dashboard (all other routes)
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_set_header Host \$host;
