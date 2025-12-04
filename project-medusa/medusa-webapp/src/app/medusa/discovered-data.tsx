@@ -23,12 +23,19 @@ interface DiscoveredData {
     url: string;
     discovered_at: string;
   }>;
-  credentials: Array<any>;
+  credentials: Array<{
+    type?: string;
+    value?: string;
+    username?: string;
+    password?: string;
+    discovered_at: string;
+    source?: string;
+  }>;
   data_records: Array<{
     type: string;
     description?: string;
     raw_data?: string;
-    structured_data?: Record<string, any>;
+    structured_data?: Record<string, unknown>;
     file_path?: string;
     content_preview?: string;
     discovered_at: string;
@@ -60,6 +67,7 @@ export default function DiscoveredDataView({ API_URL, currentObjective = '' }: D
     fetchData();
     const interval = setInterval(fetchData, 3000); // Update every 3 seconds
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentObjective]);
 
   // Memoize available filter options - MUST be at top level before any conditional returns
@@ -87,7 +95,7 @@ export default function DiscoveredDataView({ API_URL, currentObjective = '' }: D
   const filteredData = useMemo(() => {
     if (!data) return null;
 
-    let filtered = { ...data };
+    const filtered = { ...data };
 
     // Filter by type
     if (filters.types.length > 0) {
@@ -118,7 +126,7 @@ export default function DiscoveredDataView({ API_URL, currentObjective = '' }: D
 
     // Filter by date range
     if (filters.dateRange.start || filters.dateRange.end) {
-      const filterByDate = (item: any) => {
+      const filterByDate = (item: { discovered_at: string }) => {
         const itemDate = new Date(item.discovered_at);
         if (filters.dateRange.start && itemDate < filters.dateRange.start) return false;
         if (filters.dateRange.end) {
@@ -138,7 +146,7 @@ export default function DiscoveredDataView({ API_URL, currentObjective = '' }: D
     // Search query filter
     if (filters.searchQuery) {
       const query = filters.searchQuery.toLowerCase();
-      const matchesSearch = (item: any): boolean => {
+      const matchesSearch = (item: { discovered_at: string; [key: string]: unknown }): boolean => {
         const searchableText = JSON.stringify(item).toLowerCase();
         return searchableText.includes(query);
       };
@@ -374,7 +382,7 @@ export default function DiscoveredDataView({ API_URL, currentObjective = '' }: D
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => setActiveTab(tab.id as 'all' | 'vulnerabilities' | 'services' | 'endpoints' | 'data')}
                 className={`px-4 py-2 text-sm font-medium transition ${
                   activeTab === tab.id
                     ? 'border-b-2 border-blue-500 text-blue-400'
@@ -569,7 +577,7 @@ function ConsolidatedView({ data, filters }: { data: DiscoveredData; filters: Fi
   // Combine all data into a single timeline
   const allItems: Array<{
     type: 'vulnerability' | 'service' | 'endpoint' | 'credential' | 'data_record';
-    data: any;
+    data: DiscoveredData['vulnerabilities'][0] | DiscoveredData['services'][0] | DiscoveredData['endpoints'][0] | DiscoveredData['credentials'][0] | DiscoveredData['data_records'][0];
     timestamp: string;
   }> = [];
 
@@ -775,7 +783,7 @@ function ConsolidatedView({ data, filters }: { data: DiscoveredData; filters: Fi
 // By Type View - Group data by type
 function ByTypeView({ data, filters }: { data: DiscoveredData; filters: FilterState }) {
   const grouped = useMemo(() => {
-    const groups: Record<string, any[]> = {};
+    const groups: Record<string, DiscoveredData['data_records']> = {};
 
     data.data_records.forEach(r => {
       const type = r.type || 'unknown';

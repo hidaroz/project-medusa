@@ -24,7 +24,7 @@ export default function DataFilters({
   availableTypes = [],
   availableSeverities = [],
   availableSources = [],
-  availableOperations = []
+  availableOperations: string[] = []
 }: DataFiltersProps) {
   const [filters, setFilters] = useState<FilterState>({
     types: [],
@@ -41,7 +41,7 @@ export default function DataFilters({
     onFilterChange(filters);
   }, [filters, onFilterChange]);
 
-  const updateFilter = (key: keyof FilterState, value: any) => {
+  const updateFilter = (key: keyof FilterState, value: unknown) => {
     setFilters(prev => ({ ...prev, [key]: value }));
   };
 
@@ -263,7 +263,7 @@ export default function DataFilters({
             )}
             {filters.searchQuery && (
               <span className="px-2 py-1 bg-green-600/20 text-green-400 rounded text-xs">
-                Search: "{filters.searchQuery}"
+                Search: &quot;{filters.searchQuery}&quot;
               </span>
             )}
           </div>

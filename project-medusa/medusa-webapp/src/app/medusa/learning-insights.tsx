@@ -38,6 +38,7 @@ export default function LearningInsights({ API_URL }: LearningInsightsProps) {
     fetchInsights();
     const interval = setInterval(fetchInsights, 5000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchInsights = async () => {
@@ -195,7 +196,7 @@ export default function LearningInsights({ API_URL }: LearningInsightsProps) {
             {Object.entries(insights.objective_specific_insights).map(([objective, techniques]) => (
               <div key={objective} className="bg-slate-900 border border-slate-700 rounded-lg p-4">
                 <h5 className="font-semibold text-white mb-3 capitalize">
-                  For "{objective.replace('_', ' ')}" objectives:
+                  For &quot;{objective.replace('_', ' ')}&quot; objectives:
                 </h5>
                 <div className="space-y-2">
                   {techniques.map((tech, idx) => (

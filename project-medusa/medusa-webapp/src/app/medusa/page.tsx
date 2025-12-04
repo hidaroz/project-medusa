@@ -14,9 +14,16 @@ export interface Operation {
   message: string;
 }
 
+export interface CurrentOperation {
+  type?: string;
+  objective?: string;
+  id?: number;
+  timestamp?: string;
+}
+
 export interface Status {
   status: string;
-  current_operation: any;
+  current_operation: CurrentOperation | null;
   metrics: {
     operations_completed: number;
     data_found: number;
@@ -50,29 +57,27 @@ export default function MedusaDashboardPage() {
   const [operations, setOperations] = useState<Operation[]>([]);
   const [objective, setObjective] = useState('');
   const [loading, setLoading] = useState(false);
-  const [learningMetrics, setLearningMetrics] = useState<LearningMetrics | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [llmConfig, setLlmConfig] = useState<any>(null);
+  const [llmConfig, setLlmConfig] = useState<LLMConfig | null>(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [logView, setLogView] = useState<'structured' | 'raw'>('structured');
   const [lastOperationObjective, setLastOperationObjective] = useState<string>('');
-
+  
   const API_URL = process.env.NEXT_PUBLIC_MEDUSA_API_URL || 'http://localhost:5001';
 
   useEffect(() => {
     fetchStatus();
     fetchOperations();
-    fetchLearningMetrics();
     fetchLLMConfig();
-
+    
     // Poll for updates every 2 seconds
     const interval = setInterval(() => {
       fetchStatus();
       fetchOperations();
-      fetchLearningMetrics();
     }, 2000);
 
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchLLMConfig = async () => {
@@ -94,7 +99,7 @@ export default function MedusaDashboardPage() {
     }
   };
 
-  const saveLLMConfig = async (config: any) => {
+  const saveLLMConfig = async (config: LLMConfig) => {
     setSettingsLoading(true);
     try {
       const response = await fetch(`${API_URL}/api/config/llm`, {
@@ -110,7 +115,7 @@ export default function MedusaDashboardPage() {
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
-      const data = await response.json();
+      await response.json();
       alert('LLM configuration saved successfully!');
       setShowSettings(false);
       fetchLLMConfig();
@@ -397,9 +402,9 @@ export default function MedusaDashboardPage() {
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 mb-6">
           <h2 className="text-2xl font-semibold mb-4">Find Data Operation</h2>
           <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-slate-300 mb-2">
-                Objective
+              <div>
+                <label className="block text-sm font-medium text-slate-300 mb-2">
+                  Objective
                 </label>
                 <input
                   type="text"
@@ -484,8 +489,8 @@ export default function MedusaDashboardPage() {
 
 // Settings Modal Component
 function SettingsModal({ config, onSave, onClose, loading }: {
-  config: any;
-  onSave: (config: any) => void;
+  config: LLMConfig | null;
+  onSave: (config: LLMConfig) => void;
   onClose: () => void;
   loading: boolean;
 }) {
@@ -505,7 +510,7 @@ function SettingsModal({ config, onSave, onClose, loading }: {
   }, [config]);
 
   const handleSave = () => {
-    const configToSave: any = {
+    const configToSave: LLMConfig = {
       provider,
       cloud_model: cloudModel,
       local_model: localModel,
