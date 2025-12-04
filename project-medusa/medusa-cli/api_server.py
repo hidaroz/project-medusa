@@ -375,22 +375,49 @@ def get_learning_trends():
                 'technique_id': op.get('technique_id', '')
             })
 
-        # Get technique effectiveness from feedback tracker
+        # Calculate technique effectiveness from actual operation history (realistic learning)
         technique_effectiveness = {}
+        technique_stats = {}
+        
+        # Count successes and failures per technique from operation history
+        for op in operation_history:
+            tech_id = op.get('technique_id', '')
+            if not tech_id:
+                continue
+            
+            if tech_id not in technique_stats:
+                technique_stats[tech_id] = {'success': 0, 'total': 0, 'last_used': op.get('timestamp', '')}
+            
+            technique_stats[tech_id]['total'] += 1
+            if op.get('success', False):
+                technique_stats[tech_id]['success'] += 1
+            technique_stats[tech_id]['last_used'] = max(technique_stats[tech_id]['last_used'], op.get('timestamp', ''))
+        
+        # Calculate success rates and build effectiveness data
+        for tech_id, stats in technique_stats.items():
+            success_rate = stats['success'] / stats['total'] if stats['total'] > 0 else 0.0
+            technique_effectiveness[tech_id] = {
+                'success_rate': success_rate,
+                'usage_count': stats['total'],
+                'last_used': stats['last_used'] if stats['last_used'] else None
+            }
+        
+        # Also try to get from feedback tracker (for real operations)
         try:
             feedback = get_feedback_tracker()
             metrics = feedback.get_metrics()
-
-            # Get technique success rates
+            
+            # Merge with feedback tracker data (real operations take precedence)
             for tech_id, success_rate in metrics.get('technique_success_rates', {}).items():
-                tech_data = feedback.data.get('techniques', {}).get(tech_id, {})
-                technique_effectiveness[tech_id] = {
-                    'success_rate': success_rate,
-                    'usage_count': tech_data.get('success_count', 0) + tech_data.get('failure_count', 0),
-                    'last_used': tech_data.get('last_success') or tech_data.get('last_failure')
-                }
+                if tech_id not in technique_effectiveness:  # Only add if not already calculated
+                    tech_data = feedback.data.get('techniques', {}).get(tech_id, {})
+                    technique_effectiveness[tech_id] = {
+                        'success_rate': success_rate,
+                        'usage_count': tech_data.get('success_count', 0) + tech_data.get('failure_count', 0),
+                        'last_used': tech_data.get('last_success') or tech_data.get('last_failure')
+                    }
         except Exception as e:
-            add_log_entry('system', f'Failed to get technique effectiveness: {e}', 'warning')
+            add_log_entry('system', f'Failed to get technique effectiveness from feedback: {e}', 'warning')
 
         return jsonify({
             'vulnerabilities_over_time': data_items_over_time,  # Keep name for backward compatibility
@@ -1788,51 +1815,134 @@ def generate_demo_data():
     cumulative_data_items = 0
     total_operations = len(objectives)
 
+    # Track which techniques work best for which objectives (simulating learning)
+    technique_success_rates = {
+        'T1110': {'password': 0.85, 'credential': 0.80, 'default': 0.40},  # Brute Force - good for credentials
+        'T1550': {'password': 0.75, 'credential': 0.70, 'default': 0.35},  # Alternate Auth - good for credentials
+        'T1078': {'password': 0.90, 'credential': 0.85, 'default': 0.50},  # Valid Accounts - excellent for credentials
+        'T1005': {'medical': 0.88, 'patient': 0.85, 'default': 0.45},     # Data from Local - good for medical data
+        'T1071': {'medical': 0.82, 'patient': 0.80, 'endpoint': 0.75, 'default': 0.55},  # App Layer Protocol - versatile
+        'T1040': {'medical': 0.75, 'patient': 0.70, 'default': 0.40},      # Network Sniffing - decent for data
+        'T1190': {'vulnerability': 0.92, 'default': 0.35},                # Exploit - excellent for vulnerabilities
+        'T1592': {'vulnerability': 0.85, 'endpoint': 0.80, 'default': 0.50},  # Gather Info - good for discovery
+        'T1595': {'vulnerability': 0.88, 'endpoint': 0.75, 'default': 0.45},   # Active Scanning - good for vulns
+        'T1046': {'endpoint': 0.90, 'default': 0.40},                     # Network Service - excellent for endpoints
+    }
+    
+    # Track cumulative unique data found (realistic: plateaus after finding most data)
+    max_unique_data = 150  # Maximum unique data items in the system
+    found_data_types = set()  # Track what types of data have been found
+    
     for i, objective in enumerate(objectives):
         # Operations every ~9 minutes over 12 hours (720 minutes / ~80 operations)
         operation_time = start_time + timedelta(minutes=i * 9)
-
-        # Show learning: data items found increases over time (with some variation)
-        base_items = 2 + (i * 0.6)  # Start at 2, increase by 0.6 per operation
-        data_items = int(base_items + random.uniform(-1, 3))
-        data_items = max(1, data_items)  # At least 1 item
-
-        cumulative_data_items += data_items
-
-        # Show learning: extraction quality improves over time
-        base_quality = 15 + (i * 1.2)  # Start at 15%, improve by 1.2% per operation
-        structured_percentage = min(98, base_quality + random.uniform(-3, 3))
-
-        # Duration decreases over time (getting faster)
-        duration = 60 - (i * 0.3) + random.uniform(-8, 8)
+        
+        # Realistic data discovery: starts high, plateaus, then decreases as most data is found
+        # Early operations find more (exploration phase)
+        if i < 20:
+            # Exploration phase: finding lots of new data
+            base_items = 3 + (i * 0.4) + random.uniform(-1, 2)
+        elif i < 50:
+            # Plateau phase: finding less new data, more repeats
+            # Simulate that we've found most unique data
+            remaining_unique = max(0, max_unique_data - cumulative_data_items)
+            base_items = max(1, remaining_unique / (total_operations - i) + random.uniform(-0.5, 1.5))
+        else:
+            # Saturation phase: very little new data, mostly re-discovery
+            base_items = random.uniform(0.5, 2.5)  # Mostly finding duplicates or small amounts
+        
+        data_items = int(max(0, base_items))  # Can be 0 if no new data
+        
+        # Only add to cumulative if we found new unique data (not duplicates)
+        if data_items > 0:
+            # Some items are new, some are duplicates
+            new_items = int(data_items * (1 - (i / total_operations) * 0.7))  # More duplicates over time
+            cumulative_data_items += max(1, new_items)
+        
+        # Show learning: extraction quality improves over time (but plateaus)
+        if i < 30:
+            # Learning phase: quality improves rapidly
+            base_quality = 20 + (i * 2.0)
+        elif i < 60:
+            # Refinement phase: slower improvement
+            base_quality = 80 + ((i - 30) * 0.5)
+        else:
+            # Mastery phase: high quality with small variations
+            base_quality = 92 + random.uniform(-2, 3)
+        
+        structured_percentage = min(98, max(10, base_quality + random.uniform(-4, 4)))
+        
+        # Duration decreases over time (getting faster, but plateaus)
+        if i < 40:
+            duration = 55 - (i * 0.4) + random.uniform(-6, 6)
+        else:
+            # Optimized: fast but consistent
+            duration = 25 + random.uniform(-5, 5)
         duration = max(15, duration)
-
-        # Assign technique based on objective
-        technique_id = random.choice(techniques)
+        
+        # Assign technique based on objective AND learning (better techniques chosen over time)
+        objective_key = 'default'
         if 'password' in objective.lower() or 'credential' in objective.lower():
-            technique_id = random.choice(['T1110', 'T1550', 'T1078'])
+            objective_key = 'password' if 'password' in objective.lower() else 'credential'
+            # Over time, learn that T1078 is best for credentials
+            if i > 30:
+                technique_id = 'T1078' if random.random() > 0.2 else random.choice(['T1110', 'T1550'])
+            else:
+                technique_id = random.choice(['T1110', 'T1550', 'T1078'])
         elif 'medical' in objective.lower() or 'patient' in objective.lower():
-            technique_id = random.choice(['T1005', 'T1071', 'T1040'])
+            objective_key = 'medical' if 'medical' in objective.lower() else 'patient'
+            # Over time, learn that T1005 is best for medical data
+            if i > 25:
+                technique_id = 'T1005' if random.random() > 0.25 else random.choice(['T1071', 'T1040'])
+            else:
+                technique_id = random.choice(['T1005', 'T1071', 'T1040'])
         elif 'vulnerability' in objective.lower():
-            technique_id = random.choice(['T1190', 'T1592', 'T1595'])
+            objective_key = 'vulnerability'
+            # Over time, learn that T1190 is best for vulnerabilities
+            if i > 20:
+                technique_id = 'T1190' if random.random() > 0.15 else random.choice(['T1592', 'T1595'])
+            else:
+                technique_id = random.choice(['T1190', 'T1592', 'T1595'])
         elif 'endpoint' in objective.lower():
-            technique_id = random.choice(['T1046', 'T1071', 'T1592'])
+            objective_key = 'endpoint'
+            # Over time, learn that T1046 is best for endpoints
+            if i > 35:
+                technique_id = 'T1046' if random.random() > 0.2 else random.choice(['T1071', 'T1592'])
+            else:
+                technique_id = random.choice(['T1046', 'T1071', 'T1592'])
+        else:
+            # Generic objectives - use versatile techniques
+            technique_id = random.choice(['T1071', 'T1592', 'T1046'])
+        
+        # Determine success based on technique effectiveness for this objective
+        tech_rates = technique_success_rates.get(technique_id, {'default': 0.50})
+        success_rate = tech_rates.get(objective_key, tech_rates.get('default', 0.50))
+        
+        # Over time, success rate improves (learning to use better techniques)
+        if i > 40:
+            success_rate = min(0.95, success_rate + 0.1)  # Better technique selection
+        
+        operation_success = random.random() < success_rate
 
+        # Adjust data_items based on success
+        if not operation_success:
+            data_items = max(0, int(data_items * 0.3))  # Failed operations find much less
+        
         operation_history.append({
             'timestamp': operation_time.isoformat(),
             'operation_type': 'find',
             'objective': objective,
             'technique_id': technique_id,
-            'vulnerabilities_found': random.randint(0, 4) if 'vulnerability' in objective.lower() else random.randint(0, 1),
+            'vulnerabilities_found': random.randint(0, 3) if 'vulnerability' in objective.lower() and operation_success else 0,
             'data_items_found': data_items,
             'data_items_found_total': cumulative_data_items,
             'data_items_found_incremental': data_items,
-            'structured_data_count': int(data_items * structured_percentage / 100),
-            'structured_data_count_new': int(data_items * structured_percentage / 100),
-            'structured_data_percentage': structured_percentage,
-            'structured_data_percentage_new': structured_percentage,
+            'structured_data_count': int(data_items * structured_percentage / 100) if operation_success else 0,
+            'structured_data_count_new': int(data_items * structured_percentage / 100) if operation_success else 0,
+            'structured_data_percentage': structured_percentage if operation_success else 0,
+            'structured_data_percentage_new': structured_percentage if operation_success else 0,
             'total_data_records': cumulative_data_items,
-            'success': True,
+            'success': operation_success,
             'duration': duration
         })
 
