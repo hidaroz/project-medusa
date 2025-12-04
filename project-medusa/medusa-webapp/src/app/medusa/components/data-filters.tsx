@@ -24,7 +24,7 @@ export default function DataFilters({
   availableTypes = [],
   availableSeverities = [],
   availableSources = [],
-  availableOperations: string[] = []
+  availableOperations = []
 }: DataFiltersProps) {
   const [filters, setFilters] = useState<FilterState>({
     types: [],
