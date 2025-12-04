@@ -36,6 +36,7 @@ export default function LearningDashboard({ API_URL }: LearningDashboardProps) {
     fetchTrends();
     const interval = setInterval(fetchTrends, 5000); // Update every 5 seconds
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchTrends = async () => {
@@ -75,15 +76,7 @@ export default function LearningDashboard({ API_URL }: LearningDashboardProps) {
   const recentOps = trends.operations_timeline.slice(-10);
   const olderOps = trends.operations_timeline.slice(-20, -10);
 
-  const recentAvg = recentOps.length > 0
-    ? recentOps.reduce((sum, op) => sum + (op.data_items_found || op.vulnerabilities_found || 0), 0) / recentOps.length
-    : 0;
-  const olderAvg = olderOps.length > 0
-    ? olderOps.reduce((sum, op) => sum + (op.data_items_found || op.vulnerabilities_found || 0), 0) / olderOps.length
-    : 0;
-
-  const improvement = recentAvg > olderAvg ? 'improving' : recentAvg < olderAvg ? 'declining' : 'stable';
-  const improvementPercent = olderAvg > 0 ? ((recentAvg - olderAvg) / olderAvg * 100).toFixed(1) : '0';
+  // Removed unused variables - improvement metrics calculated but not displayed in current UI
 
   // Calculate extraction quality (structured data percentage)
   const recentQuality = recentOps.length > 0

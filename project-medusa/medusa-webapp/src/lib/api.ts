@@ -21,7 +21,13 @@ export interface Patient {
   bloodType: string;
   allergies: string[];
   conditions: string[];
-  medications: any[];
+  medications: Array<{
+    name: string;
+    dosage: string;
+    frequency: string;
+    startDate: string;
+    endDate?: string;
+  }>;
   lastVisit: string;
   nextAppointment: string;
   phone: string;
@@ -35,9 +41,27 @@ export interface Patient {
   insuranceProvider: string;
   insuranceNumber: string;
   primaryPhysician: string;
-  vitalSigns: any[];
-  labResults: any[];
-  appointments: any[];
+  vitalSigns: Array<{
+    date: string;
+    bloodPressure: string;
+    heartRate: number;
+    temperature: number;
+    weight: number;
+    height: number;
+  }>;
+  labResults: Array<{
+    testName: string;
+    result: string;
+    date: string;
+    normalRange: string;
+  }>;
+  appointments: Array<{
+    date: string;
+    time: string;
+    doctor: string;
+    reason: string;
+    status: string;
+  }>;
   mrn: string;
   status: string;
   lastUpdated: string;
@@ -50,7 +74,12 @@ export interface Patient {
     bankAccountNumber: string;
     bankRoutingNumber: string;
     outstandingBalance: number;
-    paymentHistory: any[];
+    paymentHistory: Array<{
+      date: string;
+      amount: number;
+      method: string;
+      status: string;
+    }>;
   };
   sensitiveConditions: string[];
   familyHistory: string[];
@@ -100,8 +129,18 @@ export interface Employee {
     taxWithholding: number;
     retirementContribution: number;
   };
-  performanceReviews: any[];
-  disciplinaryActions: any[];
+  performanceReviews: Array<{
+    date: string;
+    reviewer: string;
+    rating: number;
+    comments: string;
+  }>;
+  disciplinaryActions: Array<{
+    date: string;
+    type: string;
+    description: string;
+    severity: string;
+  }>;
   benefitsInfo: {
     healthInsurance: string;
     dentalInsurance: string;

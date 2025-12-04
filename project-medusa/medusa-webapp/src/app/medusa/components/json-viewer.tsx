@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 interface JsonViewerProps {
-  data: any;
+  data: unknown;
   maxDepth?: number;
   collapsed?: boolean;
   showCopyButton?: boolean;
@@ -35,7 +35,7 @@ export default function JsonViewer({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const renderValue = (value: any, path: string = '', depth: number = 0): JSX.Element => {
+  const renderValue = (value: unknown, path: string = '', depth: number = 0): JSX.Element => {
     if (depth > maxDepth) {
       return <span className="text-slate-500 italic">[Max depth reached]</span>;
     }
@@ -61,7 +61,7 @@ export default function JsonViewer({
       const displayValue = value.length > 200 ? `${value.substring(0, 200)}...` : value;
       return (
         <span className="text-green-400">
-          "{displayValue}"
+          &quot;{displayValue}&quot;
         </span>
       );
     }
@@ -142,7 +142,7 @@ export default function JsonViewer({
             <div className="ml-4">
               {keys.map((key, index) => (
                 <div key={key} className="flex items-start">
-                  <span className="text-yellow-400 mr-2">"{key}":</span>
+                  <span className="text-yellow-400 mr-2">&quot;{key}&quot;:</span>
                   <div className="flex-1">
                     {renderValue(value[key], `${path}.${key}`, depth + 1)}
                   </div>
