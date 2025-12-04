@@ -321,7 +321,7 @@ def get_learning_trends():
             # Data items found in THIS operation (not cumulative - shows realistic plateau)
             # Early operations find more, later operations find less (realistic)
             incremental = op.get('data_items_found_incremental', op.get('data_items_found', 0))
-            
+
             data_items_over_time.append({
                 'x': idx,
                 'y': incremental,  # Individual operation results (shows plateau effect)
@@ -1812,17 +1812,18 @@ def generate_demo_data():
     total_operations = len(objectives)
 
     # Track which techniques work best for which objectives (simulating learning)
+    # Realistic success rates: even best techniques aren't perfect, and wrong techniques fail more
     technique_success_rates = {
-        'T1110': {'password': 0.85, 'credential': 0.80, 'default': 0.40},  # Brute Force - good for credentials
-        'T1550': {'password': 0.75, 'credential': 0.70, 'default': 0.35},  # Alternate Auth - good for credentials
-        'T1078': {'password': 0.90, 'credential': 0.85, 'default': 0.50},  # Valid Accounts - excellent for credentials
-        'T1005': {'medical': 0.88, 'patient': 0.85, 'default': 0.45},     # Data from Local - good for medical data
-        'T1071': {'medical': 0.82, 'patient': 0.80, 'endpoint': 0.75, 'default': 0.55},  # App Layer Protocol - versatile
-        'T1040': {'medical': 0.75, 'patient': 0.70, 'default': 0.40},      # Network Sniffing - decent for data
-        'T1190': {'vulnerability': 0.92, 'default': 0.35},                # Exploit - excellent for vulnerabilities
-        'T1592': {'vulnerability': 0.85, 'endpoint': 0.80, 'default': 0.50},  # Gather Info - good for discovery
-        'T1595': {'vulnerability': 0.88, 'endpoint': 0.75, 'default': 0.45},   # Active Scanning - good for vulns
-        'T1046': {'endpoint': 0.90, 'default': 0.40},                     # Network Service - excellent for endpoints
+        'T1110': {'password': 0.70, 'credential': 0.65, 'default': 0.30},  # Brute Force - decent for credentials
+        'T1550': {'password': 0.60, 'credential': 0.55, 'default': 0.25},  # Alternate Auth - okay for credentials
+        'T1078': {'password': 0.80, 'credential': 0.75, 'default': 0.40},  # Valid Accounts - good for credentials
+        'T1005': {'medical': 0.75, 'patient': 0.70, 'default': 0.35},     # Data from Local - good for medical data
+        'T1071': {'medical': 0.65, 'patient': 0.60, 'endpoint': 0.60, 'default': 0.45},  # App Layer Protocol - versatile but moderate
+        'T1040': {'medical': 0.55, 'patient': 0.50, 'default': 0.30},      # Network Sniffing - moderate for data
+        'T1190': {'vulnerability': 0.75, 'default': 0.25},                # Exploit - good for vulnerabilities
+        'T1592': {'vulnerability': 0.65, 'endpoint': 0.60, 'default': 0.40},  # Gather Info - decent for discovery
+        'T1595': {'vulnerability': 0.70, 'endpoint': 0.55, 'default': 0.35},   # Active Scanning - decent for vulns
+        'T1046': {'endpoint': 0.75, 'default': 0.30},                     # Network Service - good for endpoints
     }
 
     # Track cumulative unique data found (realistic: plateaus after finding most data)
@@ -1919,12 +1920,22 @@ def generate_demo_data():
 
         # Determine success based on technique effectiveness for this objective
         tech_rates = technique_success_rates.get(technique_id, {'default': 0.50})
-        success_rate = tech_rates.get(objective_key, tech_rates.get('default', 0.50))
-
-        # Over time, success rate improves (learning to use better techniques)
+        base_success_rate = tech_rates.get(objective_key, tech_rates.get('default', 0.50))
+        
+        # Add some realistic variation (even good techniques can fail sometimes)
+        # Add noise: ±10% variation
+        success_rate = base_success_rate + random.uniform(-0.10, 0.10)
+        success_rate = max(0.05, min(0.95, success_rate))  # Clamp between 5% and 95%
+        
+        # Over time, success rate improves slightly (learning to use better techniques)
+        # But not too much - keep it realistic
         if i > 40:
-            success_rate = min(0.95, success_rate + 0.1)  # Better technique selection
-
+            success_rate = min(0.92, success_rate + 0.05)  # Slight improvement, but not perfect
+        
+        # Early operations are less successful (learning phase)
+        if i < 15:
+            success_rate = max(0.20, success_rate - 0.15)  # Early ops are less successful
+        
         operation_success = random.random() < success_rate
 
         # Adjust data_items based on success
