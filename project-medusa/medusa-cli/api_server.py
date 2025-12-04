@@ -1073,7 +1073,7 @@ def run_medusa_operation(operation_type: str, objective: str):
             result = Result(returncode, stdout, stderr)
 
             if result.returncode == 0:
-        add_log_entry('medusa', 'Operation completed successfully', 'success')
+                add_log_entry('medusa', 'Operation completed successfully', 'success')
 
                 # Log output (truncate if too long)
                 output_preview = result.stdout[:1000] if result.stdout else "No output"
