@@ -1297,10 +1297,8 @@ def run_medusa_operation(operation_type: str, objective: str):
                         'success': True,
                         'duration': duration
                     }
+                    # Append to full history so metrics and trends reflect all operations
                     medusa_state['operation_history'].append(operation_record)
-                    # Keep only last 50 operations
-                    if len(medusa_state['operation_history']) > 50:
-                        medusa_state['operation_history'] = medusa_state['operation_history'][-50:]
 
                 except Exception as e:
                     add_log_entry('system', f'Failed to record feedback: {e}', 'warning')
