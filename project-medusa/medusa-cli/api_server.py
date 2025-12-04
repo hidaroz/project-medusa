@@ -371,7 +371,8 @@ def get_learning_trends():
                 'structured_data_percentage': op.get('structured_data_percentage', 0.0),
                 'success': op.get('success', False),
                 'duration': op.get('duration', 0),
-                'objective': op.get('objective', '')
+                'objective': op.get('objective', ''),
+                'technique_id': op.get('technique_id', '')
             })
 
         # Get technique effectiveness from feedback tracker
@@ -1246,10 +1247,10 @@ def run_medusa_operation(operation_type: str, objective: str):
                 except Exception as e:
                     add_log_entry('system', f'Failed to record feedback: {e}', 'warning')
 
-        medusa_state['status'] = 'completed'
-        medusa_state['metrics']['operations_completed'] += 1
+                medusa_state['status'] = 'completed'
+                medusa_state['metrics']['operations_completed'] += 1
                 medusa_state['metrics']['data_found'] += vuln_count
-        medusa_state['metrics']['time_completed'] = datetime.now().isoformat()
+                medusa_state['metrics']['time_completed'] = datetime.now().isoformat()
             else:
                 add_log_entry('medusa', f'Operation failed with return code {result.returncode}', 'error')
                 # Show both stdout and stderr for debugging
