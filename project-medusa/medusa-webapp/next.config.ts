@@ -1,16 +1,13 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Only use static export for production builds (GitHub Pages)
-  ...(process.env.NODE_ENV === 'production' ? { output: 'export' } : {}),
+  // Don't use static export for server deployment (we're using Nginx, not GitHub Pages)
+  // output: 'export' is only for static hosting - we're running a Node.js server
   trailingSlash: true,
   images: {
     unoptimized: true
   },
-  // GitHub Pages typically serves from a subdirectory
-  basePath: process.env.NODE_ENV === 'production' ? '/project-medusa' : '',
-  assetPrefix: process.env.NODE_ENV === 'production' ? '/project-medusa/' : '',
-  // Disable ESLint during build for demo
+  // Disable ESLint during build
   eslint: {
     ignoreDuringBuilds: true,
   },
