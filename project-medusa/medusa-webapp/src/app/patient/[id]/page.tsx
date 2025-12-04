@@ -2,21 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { getPatientById, getAllPatients, Patient } from '@/lib/api';
+import { getPatientById, Patient } from '@/lib/api';
 import Layout from '@/components/Layout';
-
-// This function is required for static generation but won't be used in client components
-export async function generateStaticParams() {
-  try {
-    const patients = await getAllPatients();
-    return patients.map((patient) => ({
-      id: patient.id,
-    }));
-  } catch (error) {
-    console.error('Error generating static params:', error);
-    return [];
-  }
-}
 
 export default function PatientDetailPage({ params }: { params: { id: string } }) {
   const [patient, setPatient] = useState<Patient | null>(null);
