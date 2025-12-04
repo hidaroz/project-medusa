@@ -21,7 +21,7 @@ Type=simple
 User=root
 WorkingDirectory=${INSTALL_DIR}/medusa-cli
 EnvironmentFile=${ENV_FILE}
-Environment="PYTHONPATH=${INSTALL_DIR}/medusa-cli"
+Environment="PYTHONPATH=${INSTALL_DIR}/medusa-cli/src:${INSTALL_DIR}/medusa-cli"
 ExecStart=${INSTALL_DIR}/medusa-cli/venv/bin/python3 ${INSTALL_DIR}/medusa-cli/api_server.py
 Restart=always
 RestartSec=10

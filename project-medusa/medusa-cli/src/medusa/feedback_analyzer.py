@@ -6,7 +6,7 @@ Provides analysis and reporting on learning progress
 import logging
 from typing import Dict, Any, List
 from datetime import datetime
-from medusa.core.feedback import get_feedback_tracker
+from .core.feedback import get_feedback_tracker
 
 logger = logging.getLogger(__name__)
 
