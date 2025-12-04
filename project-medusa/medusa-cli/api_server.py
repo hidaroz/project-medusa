@@ -318,17 +318,13 @@ def get_learning_trends():
         cumulative_data_items = 0
 
         for idx, op in enumerate(operation_history, start=1):
-            # Data items found over time - use CUMULATIVE total for better visualization
-            # This shows the total data available at each point, not just new items
-            incremental = op.get('data_items_found', op.get('vulnerabilities_found', 0))
-            cumulative_data_items += incremental
-
-            # Use cumulative total, but if it's 0 and we have incremental, use that
-            data_items_value = cumulative_data_items if cumulative_data_items > 0 else incremental
-
+            # Data items found in THIS operation (not cumulative - shows realistic plateau)
+            # Early operations find more, later operations find less (realistic)
+            incremental = op.get('data_items_found_incremental', op.get('data_items_found', 0))
+            
             data_items_over_time.append({
                 'x': idx,
-                'y': data_items_value,
+                'y': incremental,  # Individual operation results (shows plateau effect)
                 'timestamp': op.get('timestamp', '')
             })
 
