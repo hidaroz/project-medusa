@@ -1863,7 +1863,7 @@ def generate_demo_data():
             cumulative_data_items += int(base_items * 0.2)
             # Ensure we don't exceed realistic maximum
             cumulative_data_items = min(cumulative_data_items, max_unique_data + 10)
-        
+
         data_items = int(max(0, base_items))  # Can be 0 if no new data
 
         # Show learning: extraction quality improves over time (but plateaus)
