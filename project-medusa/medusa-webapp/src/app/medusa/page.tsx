@@ -62,14 +62,14 @@ export default function MedusaDashboardPage() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [logView, setLogView] = useState<'structured' | 'raw'>('structured');
   const [lastOperationObjective, setLastOperationObjective] = useState<string>('');
-  
+
   const API_URL = process.env.NEXT_PUBLIC_MEDUSA_API_URL || 'http://localhost:5001';
 
   useEffect(() => {
     fetchStatus();
     fetchOperations();
     fetchLLMConfig();
-    
+
     // Poll for updates every 2 seconds
     const interval = setInterval(() => {
       fetchStatus();
