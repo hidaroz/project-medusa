@@ -120,9 +120,10 @@ export default function LearningDashboard({ API_URL }: LearningDashboardProps) {
       {/* Data Items Found Over Time Chart */}
       <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 mb-6">
         <h4 className="text-lg font-semibold mb-4 text-blue-400">Data Items Found Over Time</h4>
-        <div className="h-48 flex items-end justify-between gap-2" style={{ minHeight: '192px' }}>
-          {(trends.data_items_over_time || trends.vulnerabilities_over_time).length > 0 ? (
-            (trends.data_items_over_time || trends.vulnerabilities_over_time).map((point, idx) => {
+        <div className="overflow-x-auto">
+          <div className="h-48 flex items-end justify-start gap-1" style={{ minHeight: '192px', minWidth: 'max-content' }}>
+            {(trends.data_items_over_time || trends.vulnerabilities_over_time).length > 0 ? (
+              (trends.data_items_over_time || trends.vulnerabilities_over_time).map((point, idx) => {
               const allPoints = trends.data_items_over_time || trends.vulnerabilities_over_time;
               const maxY = Math.max(...allPoints.map(p => p.y), 1);
 
@@ -133,18 +134,17 @@ export default function LearningDashboard({ API_URL }: LearningDashboardProps) {
               const heightPx = Math.max((heightPercent / 100) * containerHeight, point.y > 0 ? 16 : 0);
 
               return (
-                <div key={idx} className="flex-1 flex flex-col items-center justify-end min-w-[50px]" style={{ height: '100%' }}>
+                <div key={idx} className="flex flex-col items-center justify-end min-w-[8px] max-w-[12px]" style={{ height: '100%' }}>
                   <div
                     className="w-full bg-blue-600 rounded-t transition-all hover:bg-blue-500"
                     style={{
                       height: `${heightPx}px`,
-                      minHeight: point.y > 0 ? '16px' : '0px',
+                      minHeight: point.y > 0 ? '8px' : '0px',
                       width: '100%'
                     }}
                     title={`Operation ${point.x}: ${point.y} data items found`}
                   ></div>
-                  <span className="text-xs text-slate-500 mt-1">{point.x}</span>
-                  {point.y > 0 && <span className="text-xs text-blue-400 font-semibold">{point.y}</span>}
+                  {idx % 10 === 0 && <span className="text-xs text-slate-500 mt-1">{point.x}</span>}
                 </div>
               );
             })
@@ -153,6 +153,7 @@ export default function LearningDashboard({ API_URL }: LearningDashboardProps) {
               No data available yet. Run operations to see data items found over time.
             </div>
           )}
+          </div>
         </div>
         <p className="text-xs text-slate-500 mt-2 text-center">
           Each bar represents one operation. Height shows number of data items (records, credentials, endpoints) found.
@@ -162,40 +163,41 @@ export default function LearningDashboard({ API_URL }: LearningDashboardProps) {
       {/* Extraction Quality Trend */}
       <div className="bg-slate-900 border border-slate-700 rounded-lg p-4 mb-6">
         <h4 className="text-lg font-semibold mb-4 text-green-400">Extraction Quality Trend</h4>
-        <div className="h-32 flex items-end justify-between gap-2" style={{ minHeight: '128px' }}>
-          {(trends.extraction_quality_over_time || trends.success_rate_over_time).length > 0 ? (
-            (trends.extraction_quality_over_time || trends.success_rate_over_time).map((point, idx) => {
-              // Container is 128px (h-32 = 8rem = 128px)
-              // Use percentage directly, but convert to pixels for consistent rendering
-              const containerHeight = 128; // h-32 in pixels
-              const heightPercent = Math.max(point.y, 0); // Clamp to 0-100
-              const heightPx = Math.max((heightPercent / 100) * containerHeight, point.y >= 0 ? 12 : 0);
+        <div className="overflow-x-auto">
+          <div className="h-32 flex items-end justify-start gap-1" style={{ minHeight: '128px', minWidth: 'max-content' }}>
+            {(trends.extraction_quality_over_time || trends.success_rate_over_time).length > 0 ? (
+              (trends.extraction_quality_over_time || trends.success_rate_over_time).map((point, idx) => {
+                // Container is 128px (h-32 = 8rem = 128px)
+                // Use percentage directly, but convert to pixels for consistent rendering
+                const containerHeight = 128; // h-32 in pixels
+                const heightPercent = Math.max(point.y, 0); // Clamp to 0-100
+                const heightPx = Math.max((heightPercent / 100) * containerHeight, point.y >= 0 ? 8 : 0);
 
-              return (
-                <div key={idx} className="flex-1 flex flex-col items-center justify-end min-w-[50px]" style={{ height: '100%' }}>
-                  <div
-                    className={`w-full rounded-t transition-all ${
-                      point.y > 50 ? 'bg-green-600 hover:bg-green-500' :
-                      point.y > 0 ? 'bg-yellow-600 hover:bg-yellow-500' :
-                      'bg-slate-600 hover:bg-slate-500'
-                    }`}
-                    style={{
-                      height: `${heightPx}px`,
-                      minHeight: point.y >= 0 ? '12px' : '0px',
-                      width: '100%'
-                    }}
-                    title={`Operation ${point.x}: ${point.y.toFixed(1)}% structured data extracted`}
-                  ></div>
-                  <span className="text-xs text-slate-500 mt-1">{point.x}</span>
-                  {point.y > 0 && <span className="text-xs text-green-400 font-semibold">{point.y.toFixed(0)}%</span>}
-                </div>
-              );
-            })
-          ) : (
-            <div className="w-full text-center text-slate-500 py-4 text-sm">
-              No quality data yet. Run operations to see extraction quality improve.
-            </div>
-          )}
+                return (
+                  <div key={idx} className="flex flex-col items-center justify-end min-w-[8px] max-w-[12px]" style={{ height: '100%' }}>
+                    <div
+                      className={`w-full rounded-t transition-all ${
+                        point.y > 50 ? 'bg-green-600 hover:bg-green-500' :
+                        point.y > 0 ? 'bg-yellow-600 hover:bg-yellow-500' :
+                        'bg-slate-600 hover:bg-slate-500'
+                      }`}
+                      style={{
+                        height: `${heightPx}px`,
+                        minHeight: point.y >= 0 ? '8px' : '0px',
+                        width: '100%'
+                      }}
+                      title={`Operation ${point.x}: ${point.y.toFixed(1)}% structured data extracted`}
+                    ></div>
+                    {idx % 10 === 0 && <span className="text-xs text-slate-500 mt-1">{point.x}</span>}
+                  </div>
+                );
+              })
+            ) : (
+              <div className="w-full text-center text-slate-500 py-4 text-sm">
+                No quality data yet. Run operations to see extraction quality improve.
+              </div>
+            )}
+          </div>
         </div>
         <p className="text-xs text-slate-500 mt-2 text-center">
           Shows percentage of data that was extracted as structured (vs raw text). Higher is better.

@@ -1073,7 +1073,7 @@ def run_medusa_operation(operation_type: str, objective: str):
             result = Result(returncode, stdout, stderr)
 
             if result.returncode == 0:
-                add_log_entry('medusa', 'Operation completed successfully', 'success')
+        add_log_entry('medusa', 'Operation completed successfully', 'success')
 
                 # Log output (truncate if too long)
                 output_preview = result.stdout[:1000] if result.stdout else "No output"
@@ -1246,10 +1246,10 @@ def run_medusa_operation(operation_type: str, objective: str):
                 except Exception as e:
                     add_log_entry('system', f'Failed to record feedback: {e}', 'warning')
 
-                medusa_state['status'] = 'completed'
-                medusa_state['metrics']['operations_completed'] += 1
+        medusa_state['status'] = 'completed'
+        medusa_state['metrics']['operations_completed'] += 1
                 medusa_state['metrics']['data_found'] += vuln_count
-                medusa_state['metrics']['time_completed'] = datetime.now().isoformat()
+        medusa_state['metrics']['time_completed'] = datetime.now().isoformat()
             else:
                 add_log_entry('medusa', f'Operation failed with return code {result.returncode}', 'error')
                 # Show both stdout and stderr for debugging
@@ -1728,74 +1728,101 @@ def clear_discovered_data():
         return jsonify({'error': str(e)}), 500
 
 def generate_demo_data():
-    """Generate 3 hours of demo data showing continuous learning"""
+    """Generate 12 hours of demo data showing continuous learning"""
     import random
     from datetime import timedelta
-    
+
     now = datetime.now()
-    start_time = now - timedelta(hours=3)
-    
+    start_time = now - timedelta(hours=12)
+
+    # Diverse objectives for 12 hours
     objectives = [
-        'find passwords',
-        'find medical records',
-        'find patient data',
-        'find credentials',
-        'find vulnerabilities',
-        'find endpoints',
-        'find passwords',
-        'find medical records',
-        'find patient data',
-        'find credentials',
-        'find vulnerabilities',
-        'find endpoints',
-        'find passwords',
-        'find medical records',
-        'find patient data',
-        'find credentials',
-        'find vulnerabilities',
-        'find endpoints',
-        'find passwords',
-        'find medical records',
-        'find patient data',
-        'find credentials',
-        'find vulnerabilities',
-        'find endpoints',
-        'find passwords',
-        'find medical records',
-        'find patient data',
-        'find credentials',
-        'find vulnerabilities',
-        'find endpoints',
+        'find passwords', 'find medical records', 'find patient data', 'find credentials',
+        'find vulnerabilities', 'find endpoints', 'find login credentials', 'find SSN numbers',
+        'find email addresses', 'find phone numbers', 'find insurance information',
+        'find prescription data', 'find lab results', 'find appointment records',
+        'find user accounts', 'find API keys', 'find database connections',
+        'find security misconfigurations', 'find exposed files', 'find backup files',
+        'find passwords', 'find medical records', 'find patient data', 'find credentials',
+        'find vulnerabilities', 'find endpoints', 'find login credentials', 'find SSN numbers',
+        'find email addresses', 'find phone numbers', 'find insurance information',
+        'find prescription data', 'find lab results', 'find appointment records',
+        'find user accounts', 'find API keys', 'find database connections',
+        'find security misconfigurations', 'find exposed files', 'find backup files',
+        'find passwords', 'find medical records', 'find patient data', 'find credentials',
+        'find vulnerabilities', 'find endpoints', 'find login credentials', 'find SSN numbers',
+        'find email addresses', 'find phone numbers', 'find insurance information',
+        'find prescription data', 'find lab results', 'find appointment records',
+        'find user accounts', 'find API keys', 'find database connections',
+        'find security misconfigurations', 'find exposed files', 'find backup files',
+        'find passwords', 'find medical records', 'find patient data', 'find credentials',
+        'find vulnerabilities', 'find endpoints', 'find login credentials', 'find SSN numbers',
+        'find email addresses', 'find phone numbers', 'find insurance information',
+        'find prescription data', 'find lab results', 'find appointment records',
+        'find user accounts', 'find API keys', 'find database connections',
+        'find security misconfigurations', 'find exposed files', 'find backup files',
     ]
-    
+
+    # MITRE ATT&CK techniques
+    techniques = [
+        'T1046',  # Network Service Scanning
+        'T1071',  # Application Layer Protocol
+        'T1040',  # Network Sniffing
+        'T1005',  # Data from Local System
+        'T1110',  # Brute Force
+        'T1550',  # Use Alternate Authentication Material
+        'T1078',  # Valid Accounts
+        'T1190',  # Exploit Public-Facing Application
+        'T1592',  # Gather Victim Host Information
+        'T1595',  # Active Scanning
+        'T1046',  # Network Service Scanning
+        'T1071',  # Application Layer Protocol
+        'T1040',  # Network Sniffing
+        'T1005',  # Data from Local System
+        'T1110',  # Brute Force
+    ]
+
     # Generate operation history with improving metrics
     operation_history = []
     cumulative_data_items = 0
-    
+    total_operations = len(objectives)
+
     for i, objective in enumerate(objectives):
-        # Operations every 6-8 minutes over 3 hours
-        operation_time = start_time + timedelta(minutes=i * 6.5)
-        
-        # Show learning: data items found increases over time
-        base_items = 3 + (i * 0.8)  # Start at 3, increase by 0.8 per operation
-        data_items = int(base_items + random.uniform(-1, 2))
+        # Operations every ~9 minutes over 12 hours (720 minutes / ~80 operations)
+        operation_time = start_time + timedelta(minutes=i * 9)
+
+        # Show learning: data items found increases over time (with some variation)
+        base_items = 2 + (i * 0.6)  # Start at 2, increase by 0.6 per operation
+        data_items = int(base_items + random.uniform(-1, 3))
         data_items = max(1, data_items)  # At least 1 item
-        
+
         cumulative_data_items += data_items
-        
+
         # Show learning: extraction quality improves over time
-        base_quality = 20 + (i * 2.5)  # Start at 20%, improve by 2.5% per operation
-        structured_percentage = min(95, base_quality + random.uniform(-5, 5))
-        
-        # Duration decreases slightly (getting faster)
-        duration = 45 - (i * 0.5) + random.uniform(-5, 5)
-        duration = max(20, duration)
-        
+        base_quality = 15 + (i * 1.2)  # Start at 15%, improve by 1.2% per operation
+        structured_percentage = min(98, base_quality + random.uniform(-3, 3))
+
+        # Duration decreases over time (getting faster)
+        duration = 60 - (i * 0.3) + random.uniform(-8, 8)
+        duration = max(15, duration)
+
+        # Assign technique based on objective
+        technique_id = random.choice(techniques)
+        if 'password' in objective.lower() or 'credential' in objective.lower():
+            technique_id = random.choice(['T1110', 'T1550', 'T1078'])
+        elif 'medical' in objective.lower() or 'patient' in objective.lower():
+            technique_id = random.choice(['T1005', 'T1071', 'T1040'])
+        elif 'vulnerability' in objective.lower():
+            technique_id = random.choice(['T1190', 'T1592', 'T1595'])
+        elif 'endpoint' in objective.lower():
+            technique_id = random.choice(['T1046', 'T1071', 'T1592'])
+
         operation_history.append({
             'timestamp': operation_time.isoformat(),
             'operation_type': 'find',
             'objective': objective,
-            'vulnerabilities_found': random.randint(0, 3) if 'vulnerability' in objective.lower() else 0,
+            'technique_id': technique_id,
+            'vulnerabilities_found': random.randint(0, 4) if 'vulnerability' in objective.lower() else random.randint(0, 1),
             'data_items_found': data_items,
             'data_items_found_total': cumulative_data_items,
             'data_items_found_incremental': data_items,
@@ -1807,24 +1834,33 @@ def generate_demo_data():
             'success': True,
             'duration': duration
         })
-    
-    # Generate discovered data
+
+    # Generate discovered data (more diverse for 12 hours)
     discovered_data = {
         'vulnerabilities': [
             {
                 'id': f'vuln_{i}',
-                'description': f'Security vulnerability {i+1}: SQL injection in /api/search endpoint',
+                'description': random.choice([
+                    f'Security vulnerability {i+1}: SQL injection in /api/search endpoint',
+                    f'Security vulnerability {i+1}: XSS vulnerability in user input field',
+                    f'Security vulnerability {i+1}: Weak authentication mechanism',
+                    f'Security vulnerability {i+1}: Exposed sensitive data in API response',
+                    f'Security vulnerability {i+1}: Insecure direct object reference',
+                    f'Security vulnerability {i+1}: Missing security headers',
+                    f'Security vulnerability {i+1}: Unencrypted data transmission',
+                    f'Security vulnerability {i+1}: Broken access control',
+                ]),
                 'severity': random.choice(['high', 'medium', 'low']),
-                'discovered_at': (start_time + timedelta(minutes=random.randint(10, 180))).isoformat(),
-                'source': 'api_scan'
-            } for i in range(12)
+                'discovered_at': (start_time + timedelta(minutes=random.randint(10, 720))).isoformat(),
+                'source': random.choice(['api_scan', 'network_scan', 'code_analysis', 'manual_test'])
+            } for i in range(45)
         ],
         'services': [
             {
                 'port': str(port),
                 'name': name,
                 'description': desc,
-                'discovered_at': (start_time + timedelta(minutes=random.randint(5, 180))).isoformat()
+                'discovered_at': (start_time + timedelta(minutes=random.randint(5, 720))).isoformat()
             } for port, name, desc in [
                 ('3001', 'HTTP', 'EHR API Server'),
                 ('3306', 'MySQL', 'Database Server'),
@@ -1837,7 +1873,7 @@ def generate_demo_data():
         'endpoints': [
             {
                 'url': url,
-                'discovered_at': (start_time + timedelta(minutes=random.randint(5, 180))).isoformat(),
+                'discovered_at': (start_time + timedelta(minutes=random.randint(5, 720))).isoformat(),
                 'authentication': auth,
                 'status_code': 200
             } for url, auth in [
@@ -1855,7 +1891,7 @@ def generate_demo_data():
             {
                 'type': 'credential',
                 'value': f'User: {user}, Pass: {pwd}',
-                'discovered_at': (start_time + timedelta(minutes=random.randint(30, 180))).isoformat(),
+                'discovered_at': (start_time + timedelta(minutes=random.randint(30, 720))).isoformat(),
                 'source': 'api_endpoint:/api/credentials',
                 'username': user,
                 'password': pwd
@@ -1868,27 +1904,38 @@ def generate_demo_data():
         ],
         'data_records': [
             {
-                'type': 'medical_record',
+                'type': random.choice(['medical_record', 'credential', 'patient_data', 'prescription', 'lab_result']),
                 'raw_data': None,
                 'structured_data': {
                     'id': i+1,
                     'first_name': f'Patient{i+1}',
-                    'last_name': 'Demo',
-                    'dob': '1980-01-01',
-                    'ssn': f'123-45-{6789+i}',
-                    'diagnosis': 'Hypertension',
-                    'medications': ['Lisinopril', 'Aspirin']
+                    'last_name': random.choice(['Demo', 'Smith', 'Johnson', 'Williams', 'Brown', 'Jones']),
+                    'dob': f'{1950 + random.randint(0, 70)}-{random.randint(1, 12):02d}-{random.randint(1, 28):02d}',
+                    'ssn': f'{random.randint(100, 999)}-{random.randint(10, 99)}-{random.randint(1000, 9999)}',
+                    'diagnosis': random.choice(['Hypertension', 'Diabetes', 'Asthma', 'Arthritis', 'Depression', 'Anxiety']),
+                    'medications': random.sample(['Lisinopril', 'Aspirin', 'Metformin', 'Albuterol', 'Ibuprofen', 'Sertraline'], random.randint(1, 3)),
+                    'email': f'patient{i+1}@example.com',
+                    'phone': f'{random.randint(200, 999)}-{random.randint(100, 999)}-{random.randint(1000, 9999)}',
+                } if random.random() > 0.3 else {
+                    'username': random.choice(['admin', 'doctor', 'nurse', 'receptionist', f'user{i+1}']),
+                    'password': random.choice(['admin123', 'Welcome123!', 'Password2024', 'SecurePass!']),
+                    'type': 'credential'
+                } if random.random() > 0.5 else {
+                    'api_key': f'api_key_{random.randint(1000, 9999)}',
+                    'endpoint': random.choice(['/api/patients', '/api/users', '/api/records']),
+                    'type': 'api_credential'
                 },
-                'discovered_at': (start_time + timedelta(minutes=random.randint(10, 180))).isoformat(),
-                'source': 'api_endpoint:/api/patients',
-                'operation_id': f'op_{i}',
-                'operation_objective': random.choice(['find medical records', 'find patient data']),
-                'extraction_method': 'llm_gemini' if i % 2 == 0 else 'api_query',
-                'confidence': 0.85 + random.uniform(-0.1, 0.1)
-            } for i in range(cumulative_data_items)
+                'discovered_at': (start_time + timedelta(minutes=random.randint(10, 720))).isoformat(),
+                'source': random.choice(['api_endpoint:/api/patients', 'api_endpoint:/api/users', 'api_endpoint:/api/records', 'file_system', 'database']),
+                'operation_id': f'op_{i % total_operations}',
+                'operation_objective': objectives[i % len(objectives)],
+                'technique_id': techniques[i % len(techniques)],
+                'extraction_method': random.choice(['llm_gemini', 'api_query', 'regex', 'llm_ollama']),
+                'confidence': 0.75 + random.uniform(-0.15, 0.2)
+            } for i in range(min(cumulative_data_items, 200))  # Cap at 200 records for performance
         ]
     }
-    
+
     return operation_history, discovered_data
 
 if __name__ == '__main__':
@@ -1900,9 +1947,9 @@ if __name__ == '__main__':
     if medusa_state['metrics']['operations_completed'] == 0:
         # Check if we should load demo data (set DEMO_MODE env var or check for demo flag)
         demo_mode = os.getenv('DEMO_MODE', 'true').lower() == 'true'
-        
+
         if demo_mode:
-            add_log_entry('system', 'Initializing demo data (3 hours of continuous learning)', 'info')
+            add_log_entry('system', 'Initializing demo data (12 hours of continuous learning)', 'info')
             operation_history, discovered_data = generate_demo_data()
             medusa_state['operation_history'] = operation_history
             medusa_state['discovered_data'] = discovered_data
@@ -1910,7 +1957,7 @@ if __name__ == '__main__':
             medusa_state['metrics']['data_found'] = sum(op['data_items_found'] for op in operation_history)
             medusa_state['metrics']['time_started'] = operation_history[0]['timestamp'] if operation_history else None
             medusa_state['metrics']['time_completed'] = operation_history[-1]['timestamp'] if operation_history else None
-            add_log_entry('system', f'Demo data loaded: {len(operation_history)} operations over 3 hours', 'info')
+            add_log_entry('system', f'Demo data loaded: {len(operation_history)} operations over 12 hours', 'info')
         else:
             medusa_state['discovered_data'] = {
                 'vulnerabilities': [],
