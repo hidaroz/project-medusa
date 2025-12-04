@@ -11,7 +11,7 @@ __version__ = "1.0.0"
 __author__ = "Project Medusa Team"
 __license__ = "MIT"
 
-from medusa.config import Config, get_config
+from .config import Config
 
-__all__ = ["Config", "get_config", "__version__"]
+__all__ = ["Config", "__version__"]
 
