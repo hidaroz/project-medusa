@@ -1885,57 +1885,81 @@ def generate_demo_data():
         duration = max(15, duration)
 
         # Assign technique based on objective AND learning (better techniques chosen over time)
+        # This demonstrates continuous learning: system learns which techniques work best
         objective_key = 'default'
         if 'password' in objective.lower() or 'credential' in objective.lower():
             objective_key = 'password' if 'password' in objective.lower() else 'credential'
-            # Over time, learn that T1078 is best for credentials
-            if i > 30:
-                technique_id = 'T1078' if random.random() > 0.2 else random.choice(['T1110', 'T1550'])
+            # Learning progression: early = random, mid = prefer good ones, late = mostly best
+            if i > 50:
+                # Late phase: mostly use best technique (T1078: 80% success)
+                technique_id = 'T1078' if random.random() > 0.15 else random.choice(['T1110', 'T1550'])
+            elif i > 25:
+                # Mid phase: prefer best technique but still explore
+                technique_id = 'T1078' if random.random() > 0.4 else random.choice(['T1110', 'T1550', 'T1078'])
             else:
+                # Early phase: random exploration
                 technique_id = random.choice(['T1110', 'T1550', 'T1078'])
         elif 'medical' in objective.lower() or 'patient' in objective.lower():
             objective_key = 'medical' if 'medical' in objective.lower() else 'patient'
-            # Over time, learn that T1005 is best for medical data
-            if i > 25:
-                technique_id = 'T1005' if random.random() > 0.25 else random.choice(['T1071', 'T1040'])
+            # Learning progression for medical data
+            if i > 45:
+                # Late phase: mostly use best technique (T1005: 75% success)
+                technique_id = 'T1005' if random.random() > 0.2 else random.choice(['T1071', 'T1040'])
+            elif i > 20:
+                # Mid phase: prefer best technique
+                technique_id = 'T1005' if random.random() > 0.35 else random.choice(['T1071', 'T1040', 'T1005'])
             else:
+                # Early phase: random exploration
                 technique_id = random.choice(['T1005', 'T1071', 'T1040'])
         elif 'vulnerability' in objective.lower():
             objective_key = 'vulnerability'
-            # Over time, learn that T1190 is best for vulnerabilities
-            if i > 20:
-                technique_id = 'T1190' if random.random() > 0.15 else random.choice(['T1592', 'T1595'])
+            # Learning progression for vulnerabilities
+            if i > 40:
+                # Late phase: mostly use best technique (T1190: 75% success)
+                technique_id = 'T1190' if random.random() > 0.2 else random.choice(['T1592', 'T1595'])
+            elif i > 15:
+                # Mid phase: prefer best technique
+                technique_id = 'T1190' if random.random() > 0.3 else random.choice(['T1190', 'T1592', 'T1595'])
             else:
+                # Early phase: random exploration
                 technique_id = random.choice(['T1190', 'T1592', 'T1595'])
         elif 'endpoint' in objective.lower():
             objective_key = 'endpoint'
-            # Over time, learn that T1046 is best for endpoints
-            if i > 35:
-                technique_id = 'T1046' if random.random() > 0.2 else random.choice(['T1071', 'T1592'])
+            # Learning progression for endpoints
+            if i > 50:
+                # Late phase: mostly use best technique (T1046: 75% success)
+                technique_id = 'T1046' if random.random() > 0.25 else random.choice(['T1071', 'T1592'])
+            elif i > 30:
+                # Mid phase: prefer best technique
+                technique_id = 'T1046' if random.random() > 0.4 else random.choice(['T1071', 'T1592', 'T1046'])
             else:
+                # Early phase: random exploration
                 technique_id = random.choice(['T1046', 'T1071', 'T1592'])
         else:
-            # Generic objectives - use versatile techniques
-            technique_id = random.choice(['T1071', 'T1592', 'T1046'])
+            # Generic objectives - use versatile techniques, learn over time
+            if i > 40:
+                technique_id = 'T1071' if random.random() > 0.3 else random.choice(['T1592', 'T1046'])
+            else:
+                technique_id = random.choice(['T1071', 'T1592', 'T1046'])
 
         # Determine success based on technique effectiveness for this objective
         tech_rates = technique_success_rates.get(technique_id, {'default': 0.50})
         base_success_rate = tech_rates.get(objective_key, tech_rates.get('default', 0.50))
-        
+
         # Add some realistic variation (even good techniques can fail sometimes)
         # Add noise: ±10% variation
         success_rate = base_success_rate + random.uniform(-0.10, 0.10)
         success_rate = max(0.05, min(0.95, success_rate))  # Clamp between 5% and 95%
-        
+
         # Over time, success rate improves slightly (learning to use better techniques)
         # But not too much - keep it realistic
         if i > 40:
             success_rate = min(0.92, success_rate + 0.05)  # Slight improvement, but not perfect
-        
+
         # Early operations are less successful (learning phase)
         if i < 15:
             success_rate = max(0.20, success_rate - 0.15)  # Early ops are less successful
-        
+
         operation_success = random.random() < success_rate
 
         # Adjust data_items based on success
