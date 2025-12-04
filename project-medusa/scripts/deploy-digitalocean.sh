@@ -277,6 +277,8 @@ Type=simple
 User=root
 WorkingDirectory=${INSTALL_DIR}/project-medusa/project-medusa/medusa-webapp
 EnvironmentFile=${ENV_FILE}
+Environment="NEXT_PUBLIC_MEDUSA_API_URL=http://${DROPLET_IP}/api"
+Environment="NODE_ENV=production"
 ExecStart=/usr/bin/npm run start -- --hostname 0.0.0.0 --port 3000
 Restart=always
 RestartSec=10
