@@ -1727,20 +1727,198 @@ def clear_discovered_data():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+def generate_demo_data():
+    """Generate 3 hours of demo data showing continuous learning"""
+    import random
+    from datetime import timedelta
+    
+    now = datetime.now()
+    start_time = now - timedelta(hours=3)
+    
+    objectives = [
+        'find passwords',
+        'find medical records',
+        'find patient data',
+        'find credentials',
+        'find vulnerabilities',
+        'find endpoints',
+        'find passwords',
+        'find medical records',
+        'find patient data',
+        'find credentials',
+        'find vulnerabilities',
+        'find endpoints',
+        'find passwords',
+        'find medical records',
+        'find patient data',
+        'find credentials',
+        'find vulnerabilities',
+        'find endpoints',
+        'find passwords',
+        'find medical records',
+        'find patient data',
+        'find credentials',
+        'find vulnerabilities',
+        'find endpoints',
+        'find passwords',
+        'find medical records',
+        'find patient data',
+        'find credentials',
+        'find vulnerabilities',
+        'find endpoints',
+    ]
+    
+    # Generate operation history with improving metrics
+    operation_history = []
+    cumulative_data_items = 0
+    
+    for i, objective in enumerate(objectives):
+        # Operations every 6-8 minutes over 3 hours
+        operation_time = start_time + timedelta(minutes=i * 6.5)
+        
+        # Show learning: data items found increases over time
+        base_items = 3 + (i * 0.8)  # Start at 3, increase by 0.8 per operation
+        data_items = int(base_items + random.uniform(-1, 2))
+        data_items = max(1, data_items)  # At least 1 item
+        
+        cumulative_data_items += data_items
+        
+        # Show learning: extraction quality improves over time
+        base_quality = 20 + (i * 2.5)  # Start at 20%, improve by 2.5% per operation
+        structured_percentage = min(95, base_quality + random.uniform(-5, 5))
+        
+        # Duration decreases slightly (getting faster)
+        duration = 45 - (i * 0.5) + random.uniform(-5, 5)
+        duration = max(20, duration)
+        
+        operation_history.append({
+            'timestamp': operation_time.isoformat(),
+            'operation_type': 'find',
+            'objective': objective,
+            'vulnerabilities_found': random.randint(0, 3) if 'vulnerability' in objective.lower() else 0,
+            'data_items_found': data_items,
+            'data_items_found_total': cumulative_data_items,
+            'data_items_found_incremental': data_items,
+            'structured_data_count': int(data_items * structured_percentage / 100),
+            'structured_data_count_new': int(data_items * structured_percentage / 100),
+            'structured_data_percentage': structured_percentage,
+            'structured_data_percentage_new': structured_percentage,
+            'total_data_records': cumulative_data_items,
+            'success': True,
+            'duration': duration
+        })
+    
+    # Generate discovered data
+    discovered_data = {
+        'vulnerabilities': [
+            {
+                'id': f'vuln_{i}',
+                'description': f'Security vulnerability {i+1}: SQL injection in /api/search endpoint',
+                'severity': random.choice(['high', 'medium', 'low']),
+                'discovered_at': (start_time + timedelta(minutes=random.randint(10, 180))).isoformat(),
+                'source': 'api_scan'
+            } for i in range(12)
+        ],
+        'services': [
+            {
+                'port': str(port),
+                'name': name,
+                'description': desc,
+                'discovered_at': (start_time + timedelta(minutes=random.randint(5, 180))).isoformat()
+            } for port, name, desc in [
+                ('3001', 'HTTP', 'EHR API Server'),
+                ('3306', 'MySQL', 'Database Server'),
+                ('22', 'SSH', 'Secure Shell'),
+                ('21', 'FTP', 'File Transfer Protocol'),
+                ('389', 'LDAP', 'Directory Service'),
+                ('8080', 'HTTP', 'EHR Frontend'),
+            ]
+        ],
+        'endpoints': [
+            {
+                'url': url,
+                'discovered_at': (start_time + timedelta(minutes=random.randint(5, 180))).isoformat(),
+                'authentication': auth,
+                'status_code': 200
+            } for url, auth in [
+                ('http://localhost:3001/api/patients', 'Bearer Token'),
+                ('http://localhost:3001/api/employees', 'Bearer Token'),
+                ('http://localhost:3001/api/login', 'None'),
+                ('http://localhost:3001/api/medical_records', 'Bearer Token'),
+                ('http://localhost:3001/api/credentials', 'Basic Auth'),
+                ('http://localhost:3001/api/users', 'Bearer Token'),
+                ('http://localhost:3001/api/search', 'None'),
+                ('http://localhost:3001/api/health', 'None'),
+            ]
+        ],
+        'credentials': [
+            {
+                'type': 'credential',
+                'value': f'User: {user}, Pass: {pwd}',
+                'discovered_at': (start_time + timedelta(minutes=random.randint(30, 180))).isoformat(),
+                'source': 'api_endpoint:/api/credentials',
+                'username': user,
+                'password': pwd
+            } for user, pwd in [
+                ('admin', 'admin123'),
+                ('doctor', 'Welcome123!'),
+                ('nurse', 'Password2024'),
+                ('receptionist', 'SecurePass!'),
+            ]
+        ],
+        'data_records': [
+            {
+                'type': 'medical_record',
+                'raw_data': None,
+                'structured_data': {
+                    'id': i+1,
+                    'first_name': f'Patient{i+1}',
+                    'last_name': 'Demo',
+                    'dob': '1980-01-01',
+                    'ssn': f'123-45-{6789+i}',
+                    'diagnosis': 'Hypertension',
+                    'medications': ['Lisinopril', 'Aspirin']
+                },
+                'discovered_at': (start_time + timedelta(minutes=random.randint(10, 180))).isoformat(),
+                'source': 'api_endpoint:/api/patients',
+                'operation_id': f'op_{i}',
+                'operation_objective': random.choice(['find medical records', 'find patient data']),
+                'extraction_method': 'llm_gemini' if i % 2 == 0 else 'api_query',
+                'confidence': 0.85 + random.uniform(-0.1, 0.1)
+            } for i in range(cumulative_data_items)
+        ]
+    }
+    
+    return operation_history, discovered_data
+
 if __name__ == '__main__':
     # Initialize with welcome message
     add_log_entry('system', 'Medusa API Server started', 'info')
 
-    # Clear discovered data on startup if no operations have been run
-    # This prevents showing stale data from previous sessions
+    # Initialize demo data if no operations have been run
+    # This simulates 3 hours of continuous learning for demo purposes
     if medusa_state['metrics']['operations_completed'] == 0:
-        medusa_state['discovered_data'] = {
-            'vulnerabilities': [],
-            'services': [],
-            'endpoints': [],
-            'credentials': [],
-            'data_records': []
-        }
+        # Check if we should load demo data (set DEMO_MODE env var or check for demo flag)
+        demo_mode = os.getenv('DEMO_MODE', 'true').lower() == 'true'
+        
+        if demo_mode:
+            add_log_entry('system', 'Initializing demo data (3 hours of continuous learning)', 'info')
+            operation_history, discovered_data = generate_demo_data()
+            medusa_state['operation_history'] = operation_history
+            medusa_state['discovered_data'] = discovered_data
+            medusa_state['metrics']['operations_completed'] = len(operation_history)
+            medusa_state['metrics']['data_found'] = sum(op['data_items_found'] for op in operation_history)
+            medusa_state['metrics']['time_started'] = operation_history[0]['timestamp'] if operation_history else None
+            medusa_state['metrics']['time_completed'] = operation_history[-1]['timestamp'] if operation_history else None
+            add_log_entry('system', f'Demo data loaded: {len(operation_history)} operations over 3 hours', 'info')
+        else:
+            medusa_state['discovered_data'] = {
+                'vulnerabilities': [],
+                'services': [],
+                'endpoints': [],
+                'credentials': [],
+                'data_records': []
+            }
 
     # Run Flask server
     # Using port 5001 to avoid conflict with macOS AirPlay Receiver on port 5000
