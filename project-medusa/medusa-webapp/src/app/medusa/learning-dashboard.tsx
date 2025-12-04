@@ -75,7 +75,13 @@ export default function LearningDashboard({ API_URL }: LearningDashboardProps) {
   // Calculate improvement metrics - use data items found instead of vulnerabilities
   const recentOps = trends.operations_timeline.slice(-10);
 
-  // Removed unused variables - improvement metrics calculated but not displayed in current UI
+  // Average data items found per recent operation
+  const recentAvg = recentOps.length > 0
+    ? recentOps.reduce((sum, op) => {
+        const items = op.data_items_found ?? op.vulnerabilities_found ?? 0;
+        return sum + items;
+      }, 0) / recentOps.length
+    : 0;
 
   // Calculate extraction quality (structured data percentage)
   const recentQuality = recentOps.length > 0
