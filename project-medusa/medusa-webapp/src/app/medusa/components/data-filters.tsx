@@ -24,7 +24,7 @@ export default function DataFilters({
   availableTypes = [],
   availableSeverities = [],
   availableSources = [],
-  availableOperations = []
+  availableOperations: string[] = [] // eslint-disable-line @typescript-eslint/no-unused-vars
 }: DataFiltersProps) {
   const [filters, setFilters] = useState<FilterState>({
     types: [],
