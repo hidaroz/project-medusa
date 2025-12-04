@@ -62,6 +62,8 @@ export default function MedusaDashboardPage() {
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [logView, setLogView] = useState<'structured' | 'raw'>('structured');
   const [lastOperationObjective, setLastOperationObjective] = useState<string>('');
+  // Local helper to keep the UI in "running" state briefly so users see feedback
+  const [forceRunningUntil, setForceRunningUntil] = useState<number | null>(null);
 
   // Determine API base URL:
   // - Prefer NEXT_PUBLIC_MEDUSA_API_URL when set (build-time config)
@@ -156,6 +158,14 @@ export default function MedusaDashboardPage() {
         throw new Error(`HTTP ${response.status}`);
       }
       const data = await response.json();
+
+      // If we recently started an operation, keep the UI in "running" state
+      if (forceRunningUntil && Date.now() < forceRunningUntil) {
+        data.status = 'running';
+      } else if (forceRunningUntil && Date.now() >= forceRunningUntil) {
+        setForceRunningUntil(null);
+      }
+
       setStatus(data);
     } catch (error) {
       console.error('Failed to fetch status:', error);
@@ -219,6 +229,8 @@ export default function MedusaDashboardPage() {
       // Store objective for filtering discovered data
       setLastOperationObjective(objective);
       setObjective('');
+      // Show "running" state for a short period, even if the backend finishes quickly
+      setForceRunningUntil(Date.now() + 5000); // 5 seconds
       // Refresh status
       fetchStatus();
       fetchOperations();

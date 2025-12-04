@@ -69,6 +69,41 @@ def get_status():
     if medusa_state['status'] == 'error' and medusa_state['current_operation'] is None:
         medusa_state['status'] = 'idle'
 
+    # Recompute high-level metrics from full operation history (demo + real)
+    try:
+        history = medusa_state.get('operation_history', []) or []
+
+        # Total successful operations (where we have a timestamp)
+        operations_completed = len(history)
+
+        # Total data items found across all operations
+        data_found = 0
+        time_started = None
+        time_completed = None
+
+        for op in history:
+            # Prefer data_items_found, fall back to vulnerabilities_found
+            data_found += int(op.get('data_items_found') or op.get('vulnerabilities_found') or 0)
+
+            ts = op.get('timestamp')
+            if ts:
+                # Track first and last timestamps for demo summary
+                if time_started is None or ts < time_started:
+                    time_started = ts
+                if time_completed is None or ts > time_completed:
+                    time_completed = ts
+
+        medusa_state['metrics']['operations_completed'] = operations_completed
+        medusa_state['metrics']['data_found'] = data_found
+        # Only set time_* if we derived them; otherwise keep existing values
+        if time_started:
+            medusa_state['metrics']['time_started'] = time_started
+        if time_completed:
+            medusa_state['metrics']['time_completed'] = time_completed
+    except Exception as e:
+        # Don't break the status endpoint if metric recomputation fails
+        add_log_entry('system', f'Error recomputing metrics: {e}', 'warning')
+
     return jsonify({
         'status': medusa_state['status'],
         'current_operation': medusa_state['current_operation'],
