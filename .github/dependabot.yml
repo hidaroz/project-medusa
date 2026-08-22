@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # Only the two subprojects that are real. lab-environment/ is a deliberately
+  # vulnerable target range -- its outdated dependencies ARE the exercise, and
+  # bumping them breaks it. archive/ is dead. Neither is watched on purpose.
+  - package-ecosystem: pip
+    directory: /project-medusa/medusa-cli
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: npm
+    directory: /project-medusa/medusa-webapp
+    schedule:
+      interval: weekly
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
