@@ -80,3 +80,7 @@ training-data/raw/*.json
 /CNAME
 /discovery_results.json
 /data/
+# Runtime state for the vulnerable lab containers. MySQL and OpenLDAP write
+# their data directories here on first boot, including TLS keypairs the
+# containers mint for themselves. None of it belongs in version control.
+lab-environment/dev-data/
