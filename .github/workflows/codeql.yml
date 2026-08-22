@@ -1,0 +1,67 @@
+# Static analysis, scoped hard -- see the config block below for why.
+#
+# build-mode: none is deliberate. The javascript-typescript extractor reads
+# source directly, so this job needs no npm ci -- which removes a broken
+# lockfile and a registry outage as failure modes, neither of which is a
+# security signal.
+name: CodeQL
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # CodeQL's query packs update continuously. Without a cron, a repo stops
+    # learning about new results the day you stop committing to it.
+    - cron: "27 4 * * 1"
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze ${{ matrix.language }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [python, javascript-typescript]
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@c16c0f3f2812ec4bb3750a5ed64873fe2ce0fbef # codeql-bundle-v2.26.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+          # lab-environment/ is eight services that are vulnerable ON PURPOSE --
+          # SQLi sinks, weak creds, a PHP target. Scanning them produces dozens
+          # of true-positives that mean nothing, and an alert list nobody reads
+          # is the same as no alert list. Excluded by path so the reason lives
+          # in one readable file instead of a hundred dismissal comments.
+          # archive/ is a dead Node backend kept for history.
+          config: |
+            paths:
+              - project-medusa/medusa-cli/src
+              - project-medusa/medusa-cli/tests
+              - project-medusa/medusa-webapp
+            paths-ignore:
+              - project-medusa/lab-environment
+              - project-medusa/archive
+              - '**/node_modules'
+              - '**/.next'
+      - name: Analyze
+        uses: github/codeql-action/analyze@c16c0f3f2812ec4bb3750a5ed64873fe2ce0fbef # codeql-bundle-v2.26.3
+        with:
+          category: "/language:${{ matrix.language }}"
