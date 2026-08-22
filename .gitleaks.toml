@@ -1,0 +1,23 @@
+title = "project-medusa"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+Lab container state, removed from HEAD and documented in SECURITY.md. These are
+TLS keypairs the MySQL container mints for itself on first boot; they guard one
+throwaway docker-compose lab and authenticate nothing beyond it. They remain in
+git history because rewriting a public repo cited by a thesis was judged the
+worse trade. Allowlisted so the scan stays useful rather than permanently red on
+a finding that is already written down.
+"""
+paths = ['''project-medusa/lab-environment/dev-data/.*''']
+
+[[allowlists]]
+description = """
+The vulnerable target range. Weak and hardcoded credentials in these services
+are the exercise, not an accident -- the agent under test is supposed to find
+them. Flagging them every run trains the reader to ignore the scanner.
+"""
+paths = ['''project-medusa/lab-environment/services/.*''']
