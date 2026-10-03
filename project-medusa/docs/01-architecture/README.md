@@ -16,10 +16,28 @@ This section documents MEDUSA's architecture, including system design, component
 - [Project Overview](project-overview.md) - High-level system overview and goals
 - [CLI Architecture](cli-architecture.md) - CLI component design and structure
 
+### Multi-Agent System
+
+**Core Documentation**:
+- [**Implementation Status**](IMPLEMENTATION-STATUS.md) - Current implementation status (consolidated)
+- [**System Overview**](system-overview.md) - High-level architecture and design principles
+- [**Component Design**](component-design.md) - Detailed technical specifications
+- [**Network Architecture**](network-architecture.md) - Lab environment topology
+- [**LangGraph Migration**](langgraph-migration.md) - LangGraph implementation details
+
+**Planning & Reference**:
+- [Multi-Agent Evolution Plan](multi-agent-evolution-plan.md) - Original 12-week implementation plan
+- [Quick Reference Guide](multi-agent-quick-reference.md) - TL;DR summary
+- [Context Fusion Engine](context-fusion-engine.md) - Context engineering details
+- [Reasoning Engine](reasoning-engine.md) - Reasoning engine design
+
+**Historical** (archived):
+- See `archive/` directory for historical status files and planning documents
+
 ### Technical Documentation
-- System Overview - *To be created* - Detailed system architecture
-- Component Design - *To be created* - Individual component architectures
-- Network Architecture - *To be created* - Network topology and security
+- [System Overview](system-overview.md) - Detailed system architecture
+- [Component Design](component-design.md) - Individual component architectures
+- [Network Architecture](network-architecture.md) - Network topology and security
 - MITRE ATT&CK Mapping - *To be created* - Attack technique coverage
 - Database Schema - *To be created* - Data models and relationships
 

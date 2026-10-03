@@ -1,153 +1,256 @@
-# Project Medusa - Target Environment (Mock EHR Application)
+# MEDUSA Web Application
 
-## ⚠️ Important: This is ONE HALF of Project Medusa
-
-This repository contains the **TARGET ENVIRONMENT** - a high-fidelity mock Electronic Health Record (EHR) web application. The other half, the **Medusa CLI** (Command & Control interface), is located in a separate directory.
+Modern, responsive web dashboard for the MEDUSA (Multi-Environment Dynamic Universal Security Assessment) AI penetration testing system.
 
 ## Overview
 
-This Next.js application serves as a realistic-looking target for the Medusa AI adversary simulation. It provides a professional, tangible interface that demonstrates what the AI agent is attempting to compromise during security research operations.
-
-### Key Characteristics
-
-- **High-Fidelity Mock**: Professional UI that looks like a real EHR system
-- **No Real Backend**: All data is static/mocked - no database, no real authentication
-- **Presentation-Ready**: Clean, modern interface suitable for demonstrations
-- **Contained Environment**: Operates within a Docker kill box for security
-
-## Technology Stack
-
-- **Framework**: Next.js 15 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Runtime**: Node.js
+The MEDUSA webapp is a Next.js 14 application that provides a real-time monitoring and control interface for AI-powered penetration testing operations.
 
 ## Features
 
-### 1. User Authentication
-Professional login screen with:
-- Username/password interface
-- Mock authentication (any credentials work)
-- Corporate branding and styling
+- **Operations Center**: Monitor and manage active penetration testing operations
+- **Real-time Terminal**: Interactive terminal interface with command execution
+- **Reports Dashboard**: View and analyze security assessment reports
+- **Cost Tracking**: Monitor API usage and costs for AI operations
+- **System Status**: Track agent health and zombie detection
+- **Settings Management**: Configure API keys and system preferences
 
-### 2. Patient Dashboard
-Central command center showing:
-- Complete patient list
-- Critical statistics
-- Quick access to patient records
-- Allergy alerts and status indicators
+## Technology Stack
 
-### 3. Detailed Patient Records
-Individual patient pages featuring:
-- Complete demographic information
-- **Critical allergy alerts** with visual warnings
-- Current medications
-- Medical conditions
-- Insurance information
-- Emergency contacts
-- Appointment history
+- **Framework**: Next.js 14 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **Charts**: Recharts
+- **Icons**: Lucide React
+- **Animations**: Framer Motion
 
-### 4. Professional UI/UX
-- Dark-themed, modern interface
-- Responsive design
-- Healthcare-appropriate color scheme
-- Clean typography and spacing
+## Prerequisites
+
+- Node.js 18+
+- npm or yarn
+- Access to MEDUSA API (locally or deployed)
+
+## Installation
+
+```bash
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env.local
+
+# Update the API URL in .env.local
+```
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env.local` file:
+
+```bash
+# API endpoint for MEDUSA backend
+NEXT_PUBLIC_MEDUSA_API_URL=http://localhost:5000
+
+# Or for production
+NEXT_PUBLIC_MEDUSA_API_URL=https://your-api-url.fly.dev
+```
+
+**Note**: Variables prefixed with `NEXT_PUBLIC_` are embedded in the client-side bundle.
+
+## Development
+
+```bash
+# Run development server
+npm run dev
+
+# Open browser to http://localhost:3000
+```
+
+The development server includes:
+- Hot module replacement
+- Fast refresh
+- TypeScript type checking
+
+## Building
+
+```bash
+# Build for production
+npm run build
+
+# Start production server
+npm start
+```
+
+The build creates a standalone Next.js server in `.next/standalone/`.
+
+## Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed deployment instructions to fly.io.
+
+### Quick Deploy
+
+```bash
+# Deploy to fly.io
+./deploy.sh
+```
 
 ## Project Structure
 
 ```
 medusa-webapp/
 ├── src/
-│   ├── app/
-│   │   ├── page.tsx              # Login page
-│   │   ├── dashboard/
-│   │   │   └── page.tsx          # Patient dashboard
-│   │   └── patient/
-│   │       └── [id]/
-│   │           └── page.tsx      # Individual patient records
-│   └── lib/
-│       └── patients.ts            # Mock patient data
-├── public/                        # Static assets
-└── README.md
+│   ├── app/                  # Next.js App Router pages
+│   │   ├── layout.tsx        # Root layout
+│   │   ├── page.tsx          # Home page
+│   │   ├── globals.css       # Global styles
+│   │   └── api/              # API routes
+│   │       └── health/       # Health check endpoint
+│   ├── components/           # React components
+│   │   ├── MedusaDashboard.tsx
+│   │   ├── Dashboard.tsx
+│   │   ├── Terminal.tsx
+│   │   ├── Operations/       # Operations center components
+│   │   ├── Reports/          # Reports viewer components
+│   │   ├── Cost/             # Cost tracking components
+│   │   ├── System/           # System status components
+│   │   ├── Charts/           # Chart components
+│   │   └── Settings/         # Settings page components
+│   ├── contexts/             # React contexts
+│   │   └── MedusaContext.tsx # Global state management
+│   ├── lib/                  # Utilities
+│   │   └── api.ts            # API client
+│   └── types/                # TypeScript types
+│       └── medusa.ts         # Type definitions
+├── public/                   # Static assets
+├── Dockerfile.fly            # Production Dockerfile for fly.io
+├── fly.toml                  # Fly.io configuration
+├── deploy.sh                 # Deployment script
+├── DEPLOYMENT.md             # Deployment guide
+├── next.config.js            # Next.js configuration
+├── tailwind.config.ts        # Tailwind CSS configuration
+└── package.json              # Dependencies
 ```
 
-## Getting Started
+## Key Components
 
-### Installation
+### MedusaDashboard
+Main dashboard container with navigation and tab switching.
 
-```bash
-npm install
+### OperationsCenter
+Monitor active operations, approve actions, and track progress.
+
+### Terminal
+Interactive terminal for executing commands and viewing output.
+
+### ReportsPage
+View detailed security assessment reports with findings.
+
+### CostDashboard
+Track API costs and usage metrics.
+
+### SystemStatus
+Monitor system health, agent status, and zombie detection.
+
+## API Integration
+
+The webapp communicates with the MEDUSA API (FastAPI backend):
+
+```typescript
+// Example API call
+import { medusaApi } from '@/lib/api';
+
+const operations = await medusaApi.getOperations();
 ```
 
-### Development Server
+API client is configured via `NEXT_PUBLIC_MEDUSA_API_URL`.
+
+## Styling
+
+Uses Tailwind CSS with a dark cybersecurity theme:
+
+- **Primary**: Cyan/blue accents
+- **Background**: Dark slate shades
+- **Text**: Light gray/white
+- **Accents**: Neon cyan, red for alerts
+
+## Performance
+
+- **Standalone mode**: Optimized production bundle
+- **Dynamic rendering**: Real-time data updates
+- **Component-level code splitting**: Faster page loads
+- **Optimized images and fonts**: Next.js automatic optimization
+
+## Browser Support
+
+- Chrome/Edge (latest)
+- Firefox (latest)
+- Safari (latest)
+
+## Development Tips
+
+### Hot Reload Issues
+
+If hot reload stops working:
 
 ```bash
+# Clear Next.js cache
+rm -rf .next
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+### Type Checking
 
-### Login
+```bash
+# Run TypeScript checks
+npx tsc --noEmit
+```
 
-Use **any username and password** to access the system. For example:
-- Username: `admin`
-- Password: `password`
+### Linting
 
-## Mock Data
+```bash
+# Run ESLint
+npm run lint
+```
 
-The application includes 5 mock patient records with realistic:
-- Patient demographics
-- Medical histories
-- Current medications
-- Allergies (highlighted with critical alerts)
-- Medical conditions
-- Insurance information
+## Troubleshooting
 
-All data is stored in `/src/lib/patients.ts` and served statically from the frontend.
+### API Connection Failed
 
-## The Two-Sided Project
+1. Check `NEXT_PUBLIC_MEDUSA_API_URL` is set correctly
+2. Verify API is running and accessible
+3. Check CORS settings on API
 
-### This Application (Target)
-- **Purpose**: Realistic target environment
-- **Location**: `devprojects/medusa-webapp/`
-- **Technology**: Next.js web application
-- **Interaction**: Passive target for agent operations
+### Build Errors
 
-### The Medusa CLI (Operator)
-- **Purpose**: AI agent command & control
-- **Location**: `devprojects/medusa-cli/`
-- **Technology**: CLI application (separate repository)
-- **Interaction**: Active offensive operations
+1. Clear cache: `rm -rf .next node_modules`
+2. Reinstall: `npm install`
+3. Rebuild: `npm run build`
 
-## Use Cases
+### Styling Issues
 
-1. **Security Research**: Test AI-driven offensive techniques
-2. **Red Team Training**: Demonstrate post-exploitation scenarios
-3. **Presentations**: Show realistic adversarial AI capabilities
-4. **Defense Development**: Understand AI-powered threats
-
-## Security Note
-
-⚠️ **This is a non-functional mock application**
-- No real authentication mechanisms
-- No actual database or backend
-- No real patient data
-- Designed for contained testing environments only
-
-## Development Roadmap
-
-- [x] Basic authentication UI
-- [x] Patient dashboard
-- [x] Individual patient records
-- [x] Allergy alert system
-- [ ] Docker containerization
-- [ ] Additional mock features as needed
-- [ ] Enhanced realism for demonstrations
+1. Check Tailwind CSS is compiling: Look for `globals.css`
+2. Verify PostCSS config: `postcss.config.js`
+3. Clear cache and rebuild
 
 ## Contributing
 
-This is an offensive security research project. Contributions should maintain the high-fidelity mock nature while keeping the application simple and presentation-ready.
+This is part of the MEDUSA project. See the main repository for contribution guidelines.
 
----
+## License
 
-**Project Medusa** - AI Adversary Simulation Research Initiative
+Part of the MEDUSA project - see main repository for license information.
+
+## Related Documentation
+
+- [API Documentation](../medusa-cli/docs/API.md)
+- [Deployment Guide](./DEPLOYMENT.md)
+- [Project Architecture](../STRUCTURE.md)
+
+## Support
+
+For issues and questions:
+- Check existing documentation
+- Review logs: `npm run dev` or `flyctl logs`
+- Report issues in the main repository
+

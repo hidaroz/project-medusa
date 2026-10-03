@@ -16,7 +16,7 @@ keywords = ["security", "penetration-testing", "ai", "red-team"]
 dependencies = [
     "typer[all]>=0.20.0",
     "click>=8.0.0",  # Required for typer 0.20.0+ compatibility
-    "rich>=14.0.0",
+    "rich>=12.0.0,<14.0.0",
     "prompt-toolkit>=3.0.0",
     "httpx>=0.26.0",
     "pyyaml>=6.0.1",
@@ -25,15 +25,29 @@ dependencies = [
     "flask>=3.0.0",
     "flask-cors>=4.0.0",
     "python-dotenv>=1.0.0",
+    "neo4j>=5.14.1",
+    "pydantic>=2.9.0",  # Updated for Python 3.13 compatibility
+    "aiohttp>=3.9.0",
+    "gunicorn>=21.2.0",
+    "flask-limiter>=3.5.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "psycopg-pool>=3.2.0",
+    "psycopg[binary]>=3.1.0",
+    "langgraph>=0.0.10",
+    "langchain>=0.1.0",
+    "langchain-core>=0.1.0",
+    "langgraph-checkpoint-postgres>=1.0.0",
+    "openai>=1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4.3",
     "pytest-cov>=4.1.0",
-    "black>=23.12.1",
-    "flake8>=6.1.0",
-    "mypy>=1.7.1",
+    "black>=24.1.1",
+    "flake8>=7.0.0",
+    "mypy>=1.8.0",
 ]
 
 [project.scripts]

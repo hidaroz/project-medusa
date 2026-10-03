@@ -22,13 +22,12 @@ class Config:
     CONFIG_FILE = "config.yaml"
     LOGS_DIR = "logs"
     REPORTS_DIR = "reports"
-
+    
     # Default LLM configuration (LLM-agnostic)
     DEFAULT_LLM_CONFIG = {
-        "provider": "auto",  # auto, local, google, gemini, openai, anthropic, mock
+        "provider": "auto",  # auto, local, openai, anthropic, mock
         "local_model": "mistral:7b-instruct",
         "ollama_url": "http://localhost:11434",
-        "cloud_model": "gemini-1.5-flash-latest",  # Default cloud model (Google Gemini)
         "temperature": 0.7,
         "max_tokens": 2048,
         "timeout": 60,
@@ -53,6 +52,18 @@ class Config:
         """Check if configuration file exists"""
         return self.config_path.exists()
 
+    def _expand_env_vars(self, data: Any) -> Any:
+        """Recursively expand environment variables in config data"""
+        if isinstance(data, dict):
+            return {key: self._expand_env_vars(value) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self._expand_env_vars(item) for item in data]
+        elif isinstance(data, str) and data.startswith('${') and data.endswith('}'):
+            env_var = data[2:-1]
+            return os.getenv(env_var)
+        else:
+            return data
+
     def load(self) -> Dict[str, Any]:
         """Load configuration from file"""
         if not self.exists():
@@ -62,6 +73,8 @@ class Config:
 
         with open(self.config_path, "r") as f:
             self.config_data = yaml.safe_load(f) or {}
+
+        self.config_data = self._expand_env_vars(self.config_data)
 
         return self.config_data
 
@@ -78,24 +91,24 @@ class Config:
         if not self.config_data:
             self.load()
         return self.config_data.get(key, default)
-
+    
     def get_llm_config(self) -> Dict[str, Any]:
         """Get LLM configuration with defaults"""
         if not self.config_data:
             self.load()
-
+        
         llm_config = self.config_data.get("llm", {})
-
+        
         # Merge with defaults
         config = self.DEFAULT_LLM_CONFIG.copy()
         config.update(llm_config)
-
+        
         # Legacy compatibility: Map old api_key to cloud_api_key if needed
         if "api_key" in self.config_data and "cloud_api_key" not in config:
             # If we have an old api_key but no provider specified, assume it's for cloud
             if config.get("provider") in ["openai", "anthropic"] or config.get("provider") == "auto":
                 config["cloud_api_key"] = self.config_data["api_key"]
-
+        
         return config
 
     def run_setup_wizard(self) -> Dict[str, Any]:
@@ -118,11 +131,12 @@ class Config:
         console.print("MEDUSA uses AI for intelligent penetration testing decisions.")
         console.print("\nChoose your LLM provider:")
         console.print("  1. [green]Local (Ollama)[/green] - Recommended (free, private, unlimited)")
-        console.print("  2. [yellow]Cloud (OpenAI/Anthropic)[/yellow] - Requires API key")
-        console.print("  3. [dim]Mock (Testing only)[/dim] - No real AI")
+        console.print("  2. [blue]AWS Bedrock (Claude 3.5)[/blue] - Enterprise-grade, smart routing, ~$0.25/scan")
+        console.print("  3. [yellow]Cloud (OpenAI/Anthropic)[/yellow] - Requires API key")
+        console.print("  4. [dim]Mock (Testing only)[/dim] - No real AI")
 
-        provider_choice = Prompt.ask("Choice", choices=["1", "2", "3"], default="1")
-
+        provider_choice = Prompt.ask("Choice", choices=["1", "2", "3", "4"], default="1")
+        
         llm_config = {
             "temperature": 0.7,
             "max_tokens": 2048,
@@ -130,16 +144,16 @@ class Config:
             "max_retries": 3,
             "mock_mode": False
         }
-
+        
         if provider_choice == "1":
             # Local Ollama provider
             llm_config["provider"] = "local"
             llm_config["local_model"] = "mistral:7b-instruct"
             llm_config["ollama_url"] = "http://localhost:11434"
-
+            
             console.print("\n[cyan]Local Ollama Configuration[/cyan]")
             console.print("Using local Mistral-7B-Instruct model via Ollama.")
-
+            
             # Check if Ollama is available
             import httpx
             try:
@@ -164,10 +178,132 @@ class Config:
                 console.print("  Install: [cyan]curl -fsSL https://ollama.com/install.sh | sh[/cyan]")
                 console.print("  Pull model: [cyan]ollama pull mistral:7b-instruct[/cyan]")
                 console.print("  Start: [cyan]ollama serve[/cyan]")
-
+            
             console.print("\n[green]✓ Local provider configured[/green]\n")
 
         elif provider_choice == "2":
+            # AWS Bedrock provider
+            llm_config["provider"] = "bedrock"
+
+            console.print("\n[cyan]AWS Bedrock Configuration[/cyan]")
+            console.print("AWS Bedrock provides Claude 3.5 Sonnet and Haiku models")
+            console.print("Learn more: [link]https://docs.medusa.ai/bedrock-setup[/link]\n")
+
+            console.print("[bold]Step 1: AWS Region[/bold]")
+            console.print("Bedrock is available in: us-east-1, us-west-2, eu-west-1, ap-southeast-1")
+            aws_region = Prompt.ask(
+                "Select AWS region",
+                default="us-west-2",
+                choices=["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]
+            )
+            llm_config["aws_region"] = aws_region
+
+            console.print("\n[bold]Step 2: AWS Credentials[/bold]")
+            console.print("Choose credential configuration method:")
+            console.print("  1. [green]AWS CLI (Recommended)[/green] - Use existing ~/.aws/credentials")
+            console.print("  2. [yellow]Environment Variables[/yellow] - Set AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY")
+            console.print("  3. [dim]Skip[/dim] - Configure manually later")
+
+            cred_choice = Prompt.ask("Choice", choices=["1", "2", "3"], default="1")
+
+            if cred_choice == "1":
+                # AWS CLI - check if configured
+                console.print("\nChecking AWS CLI configuration...")
+                try:
+                    import subprocess
+                    result = subprocess.run(
+                        ["aws", "sts", "get-caller-identity", "--region", aws_region],
+                        capture_output=True,
+                        text=True,
+                        timeout=5
+                    )
+                    if result.returncode == 0:
+                        console.print("[green]✓ AWS credentials found and valid[/green]")
+                        # Don't store credentials in config - use AWS credential chain
+                    else:
+                        console.print("[yellow]⚠ AWS CLI not configured[/yellow]")
+                        console.print("\nRun: [cyan]aws configure[/cyan]")
+                        console.print("You'll need:")
+                        console.print("  - AWS Access Key ID")
+                        console.print("  - AWS Secret Access Key")
+                        console.print("  - Region: [cyan]{aws_region}[/cyan]")
+                        console.print("\nContinuing with setup...")
+                except (FileNotFoundError, subprocess.TimeoutExpired):
+                    console.print("[yellow]⚠ AWS CLI not found[/yellow]")
+                    console.print("Install: [cyan]pip install awscli && aws configure[/cyan]")
+
+            elif cred_choice == "2":
+                # Environment variables
+                console.print("\n[cyan]Set these environment variables:[/cyan]")
+                console.print("  export AWS_ACCESS_KEY_ID=your_access_key")
+                console.print("  export AWS_SECRET_ACCESS_KEY=your_secret_key")
+                console.print("  export AWS_REGION={aws_region}")
+                console.print("\n[yellow]⚠ Do not store credentials in config.yaml[/yellow]")
+
+            else:
+                console.print("\n[yellow]⚠ Credentials not configured[/yellow]")
+                console.print("See setup guide: [link]docs/00-getting-started/bedrock-setup.md[/link]")
+
+            console.print("\n[bold]Step 3: Model Access[/bold]")
+            console.print("You must enable model access in AWS Console:")
+            console.print("  1. Go to AWS Bedrock → Model access")
+            console.print("  2. Click 'Modify model access'")
+            console.print("  3. Enable: Anthropic Claude 3.5 Sonnet")
+            console.print("  4. Enable: Anthropic Claude 3.5 Haiku")
+            console.print("\nAccess is usually granted instantly.")
+
+            model_access = Confirm.ask("\nHave you enabled model access?", default=False)
+
+            if model_access:
+                console.print("[green]✓ Model access confirmed[/green]")
+            else:
+                console.print("[yellow]⚠ Enable model access before running MEDUSA[/yellow]")
+
+            # Configure smart routing models
+            llm_config["smart_model"] = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+            llm_config["fast_model"] = "anthropic.claude-3-5-haiku-20241022-v1:0"
+            llm_config["cloud_model"] = "anthropic.claude-3-5-haiku-20241022-v1:0"
+
+            console.print("\n[bold]Smart Model Routing Enabled:[/bold]")
+            console.print("  • Complex tasks → Claude 3.5 Sonnet ($3/$15 per 1M tokens)")
+            console.print("  • Simple tasks → Claude 3.5 Haiku ($0.80/$4 per 1M tokens)")
+            console.print("  • Est. cost savings: ~60%")
+            console.print("  • Typical scan: $0.20-0.30")
+
+            # Verify connection
+            console.print("\n[bold]Verifying connection...[/bold]")
+            try:
+                import boto3
+                from botocore.exceptions import ClientError, NoCredentialsError
+
+                bedrock = boto3.client('bedrock-runtime', region_name=aws_region)
+
+                # Try to invoke model (minimal test)
+                test_response = bedrock.invoke_model(
+                    modelId="anthropic.claude-3-5-haiku-20241022-v1:0",
+                    body='{"anthropic_version":"bedrock-2023-05-31","max_tokens":10,"messages":[{"role":"user","content":"test"}]}'
+                )
+
+                console.print("[green]✓ AWS Bedrock connection successful[/green]")
+                console.print("[green]✓ Model access verified[/green]")
+                console.print("[green]✓ Smart routing configured[/green]\n")
+
+            except NoCredentialsError:
+                console.print("[yellow]⚠ AWS credentials not found[/yellow]")
+                console.print("Configure credentials before using Bedrock\n")
+            except ClientError as e:
+                error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+                if error_code == 'AccessDeniedException':
+                    console.print("[yellow]⚠ Model access not enabled[/yellow]")
+                    console.print("Enable Claude 3.5 models in AWS Console\n")
+                else:
+                    console.print(f"[yellow]⚠ Connection error: {error_code}[/yellow]\n")
+            except Exception as e:
+                console.print(f"[yellow]⚠ Could not verify connection: {str(e)}[/yellow]\n")
+
+            console.print("[green]✓ AWS Bedrock configured[/green]\n")
+
+        elif provider_choice == "3":
             # Cloud provider
             console.print("\n[cyan]Cloud Provider Configuration[/cyan]")
             cloud_provider = Prompt.ask(
@@ -175,9 +311,9 @@ class Config:
                 choices=["openai", "anthropic"],
                 default="openai"
             )
-
+            
             llm_config["provider"] = cloud_provider
-
+            
             if cloud_provider == "openai":
                 console.print("\nGet your API key from: [link]https://platform.openai.com/api-keys[/link]")
                 api_key = Prompt.ask("Enter your OpenAI API key", password=True)
@@ -194,20 +330,20 @@ class Config:
                     "Model name",
                     default="claude-3-sonnet-20240229"
                 )
-
+            
             # Validate API key format
             if len(api_key) < 20:
                 console.print("[red]✗ Invalid API key format[/red]")
                 return {}
-
+            
             console.print("[green]✓ Cloud provider configured[/green]\n")
-
+            
         else:  # Mock
             llm_config["provider"] = "mock"
             llm_config["mock_mode"] = True
             console.print("\n[yellow]⚠ Mock mode enabled - no real AI will be used[/yellow]")
             console.print("[green]✓ Mock provider configured[/green]\n")
-
+        
         config["llm"] = llm_config
 
         # Step 2: Target Environment
@@ -223,7 +359,7 @@ class Config:
             default="1",
             show_choices=True
         )
-
+        
         target_type = "docker" if choice == "1" else "custom"
         console.print(f"[green]✓ {target_type.title()} environment selected[/green]\n")
 

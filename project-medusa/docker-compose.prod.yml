@@ -1,0 +1,102 @@
+services:
+  # PostgreSQL database for LangGraph checkpointing
+  postgres:
+    image: postgres:15-alpine
+    container_name: medusa_postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-medusa}
+      POSTGRES_USER: ${POSTGRES_USER:-medusa}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-medusa_secure_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - medusa_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-medusa}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
+
+  # MEDUSA API Server
+  medusa-api:
+    build:
+      context: .
+      dockerfile: ./medusa-cli/Dockerfile.api
+    container_name: medusa_api
+    restart: always
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # PostgreSQL connection for LangGraph checkpointer
+      POSTGRES_URI: postgresql://${POSTGRES_USER:-medusa}:${POSTGRES_PASSWORD:-medusa_secure_password}@postgres:5432/${POSTGRES_DB:-medusa}
+
+      # API Configuration
+      MEDUSA_API_PORT: 8000
+      PORT: 8000
+      PYTHONUNBUFFERED: 1
+
+      # LLM Configuration
+      LLM_PROVIDER: ${LLM_PROVIDER:-local}
+      LLM_LOCAL_MODEL: ${LLM_LOCAL_MODEL:-mistral:7b-instruct}
+      LLM_OLLAMA_URL: ${LLM_OLLAMA_URL:-http://host.docker.internal:11434}
+
+      # Frontend CORS
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000,http://localhost:3001}
+
+      # Neo4j (if using world model)
+      NEO4J_URI: ${NEO4J_URI:-bolt://neo4j:7687}
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-medusa_graph_pass}
+    volumes:
+      # Persist logs and reports
+      - medusa-logs:/home/medusa/.medusa/logs
+      - medusa-reports:/home/medusa/.medusa/reports
+    networks:
+      - medusa_net
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Neo4j Graph Database (Optional - for World Model)
+  neo4j:
+    image: neo4j:5.15-community
+    container_name: medusa_neo4j
+    restart: always
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME:-neo4j}/${NEO4J_PASSWORD:-medusa_graph_pass}
+      NEO4J_PLUGINS: '["apoc"]'
+    volumes:
+      - neo4j-data:/data
+    networks:
+      - medusa_net
+    ports:
+      - "7474:7474"  # HTTP
+      - "7687:7687"  # Bolt
+    healthcheck:
+      test: ["CMD", "cypher-shell", "-u", "${NEO4J_USERNAME:-neo4j}", "-p", "${NEO4J_PASSWORD:-medusa_graph_pass}", "RETURN 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  postgres-data:
+    driver: local
+  medusa-logs:
+    driver: local
+  medusa-reports:
+    driver: local
+  neo4j-data:
+    driver: local
+
+networks:
+  medusa_net:
+    driver: bridge

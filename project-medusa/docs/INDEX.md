@@ -22,11 +22,11 @@
 
 **Path**: `/docs/00-getting-started/`
 
-- Quick Start (CLI) - *To be created*
-- Quick Start (Docker) - *To be created*
-- Installation Guide - *To be created*
-- Troubleshooting - *To be created*
-- [Dashboard Setup](MEDUSA_DASHBOARD_SETUP.md) - Web UI installation
+- [CLI Quick Start](00-getting-started/cli-quickstart.md) - Get MEDUSA CLI running in 5 minutes
+- [AWS Bedrock Setup](00-getting-started/bedrock-setup.md) - Configure AWS Bedrock for enterprise-grade LLM
+- [Local LLM Setup](00-getting-started/llm-quickstart.md) - Use Ollama for offline AI (recommended)
+- [Docker Lab Setup](00-getting-started/dashboard-setup.md) - Deploy vulnerable test environment
+- [Troubleshooting](00-getting-started/troubleshooting.md) - Common issues and solutions
 
 **Current Location References**:
 - [Quick Start Dashboard](QUICK_START_MEDUSA_DASHBOARD.md)
@@ -39,15 +39,21 @@
 
 **Path**: `/docs/01-architecture/`
 
-- System Overview - *To be created*
-- Component Design - *To be created*
-- Network Architecture - *To be created*
+- [**Multi-Agent Evolution Plan**](01-architecture/multi-agent-evolution-plan.md) - 🚀 **NEW: Comprehensive implementation plan for AWS Bedrock, Vector DB, and Multi-Agent System**
+- [**Implementation Status**](01-architecture/IMPLEMENTATION-STATUS.md) - ✅ **Current implementation status (consolidated)**
+- [**System Overview**](01-architecture/system-overview.md) - High-level architecture and design principles
+- [**Component Design**](01-architecture/component-design.md) - Detailed technical specifications for all components
+- [**Network Architecture**](01-architecture/network-architecture.md) - Lab environment topology and attack paths
+- [**LangGraph Migration**](01-architecture/langgraph-migration.md) - LangGraph multi-agent implementation details
+- [Project Overview](01-architecture/project-overview.md) - Legacy project overview
+- [CLI Architecture](01-architecture/cli-architecture.md) - CLI component design
 - MITRE ATT&CK Mapping - *To be created*
 - Database Schema - *To be created*
 
 **Current Location References**:
 - [Project Overview](PROJECT_MEDUSA_OVERVIEW.md)
 - Architecture docs: `/docs/architecture/`
+
 
 ---
 
@@ -160,12 +166,17 @@
 **Path**: `/docs/08-project-management/`
 
 **Subdirectories**:
+- `planning/` - Strategic planning and task division
 - `audits/` - Project audits and reports
 - `feedback/` - Stakeholder and class feedback
 - `qa/` - Quality assurance documentation
 - `timelines/` - Project schedules and milestones
 
 **Current Location References**:
+- **Planning Documents** (see [`planning/README.md`](08-project-management/planning/README.md)):
+  - [AI Agent Task Division](08-project-management/planning/AI_AGENT_TASK_DIVISION_CLI_FOCUSED.md)
+  - [CLI Priority Guide](08-project-management/planning/CLI_PRIORITY_GUIDE.md)
+  - [Priority Matrix](08-project-management/planning/QUICK_PRIORITY_MATRIX.md)
 - [Product Requirements Document](MEDUSA_PRD.md)
 - [Project Timeline](PROJECT_TIMELINE.md)
 - [Audit Report](project-management/AUDIT_REPORT.md)

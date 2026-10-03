@@ -163,7 +163,30 @@ class MockProvider(BaseLLMProvider):
 
         # Vulnerability assessment responses
         elif "vulnerability" in prompt_lower or "risk" in prompt_lower:
-            if "sql" in prompt_lower or "injection" in prompt_lower:
+            if force_json and "vulnerabilities" in prompt_lower:
+                 return """{
+    "vulnerabilities": [
+        {
+            "vulnerability_type": "OpenSSH 7.4 Vulnerability",
+            "cve_references": ["CVE-2016-10009"],
+            "severity": "high",
+            "cvss_score": 7.5,
+            "exploitability": "high",
+            "affected_service": "ssh",
+            "description": "Vulnerability in OpenSSH 7.4 allows remote code execution"
+        },
+        {
+            "vulnerability_type": "Apache 2.4.6 Misconfiguration",
+            "cve_references": ["CVE-2017-15715"],
+            "severity": "medium",
+            "cvss_score": 5.0,
+            "exploitability": "medium",
+            "affected_service": "http",
+            "description": "Misconfiguration in Apache allows bypass of access controls"
+        }
+    ]
+}"""
+            elif "sql" in prompt_lower or "injection" in prompt_lower:
                 return "HIGH"
             elif "xss" in prompt_lower or "csrf" in prompt_lower:
                 return "MEDIUM"
@@ -264,6 +287,26 @@ class MockProvider(BaseLLMProvider):
 }"""
             else:
                 return "Recommend proceeding with SQL injection exploitation."
+
+        # Supervisor routing responses
+        elif "who should act next" in prompt_lower or "supervisor" in prompt_lower:
+            if force_json:
+                # Simple state machine for mock supervisor
+                if "reconnaissance completed" in prompt_lower:
+                    return '{"next_worker": "VulnerabilityAnalysis"}'
+                elif "vulnerability analysis completed" in prompt_lower:
+                    return '{"next_worker": "Planning"}'
+                elif "strategic plan created" in prompt_lower:
+                    return '{"next_worker": "Exploitation"}'
+                elif "exploitation completed" in prompt_lower:
+                    return '{"next_worker": "Reporting"}'
+                elif "report generated" in prompt_lower:
+                    return '{"next_worker": "FINISH"}'
+                else:
+                    # Default start state
+                    return '{"next_worker": "Reconnaissance"}'
+            else:
+                return "Reconnaissance"
 
         # Default response
         else:
