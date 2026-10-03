@@ -5,6 +5,7 @@ LLM configuration for MEDUSA.
 import os
 from dataclasses import dataclass, field
 from typing import Optional
+from .exceptions import LLMConfigurationError
 
 
 @dataclass
@@ -26,7 +27,6 @@ class LLMConfig:
     """
 
     # Provider selection
-    # Options: "local" (Ollama), "google" or "gemini" (Google Gemini), "openai", "anthropic", "mock", "auto"
     provider: str = field(
         default_factory=lambda: os.getenv("LLM_PROVIDER", "auto")
     )
@@ -41,13 +41,32 @@ class LLMConfig:
 
     # Cloud provider settings (optional)
     cloud_api_key: Optional[str] = field(
-        default_factory=lambda: os.getenv("CLOUD_API_KEY")
+        default_factory=lambda: os.getenv("CLOUD_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
     )
     cloud_model: Optional[str] = field(
         default_factory=lambda: os.getenv("CLOUD_MODEL")
     )
     cloud_base_url: Optional[str] = field(
         default_factory=lambda: os.getenv("CLOUD_BASE_URL")
+    )
+
+    # AWS Bedrock configuration
+    aws_region: Optional[str] = field(
+        default_factory=lambda: os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION"))
+    )
+    aws_access_key_id: Optional[str] = field(
+        default_factory=lambda: os.getenv("AWS_ACCESS_KEY_ID")
+    )
+    aws_secret_access_key: Optional[str] = field(
+        default_factory=lambda: os.getenv("AWS_SECRET_ACCESS_KEY")
+    )
+
+    # Model selection strategy
+    smart_model: str = field(
+        default_factory=lambda: os.getenv("SMART_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+    )
+    fast_model: str = field(
+        default_factory=lambda: os.getenv("FAST_MODEL", "anthropic.claude-3-5-haiku-20241022-v1:0")
     )
 
     # Generation parameters
@@ -82,10 +101,6 @@ class LLMConfig:
                 self.cloud_model = self.model
                 if not self.provider or self.provider == "auto":
                     self.provider = "openai"
-            elif "gemini" in self.model.lower():
-                self.cloud_model = self.model
-                if not self.provider or self.provider == "auto":
-                    self.provider = "google"
             elif "claude" in self.model.lower():
                 self.cloud_model = self.model
                 if not self.provider or self.provider == "auto":
@@ -94,6 +109,10 @@ class LLMConfig:
         # Map legacy 'api_key' to cloud_api_key if set
         if self.api_key and not self.cloud_api_key:
             self.cloud_api_key = self.api_key
+
+        # Fallback: If cloud_api_key is still None (e.g. passed as None from config dict), try env vars
+        if not self.cloud_api_key:
+            self.cloud_api_key = os.getenv("CLOUD_API_KEY") or os.getenv("OPENAI_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
 
     @classmethod
     def from_env(cls) -> "LLMConfig":
@@ -104,28 +123,30 @@ class LLMConfig:
         """Validate configuration"""
         if self.provider == "local":
             if not self.local_model:
-                raise ValueError("local_model is required for local provider")
+                raise LLMConfigurationError("local_model is required for local provider")
 
         elif self.provider == "openai":
             if not self.cloud_api_key:
-                raise ValueError("cloud_api_key is required for OpenAI provider")
+                raise LLMConfigurationError("cloud_api_key is required for OpenAI provider")
             if not self.cloud_model:
                 self.cloud_model = "gpt-4-turbo-preview"
 
-        elif self.provider == "google" or self.provider == "gemini":
-            if not self.cloud_api_key:
-                raise ValueError("cloud_api_key is required for Google Gemini provider")
-            if not self.cloud_model:
-                self.cloud_model = "gemini-1.5-flash-latest"
-
         elif self.provider == "anthropic":
             if not self.cloud_api_key:
-                raise ValueError("cloud_api_key is required for Anthropic provider")
+                raise LLMConfigurationError("cloud_api_key is required for Anthropic provider")
             if not self.cloud_model:
                 self.cloud_model = "claude-3-sonnet-20240229"
 
+        elif self.provider == "bedrock":
+            # AWS credentials can come from env vars, ~/.aws/credentials, or IAM roles
+            # We don't enforce them here as boto3 handles credential chain
+            if not self.cloud_model:
+                self.cloud_model = "anthropic.claude-3-5-haiku-20241022-v1:0"
+            if not self.aws_region:
+                self.aws_region = "us-west-2"
+
         elif self.provider not in ["auto", "mock"]:
-            raise ValueError(
+            raise LLMConfigurationError(
                 f"Unknown provider: {self.provider}. "
-                f"Valid: local, google, gemini, openai, anthropic, mock, auto"
+                f"Valid: local, openai, anthropic, bedrock, mock, auto"
             )

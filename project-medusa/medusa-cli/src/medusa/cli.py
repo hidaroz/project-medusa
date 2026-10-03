@@ -18,6 +18,8 @@ from medusa.display import display
 from medusa.modes import AutonomousMode, InteractiveMode, ObserveMode
 from medusa.error_handler import error_handler_decorator, handle_error
 from medusa.first_run import is_first_run, run_first_time_wizard
+from medusa.cli_multi_agent import agent_app
+from medusa.commands.graph_run import run_graph_command
 
 app = typer.Typer(
     name="medusa",
@@ -30,6 +32,14 @@ console = Console()
 # LLM command group
 llm_app = typer.Typer(help="LLM utilities and diagnostics")
 app.add_typer(llm_app, name="llm")
+
+# Multi-agent command group
+app.add_typer(agent_app, name="agent")
+
+# Graph command group
+graph_app = typer.Typer(help="LangGraph autonomous agent commands")
+app.add_typer(graph_app, name="graph")
+graph_app.command("run")(run_graph_command)
 
 
 @llm_app.command("verify")
@@ -147,7 +157,7 @@ def llm_verify():
 
 
 @app.callback(invoke_without_command=True)
-def main_callback():
+def main_callback(ctx: typer.Context):
     """
     Main callback - runs when no command is provided.
     Handles first-run experience and shows help.
@@ -158,8 +168,10 @@ def main_callback():
         run_first_time_wizard(config.exists())
     else:
         # Show banner and help if no command provided
-        display.show_banner()
-        console.print("\nUse [bold cyan]medusa --help[/bold cyan] to see available commands.")
+        # Only show if no command was actually invoked
+        if ctx.invoked_subcommand is None:
+            display.show_banner()
+            console.print("\nUse [bold cyan]medusa --help[/bold cyan] to see available commands.")
 
 
 @app.command()
@@ -214,6 +226,12 @@ def run(
     ),
     mode: Optional[str] = typer.Option(
         None, "--mode", "-m", help="Operating mode: autonomous, interactive, observe"
+    ),
+    loop: bool = typer.Option(
+        False, "--loop", "-l", help="Run continuously in a loop"
+    ),
+    interval: int = typer.Option(
+        3600, "--interval", "-i", help="Interval between runs in seconds (default: 3600)"
     ),
 ):
     """
@@ -287,11 +305,28 @@ def run(
             )
             raise typer.Exit(1)
 
-    # Get API key
-    api_key = config_data.get("api_key")
-    if not api_key:
-        console.print("[red]Error: No API key found in configuration.[/red]")
-        raise typer.Exit(1)
+    # Get LLM config to determine if API key is needed
+    llm_config = config.get_llm_config()
+    provider = llm_config.get("provider", "auto")
+    
+    # Check if API key is required (only for cloud providers)
+    api_key = config_data.get("api_key") or llm_config.get("cloud_api_key")
+    
+    # Only require API key for cloud providers
+    if provider in ["openai", "anthropic"]:
+        if not api_key:
+            console.print("[red]Error: API key required for cloud LLM provider.[/red]")
+            console.print(f"\n[yellow]Provider:[/yellow] {provider}")
+            console.print("[yellow]Solution:[/yellow]")
+            console.print("  1. Run [bold]medusa setup[/bold] to configure API key")
+            console.print("  2. Or set [bold]CLOUD_API_KEY[/bold] environment variable")
+            console.print("  3. Or use local provider: [bold]medusa setup[/bold] and choose 'Local (Ollama)'")
+            raise typer.Exit(1)
+    else:
+        # For local/mock/auto providers, API key is optional
+        # Use empty string if not provided (will be ignored)
+        if not api_key:
+            api_key = ""
 
     # Determine mode (priority: --autonomous flag > --mode flag > default)
     if autonomous:
@@ -311,7 +346,7 @@ def run(
 
     # Execute selected mode
     if selected_mode == "autonomous":
-        _run_autonomous_mode(target, api_key, objective)
+        _run_autonomous_mode(target, api_key, objective, loop, interval)
     elif selected_mode == "interactive":
         _run_interactive_mode(target, api_key)
     elif selected_mode == "observe":
@@ -346,7 +381,28 @@ def shell(
         raise typer.Exit(1)
 
     config_data = config.load()
-    api_key = config_data.get("api_key")
+    
+    # Get LLM config to determine if API key is needed
+    llm_config = config.get_llm_config()
+    provider = llm_config.get("provider", "auto")
+    
+    # Check if API key is required (only for cloud providers)
+    api_key = config_data.get("api_key") or llm_config.get("cloud_api_key")
+    
+    # Only require API key for cloud providers
+    if provider in ["openai", "anthropic"]:
+        if not api_key:
+            console.print("[red]Error: API key required for cloud LLM provider.[/red]")
+            console.print(f"\n[yellow]Provider:[/yellow] {provider}")
+            console.print("[yellow]Solution:[/yellow]")
+            console.print("  1. Run [bold]medusa setup[/bold] to configure API key")
+            console.print("  2. Or set [bold]CLOUD_API_KEY[/bold] environment variable")
+            console.print("  3. Or use local provider: [bold]medusa setup[/bold] and choose 'Local (Ollama)'")
+            raise typer.Exit(1)
+    else:
+        # For local/mock/auto providers, API key is optional
+        if not api_key:
+            api_key = ""
 
     # Use configured target if not provided
     if not target:
@@ -386,7 +442,28 @@ def observe(
         raise typer.Exit(1)
 
     config_data = config.load()
-    api_key = config_data.get("api_key")
+    
+    # Get LLM config to determine if API key is needed
+    llm_config = config.get_llm_config()
+    provider = llm_config.get("provider", "auto")
+    
+    # Check if API key is required (only for cloud providers)
+    api_key = config_data.get("api_key") or llm_config.get("cloud_api_key")
+    
+    # Only require API key for cloud providers
+    if provider in ["openai", "anthropic"]:
+        if not api_key:
+            console.print("[red]Error: API key required for cloud LLM provider.[/red]")
+            console.print(f"\n[yellow]Provider:[/yellow] {provider}")
+            console.print("[yellow]Solution:[/yellow]")
+            console.print("  1. Run [bold]medusa setup[/bold] to configure API key")
+            console.print("  2. Or set [bold]CLOUD_API_KEY[/bold] environment variable")
+            console.print("  3. Or use local provider: [bold]medusa setup[/bold] and choose 'Local (Ollama)'")
+            raise typer.Exit(1)
+    else:
+        # For local/mock/auto providers, API key is optional
+        if not api_key:
+            api_key = ""
 
     if not target:
         target = config_data.get("target", {}).get("url")
@@ -1041,17 +1118,32 @@ def reports(
     console.print("[cyan]Tip:[/cyan] Use [bold]--summary[/bold] for statistics")
 
 
-def _run_autonomous_mode(target: str, api_key: str, objective: str = ''):
-    """Run autonomous mode"""
-    try:
-        mode = AutonomousMode(target, api_key, objective=objective)
-        asyncio.run(mode.run())
-    except KeyboardInterrupt:
-        console.print("\n[yellow]⏸️  Operation interrupted by user[/yellow]")
-        sys.exit(0)
-    except Exception as e:
-        handle_error(e)
-        sys.exit(1)
+def _run_autonomous_mode(target: str, api_key: str, objective: str = '', loop: bool = False, interval: int = 3600):
+    """Run autonomous mode (optionally in a continuous loop)"""
+    import time
+
+    while True:
+        try:
+            mode = AutonomousMode(target, api_key, objective=objective)
+            asyncio.run(mode.run())
+
+            if not loop:
+                break
+
+            console.print(f"\n[bold cyan]🔄 Loop enabled. Waiting {interval} seconds for next run...[/bold cyan]")
+            time.sleep(interval)
+            console.print("\n[bold cyan]🚀 Starting next run...[/bold cyan]\n")
+
+        except KeyboardInterrupt:
+            console.print("\n[yellow]⏸️  Operation interrupted by user[/yellow]")
+            sys.exit(0)
+        except Exception as e:
+            handle_error(e)
+            if not loop:
+                sys.exit(1)
+
+            console.print(f"[red]Error occurred: {e}. Retrying in {interval} seconds...[/red]")
+            time.sleep(interval)
 
 
 def _run_interactive_mode(target: Optional[str], api_key: str):
@@ -1076,6 +1168,128 @@ def _run_observe_mode(target: str, api_key: str):
         console.print("\n[yellow]⏸️  Observation interrupted by user[/yellow]")
         sys.exit(0)
     except Exception as e:
+        handle_error(e)
+        sys.exit(1)
+
+
+@app.command()
+def watchdog(
+    api_url: str = typer.Option(
+        "http://localhost:8000",
+        "--api-url",
+        "-u",
+        help="MEDUSA API base URL"
+    ),
+    operation_id: Optional[str] = typer.Option(
+        None,
+        "--operation-id",
+        "-o",
+        help="Specific operation ID to monitor (monitors all if not specified)"
+    ),
+    check_interval: int = typer.Option(
+        30,
+        "--check-interval",
+        "-i",
+        help="Seconds between health checks"
+    ),
+    stuck_threshold: int = typer.Option(
+        600,
+        "--stuck-threshold",
+        "-t",
+        help="Seconds before considering operation stuck (zombie state)"
+    ),
+    auto_restart: bool = typer.Option(
+        False,
+        "--auto-restart",
+        "-r",
+        help="Enable auto-restart on failures (exits with non-zero code for Docker)"
+    ),
+    env_config: bool = typer.Option(
+        False,
+        "--env-config",
+        "-e",
+        help="Load configuration from environment variables"
+    )
+):
+    """
+    🐕 Run the application watchdog to monitor for stuck operations.
+
+    The watchdog monitors the MEDUSA API for "zombie" states where the
+    process is alive but the logic is stuck (e.g., infinite loops, deadlocks).
+
+    Features:
+    - Regular health endpoint pings
+    - State update timestamp monitoring
+    - Alerts on stuck operations
+    - Docker-friendly logging and exit codes
+
+    Exit codes:
+        0 - Normal shutdown
+        1 - Health check failures
+        2 - Stuck operation detected
+        3 - Watchdog service crashed
+
+    Examples:
+        # Monitor all operations with default settings
+        medusa watchdog
+
+        # Monitor specific operation
+        medusa watchdog --operation-id op_123
+
+        # Custom check interval and stuck threshold
+        medusa watchdog --check-interval 60 --stuck-threshold 300
+
+        # Enable auto-restart for Docker deployment
+        medusa watchdog --auto-restart
+
+        # Load config from environment
+        medusa watchdog --env-config
+    """
+    from medusa.core.watchdog import WatchdogService, WatchdogConfig
+    from rich.panel import Panel
+
+    try:
+        if env_config:
+            console.print("[cyan]Loading configuration from environment variables...[/cyan]")
+            config = WatchdogConfig.from_env()
+        else:
+            config = WatchdogConfig(
+                api_base_url=api_url,
+                health_check_interval=check_interval,
+                stuck_threshold=stuck_threshold,
+                enable_auto_restart=auto_restart
+            )
+
+        # Display configuration
+        from rich.table import Table
+        config_table = Table(show_header=False, box=None, padding=(0, 2))
+        config_table.add_row("[bold]API URL[/bold]", f"[cyan]{config.api_base_url}[/cyan]")
+        config_table.add_row("[bold]Check Interval[/bold]", f"[cyan]{config.health_check_interval}s[/cyan]")
+        config_table.add_row("[bold]Stuck Threshold[/bold]", f"[cyan]{config.stuck_threshold}s[/cyan]")
+        config_table.add_row("[bold]Auto-Restart[/bold]", f"[cyan]{config.enable_auto_restart}[/cyan]")
+
+        if operation_id:
+            config_table.add_row("[bold]Operation ID[/bold]", f"[cyan]{operation_id}[/cyan]")
+        else:
+            config_table.add_row("[bold]Mode[/bold]", "[cyan]Monitor all operations[/cyan]")
+
+        console.print(Panel(
+            config_table,
+            title="[bold cyan]🐕 MEDUSA Watchdog[/bold cyan]",
+            border_style="cyan"
+        ))
+
+        console.print("\n[yellow]Starting watchdog monitoring...[/yellow]")
+        console.print("[dim]Press Ctrl+C to stop[/dim]\n")
+
+        watchdog_service = WatchdogService(config)
+        asyncio.run(watchdog_service.monitor_loop(operation_id=operation_id))
+
+    except KeyboardInterrupt:
+        console.print("\n[yellow]⏸️  Watchdog stopped by user[/yellow]")
+        sys.exit(0)
+    except Exception as e:
+        console.print(f"\n[red]❌ Watchdog error: {e}[/red]")
         handle_error(e)
         sys.exit(1)
 

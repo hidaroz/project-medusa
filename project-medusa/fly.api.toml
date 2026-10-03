@@ -1,0 +1,35 @@
+# fly.toml app configuration file generated for medusa-api on 2024-05-20T10:00:00-07:00
+
+app = "medusa-cli"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "medusa-cli/Dockerfile.api"
+
+[env]
+  PYTHONUNBUFFERED = "1"
+  MEDUSA_API_PORT = "8080"
+  FRONTEND_URL = "https://medusa-webapp.fly.dev"
+  LLM_PROVIDER = "local"
+  LLM_LOCAL_MODEL = "mistral:7b-instruct"
+  LLM_OLLAMA_URL = "http://localhost:11434"
+  LLM_MOCK_MODE = "false"
+  TARGET_TYPE = "custom"
+  TARGET_URL = "http://localhost:3001"
+  AUTO_APPROVE_LOW = "true"
+  AUTO_APPROVE_MEDIUM = "false"
+  AUTO_APPROVE_HIGH = "false"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  size = "shared-cpu-1x"
+  cpus = 1
+  memory = "512mb"
+

@@ -1,12 +1,21 @@
 # MEDUSA Quick Start Guide
 
-Get up and running with MEDUSA in 5 minutes.
+**Get up and running with MEDUSA Multi-Agent System in 15-20 minutes**
+
+This guide covers the complete setup including LLM configuration and knowledge base indexing for the full multi-agent experience.
 
 ## Prerequisites
 
 - Python 3.9+
 - pip (Python package manager)
+- **LLM Provider:** AWS Account (Bedrock) OR Ollama (local)
 - Basic understanding of penetration testing concepts
+
+**Time Estimate:**
+- Installation: 2 minutes
+- LLM Setup: 5-10 minutes
+- Knowledge Base Indexing: 10 minutes (multi-agent mode)
+- First scan: 2-5 minutes
 
 ---
 
@@ -44,110 +53,180 @@ medusa --help
 
 ---
 
-## Step 2: Initial Setup (1 minute)
+## Step 2: LLM Provider Setup (5-10 minutes)
 
-Run the setup wizard:
+Choose your LLM provider:
 
-```bash
-medusa setup
-```
-
-You'll be prompted for:
-
-1. **Target URL** (e.g., `http://localhost:3000` or `192.168.1.100`)
-2. **Target Type** (web, api, network)
-3. **API Key** (optional, for AI features)
-4. **Risk Tolerance** (auto-approve low/medium/high risk actions)
-
-**Example:**
-
-```
-Target URL: http://localhost:8080
-Target Type: web
-API Key: sk-proj-abc123... (press Enter to skip)
-Auto-approve low risk: Yes
-Auto-approve medium risk: No
-Auto-approve high risk: No
-```
-
-Once setup is complete, verify with:
+### Option A: AWS Bedrock (Recommended for Production)
 
 ```bash
-medusa status
+# Install AWS CLI
+pip install awscli
+
+# Configure credentials
+aws configure
+# Enter: Access Key ID, Secret Key, Region (us-west-2)
+
+# Set provider
+export LLM_PROVIDER=bedrock
+
+# Verify connection
+medusa llm verify
 ```
+
+**Expected output:**
+```
+✅ AWS Bedrock connected
+✅ Smart routing enabled
+💰 Typical assessment: $0.20-0.30
+```
+
+📚 **[Full Bedrock Setup Guide](00-getting-started/bedrock-setup.md)**
+
+### Option B: Local Ollama (Free, Offline)
+
+```bash
+# Install Ollama
+curl -fsSL https://ollama.com/install.sh | sh
+
+# Pull model
+ollama pull mistral:7b-instruct
+
+# Set provider
+export LLM_PROVIDER=local
+
+# Verify
+medusa llm verify
+```
+
+📚 **[Full Ollama Setup Guide](00-getting-started/llm-quickstart.md)**
 
 ---
 
-## Step 3: Run Your First Scan (2 minutes)
+## Step 3: Index Knowledge Bases (10 minutes)
 
-### Option 1: Automated Scan
+**Required for multi-agent mode** - Enables CVE correlation, MITRE ATT&CK mapping, and tool selection.
 
 ```bash
-medusa run --target http://testapp.local --mode auto
+cd medusa-cli
+
+# Index MITRE ATT&CK framework (~5 min)
+python scripts/index_mitre_attack.py
+
+# Index security tool documentation (~2 min)
+python scripts/index_tool_docs.py
+
+# Index CVE database (~3 min)
+python scripts/index_cves.py
+
+# Verify indexing
+python -c "from medusa.context.vector_store import VectorStore; vs = VectorStore(); print(vs.get_stats())"
 ```
 
-This will:
-1. Run reconnaissance (port scan, service detection)
-2. Enumerate services (web paths, technologies)
-3. Scan for vulnerabilities
-4. Generate a comprehensive report
+**Expected output:**
+```
+📊 Vector Store Statistics:
+  • MITRE Techniques: 230
+  • CVE Entries: 150
+  • Tool Docs: 45
+  • Total Vectors: 425
+```
+
+**Skip this step** if you only want to use single-agent mode (observe/autonomous/shell).
+
+---
+
+## Step 4: Run Your First Assessment (2-5 minutes)
+
+### Option 1: Multi-Agent Assessment (Recommended)
+
+```bash
+# Full assessment with all 6 agents
+medusa agent run scanme.nmap.org --type recon_only
+```
+
+**What happens:**
+1. **Orchestrator** coordinates the operation
+2. **Recon Agent** performs discovery
+3. **Vuln Analysis Agent** correlates with CVE database
+4. **Planning Agent** develops strategy
+5. **Reporting Agent** generates reports
 
 **Expected output:**
 
 ```
-🔴 Starting MEDUSA Autonomous Mode
+🤖 MEDUSA Multi-Agent System
 
-Target: http://testapp.local
+Target: scanme.nmap.org
+Operation: recon_only
 
-Phase 1: Reconnaissance ⚡
+Phase 1: Initialization ⚙️
+  ✓ Orchestrator started (2s)
+  ✓ Vector database loaded (1s) - 425 vectors
+  ✓ Neo4j connected (1s)
+  ✓ 6 agents initialized (1s)
+
+Phase 2: Reconnaissance 🔍
   ✓ Port scan complete (15s) - 3 open ports
-  ✓ Service detection complete (8s) - HTTP, SSH, MySQL
+  ✓ Service detection (8s) - HTTP, SSH, MySQL
+  💰 Cost: $0.03 (Haiku)
 
-Phase 2: Enumeration ⚡
-  ✓ Web enumeration complete (45s) - 12 paths found
-  ✓ Technology detection complete (5s) - PHP 8.0, Apache 2.4
+Phase 3: Vulnerability Analysis 🔎
+  ✓ CVE correlation (12s) - 2 potential matches
+  ✓ Risk assessment (5s) - 1 HIGH, 1 MEDIUM
+  💰 Cost: $0.04 (Haiku)
 
-Phase 3: Vulnerability Scan ⚡
-  ✓ SQL injection test complete (120s) - 1 HIGH severity
-  ✓ XSS test complete (30s) - 0 findings
-  ✓ Misconfiguration scan complete (60s) - 3 MEDIUM severity
+Phase 4: Strategic Planning 🧠
+  ✓ Attack chain developed (18s)
+  ✓ MITRE ATT&CK mapping (3s)
+  💰 Cost: $0.08 (Sonnet - complex reasoning)
 
-✅ Scan complete! (4min 23s)
+Phase 5: Reporting 📊
+  ✓ Executive summary generated (5s)
+  ✓ Technical report generated (3s)
+  💰 Cost: $0.02 (Haiku)
+
+✅ Assessment complete! (2min 35s)
+💰 Total Cost: $0.17
+📊 Smart Routing Savings: 65%
 
 📊 Summary:
-  • Total findings: 7
-  • Critical: 0 | High: 1 | Medium: 3 | Low: 3
-  • Report: /Users/you/.medusa/reports/report-20251106_103422.html
+  • Ports: 3 open
+  • Services: 3 identified
+  • CVE Matches: 2
+  • Findings: 2 (1 HIGH, 1 MEDIUM)
 
-View report: medusa reports --open
+📄 Reports Generated:
+  • Executive: ~/.medusa/reports/exec-20251115-001.md
+  • Technical: ~/.medusa/reports/tech-20251115-001.html
+  • JSON: ~/.medusa/logs/multi-agent-OP-20251115-001.json
+
+View reports: medusa agent report --type technical
 ```
 
-### Option 2: Safe Observation Mode
+### Option 2: Quick Reconnaissance (Single-Agent)
 
 ```bash
-medusa observe http://testapp.local
+medusa observe --target scanme.nmap.org
 ```
 
-This performs read-only reconnaissance:
+**Lightweight, read-only mode** - No multi-agent, no exploitation:
 - Port scanning
 - Service enumeration
 - Technology fingerprinting
-- **NO exploitation or vulnerability testing**
 
 Perfect for:
-- Initial assessment
+- Quick initial assessment
 - Production environments
-- When you need approval before testing
+- Testing MEDUSA setup
 
-### Option 3: Interactive Shell
+### Option 3: Interactive Shell (Legacy)
 
 ```bash
 medusa shell
 ```
 
-Start an interactive shell where you can:
-- Type commands in natural language
-- Get AI-powered suggestions
+Classic interactive shell with AI assistance
 - Control the testing flow manually
 
 **Example session:**
@@ -208,6 +287,62 @@ medusa logs --latest
 ```
 
 Shows detailed logs of the most recent operation.
+
+---
+
+## Step 5: View Results
+
+### Check Operation Status
+
+```bash
+# View latest operation
+medusa agent status
+
+# Detailed view with costs
+medusa agent status --verbose
+```
+
+### Generate Reports
+
+```bash
+# Executive summary (for management)
+medusa agent report --type executive
+
+# Technical report (for security team)
+medusa agent report --type technical --format html
+
+# Remediation plan (for DevOps)
+medusa agent report --type remediation
+```
+
+---
+
+## Quick Command Reference
+
+### Multi-Agent Operations
+```bash
+medusa agent run <target>                    # Full assessment
+medusa agent run <target> --type recon_only  # Reconnaissance
+medusa agent run <target> --type vuln_scan   # Vulnerability scan
+medusa agent status                          # Check status
+medusa agent status --verbose                # With costs
+medusa agent report --type technical         # Generate report
+medusa llm verify                            # Test LLM connection
+```
+
+### Single-Agent Operations (Legacy)
+```bash
+medusa observe <target>                      # Read-only mode
+medusa autonomous <target>                   # AI-driven mode
+medusa shell                                 # Interactive shell
+```
+
+### Knowledge Base Management
+```bash
+python scripts/index_mitre_attack.py         # Index MITRE ATT&CK
+python scripts/index_tool_docs.py            # Index tool docs
+python scripts/index_cves.py                 # Index CVEs
+```
 
 ---
 

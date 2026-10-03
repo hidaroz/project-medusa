@@ -85,11 +85,22 @@ class NmapScanner(BaseTool):
         cmd = [
             "nmap",
             scan_type,
-            "-p", ports,
+        ]
+
+        # Handle ports argument
+        if ports:
+            if ports.startswith("-"):
+                # If ports starts with -, assume it's a flag (e.g. --top-ports)
+                cmd.extend(ports.split())
+            else:
+                # Otherwise assume it's a list of ports
+                cmd.extend(["-p", ports])
+
+        cmd.extend([
             "-oX", "-",  # XML output to stdout
             "--host-timeout", "300s",
             "--max-retries", "2",
-        ]
+        ])
 
         # Add additional arguments if provided
         if additional_args:
